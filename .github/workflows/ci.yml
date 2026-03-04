@@ -1,0 +1,36 @@
+name: Kazenagare CI
+
+# メインブランチへのPush、またはプルリクエスト作成時に自動実行される
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. リポジトリのコードを取得
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Node.js 環境のセットアップ
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Next.js 15+ に適したバージョン
+          cache: 'npm'
+
+      # 3. 依存関係のクリーンインストール（package-lock.json に厳密に従う）
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. コードの静的解析（エラーがないかチェック）
+      - name: Run Lint
+        run: npx eslint . --max-warnings=0
+
+      # 5. プロダクション用ビルドのテスト
+      - name: Run Build
+        run: npm run build
