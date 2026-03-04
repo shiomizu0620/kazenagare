@@ -29,7 +29,7 @@ jobs:
 
       # 4. コードの静的解析（エラーがないかチェック）
       - name: Run Lint
-        run: npm run lint
+        run: npx eslint . --max-warnings=0
 
       # 5. プロダクション用ビルドのテスト
       - name: Run Build
