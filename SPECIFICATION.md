@@ -10,20 +10,21 @@
 * **Language:** TypeScript
 * **Styling:** Tailwind CSS (Custom Japanese color palette configured)
 * **Audio Engine:** Tone.js (Web Audio API extension for analyzing volume/pitch and applying effects like reverb/pitch-shift)
-* **Visual Engine:** p5.js (via `react-p5` for generative Japanese art/animations)
+* **Visual Engine:** p5.js (Integrate native instance mode wrapped with `useRef` and `useEffect`, or use the maintained `@p5-wrapper/react`)
 * **Backend / BaaS:** Supabase (PostgreSQL, Auth, Storage for audio files)
 * **CI/CD:** GitHub Actions (Lint & Build checks)
 
 ## 3. Core Features
-1. **Audio Input & Analysis:**
+1. **Audio Input, Analysis & Recording:**
    * Capture user's microphone input using `Tone.UserMedia`.
    * Analyze real-time volume and frequency data.
+   * Record audio as a Blob using `Tone.Recorder` or the standard `MediaRecorder API` for uploading to Supabase Storage.
 2. **Voice Transformation & Object Interaction:**
    * **Shishi-odoshi (Deer scarer):** Voice is synthesized with the reverberation of bamboo hitting stone. Visually, voice volume accumulates water, triggering the bamboo animation.
    * **Furin (Wind chime):** Voice pitch is shifted up with a shimmer reverb. Visually, the wind chime sways, and the voice waveform appears on the paper slip.
 3. **Garden (My Space & Social Discovery):**
    * Users can select a background (e.g., Bamboo forest, Night pond) to create their "Garden".
-   * Save recorded transformed voices and background settings to Supabase.
+   * Save recorded transformed voices, placement coordinates, and background settings to Supabase.
    * **Dynamic Routing:** Visit other users' gardens via `/garden/[userId]`.
    * **Random Visit:** A button to randomly redirect to another user's garden.
 
@@ -46,7 +47,7 @@ src/
 5. Database Schema (Supabase)
 Table: user_profiles
 
-id (UUID, PK)
+id (UUID, PK, FK -> auth.users.id)
 
 username (String)
 
@@ -62,7 +63,11 @@ object_type (String - e.g., 'furin', 'shishi-odoshi')
 
 voice_url (String - Supabase Storage URL)
 
-parameters (JSONB - pitch, reverb settings, etc.)
+position_x (Float - X coordinate for rendering in the garden)
+
+position_y (Float - Y coordinate for rendering in the garden)
+
+parameters (JSONB - pitch, reverb settings, scale, etc.)
 
 created_at (Timestamp)
 
@@ -76,3 +81,5 @@ Prioritize Low Latency: For Tone.js and p5.js integrations, ensure real-time aud
 Aesthetic Consistency: Use the predefined custom Tailwind colors (e.g., bg-wa-white, text-wa-black) and maintain a minimalistic, traditional Japanese aesthetic.
 
 Client/Server Components: Ensure 'use client' is explicitly declared at the top of files using React hooks, Tone.js, or p5.js.
+
+Next/Dynamic: Components utilizing p5.js or Tone.js must be dynamically imported using next/dynamic with ssr: false from their parent components to prevent SSR hydration errors.
