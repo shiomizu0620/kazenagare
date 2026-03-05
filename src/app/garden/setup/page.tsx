@@ -1,4 +1,4 @@
-import { GardenSetupForm } from "@/components/garden/garden-setup-form";
+import { GardenSetupForm } from "@/components/garden/setup/garden-setup-form";
 import { PageShell } from "@/components/ui/page-shell";
 
 export default function GardenSetupPage() {
@@ -7,7 +7,7 @@ export default function GardenSetupPage() {
       title="庭の初期設定"
       subtitle="背景・季節・時間帯を選んでから庭に入ります"
     >
-      <GardenSetupForm nextPath="/test-ui" />
+      <GardenSetupForm nextPath="/garden/empty" />
     </PageShell>
   );
 }

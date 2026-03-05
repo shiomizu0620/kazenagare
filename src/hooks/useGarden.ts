@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { GARDEN_BACKGROUNDS } from "@/lib/garden/options";
+import { GARDEN_BACKGROUNDS } from "@/lib/garden/setup/options";
 import type { GardenBackground, GardenProfile } from "@/types/garden";
 
 const BACKGROUNDS: GardenBackground[] = GARDEN_BACKGROUNDS;
