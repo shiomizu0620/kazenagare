@@ -10,7 +10,7 @@ import {
   GARDEN_BACKGROUNDS,
   GARDEN_SEASONS,
   GARDEN_TIME_SLOTS,
-} from "@/lib/garden/options";
+} from "@/lib/garden/setup/options";
 import {
   clampVirtualPosition,
   type VirtualPosition,

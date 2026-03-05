@@ -8,7 +8,7 @@ import {
   GARDEN_TIME_SLOTS,
   type GardenOption,
   type GardenSetupSelection,
-} from "@/lib/garden/options";
+} from "@/lib/garden/setup/options";
 
 type GardenSetupFormProps = {
   nextPath?: string;
@@ -72,7 +72,7 @@ function OptionGroup({
 }
 
 export function GardenSetupForm({
-  nextPath = "/test-ui",
+  nextPath = "/garden/empty",
   submitLabel = "この設定で次へ進む",
   onSubmit,
 }: GardenSetupFormProps) {
