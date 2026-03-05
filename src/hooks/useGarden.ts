@@ -1,13 +1,10 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { GARDEN_BACKGROUNDS } from "@/lib/garden/options";
 import type { GardenBackground, GardenProfile } from "@/types/garden";
 
-const BACKGROUNDS: GardenBackground[] = [
-  { id: "bamboo-forest", name: "竹林" },
-  { id: "night-pond", name: "夜の池" },
-  { id: "misty-temple", name: "霧の寺" },
-];
+const BACKGROUNDS: GardenBackground[] = GARDEN_BACKGROUNDS;
 
 const RANDOM_USER_IDS = ["akari", "ren", "sora", "yui"];
 
