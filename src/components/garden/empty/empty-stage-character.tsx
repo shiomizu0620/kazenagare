@@ -1,7 +1,7 @@
 "use client";
 
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type EmptyStageCharacterProps = {
   children?: ReactNode;
@@ -21,6 +21,7 @@ const BRAKE_RESPONSE = 14;
 const JOYSTICK_DEAD_ZONE = 0.12;
 const STICK_KNOB_SIZE = 36;
 const MAX_DELTA_SECONDS = 0.1;
+const WALK_ANIMATION_SPEED_THRESHOLD = 10;
 const MOVEMENT_KEYS = [
   "w",
   "a",
@@ -97,10 +98,12 @@ function getInputAxis(keys: Set<string>) {
 }
 
 export function EmptyStageCharacter({ children, darkMode = false }: EmptyStageCharacterProps) {
+  const [isWalking, setIsWalking] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<HTMLDivElement | null>(null);
   const stickPadRef = useRef<HTMLDivElement | null>(null);
   const stickKnobRef = useRef<HTMLDivElement | null>(null);
+  const walkingRef = useRef(false);
   const stickPointerIdRef = useRef<number | null>(null);
   const stageSizeRef = useRef<Vector2>({ x: 0, y: 0 });
   const cameraOffsetRef = useRef<Vector2>({ x: 0, y: 0 });
@@ -223,14 +226,32 @@ export function EmptyStageCharacter({ children, darkMode = false }: EmptyStageCh
     [clearJoystickInput],
   );
 
+  const syncCharacterAnimationState = useCallback((velocity: Vector2) => {
+    const speed = Math.hypot(velocity.x, velocity.y);
+    const nextIsWalking = speed > WALK_ANIMATION_SPEED_THRESHOLD;
+
+    if (walkingRef.current !== nextIsWalking) {
+      walkingRef.current = nextIsWalking;
+      setIsWalking(nextIsWalking);
+    }
+  }, []);
+
+  const resetCharacterAnimationState = useCallback(() => {
+    walkingRef.current = false;
+    if (isWalking) {
+      setIsWalking(false);
+    }
+  }, [isWalking]);
+
   const resetToStart = useCallback(() => {
     activeKeysRef.current.clear();
     clearJoystickInput();
     velocityRef.current = { x: 0, y: 0 };
     cameraOffsetRef.current = { x: 0, y: 0 };
     previousTimestampRef.current = 0;
+    resetCharacterAnimationState();
     applyWorldTransform();
-  }, [applyWorldTransform, clearJoystickInput]);
+  }, [applyWorldTransform, clearJoystickInput, resetCharacterAnimationState]);
 
   useEffect(() => {
     initializeStage();
@@ -271,6 +292,7 @@ export function EmptyStageCharacter({ children, darkMode = false }: EmptyStageCh
       activeKeysRef.current.clear();
       clearJoystickInput();
       velocityRef.current = { x: 0, y: 0 };
+      resetCharacterAnimationState();
     };
 
     window.addEventListener("keydown", handleKeyDown, { passive: false });
@@ -282,7 +304,7 @@ export function EmptyStageCharacter({ children, darkMode = false }: EmptyStageCh
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleWindowBlur);
     };
-  }, [clearJoystickInput]);
+  }, [clearJoystickInput, resetCharacterAnimationState]);
 
   useEffect(() => {
     const animate = (timestamp: number) => {
@@ -320,6 +342,8 @@ export function EmptyStageCharacter({ children, darkMode = false }: EmptyStageCh
         velocityRef.current.y = 0;
       }
 
+      syncCharacterAnimationState(velocityRef.current);
+
       if (velocityRef.current.x !== 0 || velocityRef.current.y !== 0) {
         cameraOffsetRef.current = clampCameraBounds({
           x: cameraOffsetRef.current.x + velocityRef.current.x * deltaSeconds,
@@ -336,9 +360,9 @@ export function EmptyStageCharacter({ children, darkMode = false }: EmptyStageCh
     return () => {
       window.cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [applyWorldTransform, clampCameraBounds]);
+  }, [applyWorldTransform, clampCameraBounds, syncCharacterAnimationState]);
 
-  const resetButtonClass = `rounded-md border px-3 py-2 text-xs font-semibold transition-all active:scale-95 ${
+  const resetButtonClass = `rounded-md border px-3 py-2 text-xs font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
     darkMode
       ? "border-wa-white/40 bg-wa-white/10 text-wa-white hover:bg-wa-white/20"
       : "border-wa-black/20 bg-wa-white/90 text-wa-black hover:bg-wa-red/10"
@@ -369,7 +393,13 @@ export function EmptyStageCharacter({ children, darkMode = false }: EmptyStageCh
         </div>
 
         <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="grid justify-items-center gap-1">
+          <div
+            className={`grid justify-items-center gap-1 ${
+              isWalking
+                ? "animate-[kazenagare-walk-bob_0.36s_ease-in-out_infinite]"//ここで上下の揺れる速度
+                : ""
+            }`}
+          >
             <div
               className={`h-7 w-7 rounded-full border-2 ${
                 darkMode
