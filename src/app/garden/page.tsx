@@ -11,17 +11,17 @@ export default function GardenIndexPage() {
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <Link
-          href="/garden/me/qr"
-          className="rounded-md border border-wa-black px-4 py-3 text-sm"
+          href="/garden/me"
+          className="rounded-md border border-wa-black px-4 py-3 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
         >
-          自分の庭（QR表示）へ
+          自分の庭へ
         </Link>
 
         {SAMPLE_USER_IDS.map((userId) => (
           <Link
             key={userId}
             href={`/garden/${userId}`}
-            className="rounded-md border border-wa-black px-4 py-3 text-sm"
+            className="rounded-md border border-wa-black px-4 py-3 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
           >
             {userId} の庭へ
           </Link>

@@ -1,5 +1,8 @@
-import Link from "next/link";
 import { GardenEmptyStage } from "@/components/garden/empty/garden-empty-stage";
+import {
+  GardenOptionsMenu,
+  type GardenOptionAction,
+} from "@/components/garden/garden-options-menu";
 import {
   GARDEN_BACKGROUNDS,
   GARDEN_SEASONS,
@@ -46,46 +49,57 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
   const selectedTimeSlot =
     GARDEN_TIME_SLOTS.find((option) => option.id === selectedTimeSlotId) ??
     GARDEN_TIME_SLOTS[0];
+  const isNightPond = selectedBackground.id === "night-pond";
+
+  const optionActions: GardenOptionAction[] = [
+    {
+      href: "/garden/setup",
+      label: "設定を変更する",
+      description: "背景・季節・時間帯を選び直す",
+    },
+    {
+      href: "/garden/me/qr",
+      label: "この庭のQRを表示する",
+      description: "スマホ共有用のQRコードを開く",
+    },
+    {
+      href: "/garden",
+      label: "庭一覧へ",
+      description: "他の人の庭を見に行く",
+    },
+    {
+      href: "/test-ui",
+      label: "開発プレイグラウンドへ",
+      description: "UIテストページを開く",
+    },
+  ];
 
   return (
-    <main className="min-h-screen bg-wa-white text-wa-black font-serif">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-bold">あなたの庭（初期状態）</h1>
-          <p className="text-sm">
-            設定を反映した、まだ何も配置していない日本風の庭です。
-          </p>
-        </header>
+    <main className="relative h-[100dvh] overflow-hidden bg-wa-white text-wa-black font-serif">
+      <GardenEmptyStage
+        backgroundId={selectedBackground.id}
+        backgroundName={selectedBackground.name}
+        seasonId={selectedSeason.id}
+        seasonName={selectedSeason.name}
+        timeSlotId={selectedTimeSlot.id}
+        timeSlotName={selectedTimeSlot.name}
+        fullscreen
+      />
 
-        <GardenEmptyStage
-          backgroundId={selectedBackground.id}
-          backgroundName={selectedBackground.name}
-          seasonId={selectedSeason.id}
-          seasonName={selectedSeason.name}
-          timeSlotId={selectedTimeSlot.id}
-          timeSlotName={selectedTimeSlot.name}
-        />
+      <GardenOptionsMenu
+        actions={optionActions}
+        title="自分の庭オプション"
+        darkMode={isNightPond}
+      />
 
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/garden/setup"
-            className="rounded-md border border-wa-black px-4 py-2 text-sm"
-          >
-            設定を変更する
-          </Link>
-          <Link
-            href="/garden/me/qr"
-            className="rounded-md border border-wa-black px-4 py-2 text-sm"
-          >
-            この庭のQRを表示する
-          </Link>
-          <Link
-            href="/test-ui"
-            className="rounded-md border border-wa-black px-4 py-2 text-sm"
-          >
-            開発プレイグラウンドへ
-          </Link>
-        </div>
+      <div
+        className={`pointer-events-none absolute bottom-5 left-1/2 z-40 w-[min(92vw,38rem)] -translate-x-1/2 rounded-full border px-4 py-2 text-center text-xs backdrop-blur-sm ${
+          isNightPond
+            ? "border-wa-white/30 bg-wa-black/45 text-wa-white"
+            : "border-wa-black/20 bg-wa-white/75 text-wa-black"
+        }`}
+      >
+        設定変更やQR表示は、右上のオプションから開けます。
       </div>
     </main>
   );

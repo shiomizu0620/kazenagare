@@ -17,6 +17,7 @@ type GardenEmptyStageProps = {
   seasonName: string;
   timeSlotId: string;
   timeSlotName: string;
+  fullscreen?: boolean;
 };
 
 export function GardenEmptyStage({
@@ -26,16 +27,18 @@ export function GardenEmptyStage({
   seasonName,
   timeSlotId,
   timeSlotName,
+  fullscreen = false,
 }: GardenEmptyStageProps) {
   const theme = getBackgroundTheme(backgroundId);
   const seasonOverlayClass = getSeasonOverlayClass(seasonId);
   const timeOverlayClass = getTimeOverlayClass(timeSlotId);
   const isNightPond = backgroundId === "night-pond";
+  const stageContainerClass = fullscreen
+    ? `relative h-[100dvh] w-full overflow-hidden ${theme.stageClass}`
+    : `relative h-[78dvh] min-h-[520px] w-full overflow-hidden rounded-3xl border ${theme.stageClass}`;
 
   return (
-    <section
-      className={`relative h-[78dvh] min-h-[520px] w-full overflow-hidden rounded-3xl border ${theme.stageClass}`}
-    >
+    <section className={stageContainerClass}>
       <EmptyStageCharacter darkMode={isNightPond}>
         <EmptyStageDecoration backgroundId={backgroundId} />
         <div className={`absolute inset-0 ${seasonOverlayClass}`} />
