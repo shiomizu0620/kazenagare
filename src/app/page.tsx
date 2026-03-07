@@ -55,6 +55,13 @@ export default function Home() {
           </button>
 
           <Link
+            href={`/garden/${profile.userId}/qr`}
+            className="rounded-md border border-gray-400 px-4 py-2 text-sm flex items-center"
+          >
+            自分の庭を表示（QR共有）
+          </Link>
+
+          <Link
             href={randomGardenPath}
             onClick={visitAnotherGarden}
             className="rounded-md border border-gray-400 px-4 py-2 text-sm flex items-center"
