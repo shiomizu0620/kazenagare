@@ -1,24 +1,26 @@
 "use client";
 
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useCallback, useEffect, useRef } from "react";
 
 type EmptyStageCharacterProps = {
+  children?: ReactNode;
   darkMode?: boolean;
 };
-
-type Direction = "up" | "down" | "left" | "right";
 
 type Vector2 = {
   x: number;
   y: number;
 };
 
-const CHARACTER_WIDTH = 32;
-const CHARACTER_HEIGHT = 64;
-const NUDGE_STEP = 28;
-const MAX_SPEED = 320;
-const ACCEL_RESPONSE = 14;
-const BRAKE_RESPONSE = 10;
+export const WORLD_WIDTH = 3840;
+export const WORLD_HEIGHT = 2160;
+const MOVE_MAX_SPEED = 400;
+const ACCEL_RESPONSE = 22;
+const BRAKE_RESPONSE = 14;
+const JOYSTICK_DEAD_ZONE = 0.12;
+const STICK_KNOB_SIZE = 36;
+const MAX_DELTA_SECONDS = 0.1;
 const MOVEMENT_KEYS = [
   "w",
   "a",
@@ -34,39 +36,51 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function getInputAxis(activeDirections: Set<Direction>, keys: Set<string>) {
+function toUnitDirection(vector: Vector2, deadZone = 0): Vector2 {
+  const magnitude = Math.hypot(vector.x, vector.y);
+
+  if (magnitude <= deadZone) {
+    return { x: 0, y: 0 };
+  }
+
+  return {
+    x: vector.x / magnitude,
+    y: vector.y / magnitude,
+  };
+}
+
+function limitVectorMagnitude(vector: Vector2, maxMagnitude: number): Vector2 {
+  const magnitude = Math.hypot(vector.x, vector.y);
+
+  if (magnitude === 0 || magnitude <= maxMagnitude) {
+    return vector;
+  }
+
+  const ratio = maxMagnitude / magnitude;
+
+  return {
+    x: vector.x * ratio,
+    y: vector.y * ratio,
+  };
+}
+
+function getInputAxis(keys: Set<string>) {
   let horizontal = 0;
   let vertical = 0;
 
-  if (
-    activeDirections.has("left") ||
-    keys.has("a") ||
-    keys.has("arrowleft")
-  ) {
+  if (keys.has("a") || keys.has("arrowleft")) {
     horizontal -= 1;
   }
 
-  if (
-    activeDirections.has("right") ||
-    keys.has("d") ||
-    keys.has("arrowright")
-  ) {
+  if (keys.has("d") || keys.has("arrowright")) {
     horizontal += 1;
   }
 
-  if (
-    activeDirections.has("up") ||
-    keys.has("w") ||
-    keys.has("arrowup")
-  ) {
+  if (keys.has("w") || keys.has("arrowup")) {
     vertical -= 1;
   }
 
-  if (
-    activeDirections.has("down") ||
-    keys.has("s") ||
-    keys.has("arrowdown")
-  ) {
+  if (keys.has("s") || keys.has("arrowdown")) {
     vertical += 1;
   }
 
@@ -82,37 +96,42 @@ function getInputAxis(activeDirections: Set<Direction>, keys: Set<string>) {
   };
 }
 
-export function EmptyStageCharacter({ darkMode = false }: EmptyStageCharacterProps) {
+export function EmptyStageCharacter({ children, darkMode = false }: EmptyStageCharacterProps) {
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const characterRef = useRef<HTMLDivElement | null>(null);
-  const initializedRef = useRef(false);
+  const worldRef = useRef<HTMLDivElement | null>(null);
+  const stickPadRef = useRef<HTMLDivElement | null>(null);
+  const stickKnobRef = useRef<HTMLDivElement | null>(null);
+  const stickPointerIdRef = useRef<number | null>(null);
   const stageSizeRef = useRef<Vector2>({ x: 0, y: 0 });
-  const positionRef = useRef<Vector2>({ x: 0, y: 0 });
+  const cameraOffsetRef = useRef<Vector2>({ x: 0, y: 0 });
   const velocityRef = useRef<Vector2>({ x: 0, y: 0 });
   const previousTimestampRef = useRef(0);
   const animationFrameRef = useRef(0);
   const activeKeysRef = useRef<Set<string>>(new Set());
-  const activeDirectionsRef = useRef<Set<Direction>>(new Set());
+  const joystickVectorRef = useRef<Vector2>({ x: 0, y: 0 });
 
-  const applyCharacterTransform = useCallback(() => {
-    if (!characterRef.current) {
+  const applyWorldTransform = useCallback(() => {
+    if (!worldRef.current) {
       return;
     }
 
-    characterRef.current.style.transform = `translate3d(${positionRef.current.x}px, ${positionRef.current.y}px, 0)`;
+    const worldLeft = stageSizeRef.current.x * 0.5 - WORLD_WIDTH * 0.5;
+    const worldTop = stageSizeRef.current.y * 0.5 - WORLD_HEIGHT * 0.5;
+
+    worldRef.current.style.transform = `translate3d(${worldLeft - cameraOffsetRef.current.x}px, ${worldTop - cameraOffsetRef.current.y}px, 0)`;
   }, []);
 
-  const clampToStageBounds = useCallback((nextPosition: Vector2) => {
-    const maxX = Math.max(0, stageSizeRef.current.x - CHARACTER_WIDTH);
-    const maxY = Math.max(0, stageSizeRef.current.y - CHARACTER_HEIGHT);
+  const clampCameraBounds = useCallback((nextOffset: Vector2) => {
+    const maxX = Math.max(0, WORLD_WIDTH * 0.5 - stageSizeRef.current.x * 0.5);
+    const maxY = Math.max(0, WORLD_HEIGHT * 0.5 - stageSizeRef.current.y * 0.5);
 
     return {
-      x: clamp(nextPosition.x, 0, maxX),
-      y: clamp(nextPosition.y, 0, maxY),
+      x: clamp(nextOffset.x, -maxX, maxX),
+      y: clamp(nextOffset.y, -maxY, maxY),
     };
   }, []);
 
-  const initializeCharacter = useCallback(() => {
+  const initializeStage = useCallback(() => {
     if (!stageRef.current) {
       return;
     }
@@ -123,56 +142,101 @@ export function EmptyStageCharacter({ darkMode = false }: EmptyStageCharacterPro
       y: rect.height,
     };
 
-    if (!initializedRef.current) {
-      positionRef.current = {
-        x: rect.width * 0.5 - CHARACTER_WIDTH * 0.5,
-        y: rect.height * 0.62 - CHARACTER_HEIGHT * 0.5,
-      };
-      positionRef.current = clampToStageBounds(positionRef.current);
-      initializedRef.current = true;
-      applyCharacterTransform();
+    cameraOffsetRef.current = clampCameraBounds(cameraOffsetRef.current);
+    applyWorldTransform();
+  }, [applyWorldTransform, clampCameraBounds]);
+
+  const clearJoystickInput = useCallback(() => {
+    stickPointerIdRef.current = null;
+    joystickVectorRef.current = { x: 0, y: 0 };
+
+    if (stickKnobRef.current) {
+      stickKnobRef.current.style.transform = "translate3d(0, 0, 0)";
+    }
+  }, []);
+
+  const updateStickVectorFromPoint = useCallback((clientX: number, clientY: number) => {
+    if (!stickPadRef.current) {
       return;
     }
 
-    positionRef.current = clampToStageBounds(positionRef.current);
-    applyCharacterTransform();
-  }, [applyCharacterTransform, clampToStageBounds]);
+    const rect = stickPadRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width * 0.5;
+    const centerY = rect.top + rect.height * 0.5;
+    const radius = Math.max(1, rect.width * 0.5 - STICK_KNOB_SIZE * 0.5);
+    const rawX = clientX - centerX;
+    const rawY = clientY - centerY;
+    const magnitude = Math.hypot(rawX, rawY);
+    const ratio = magnitude > radius ? radius / magnitude : 1;
+    const limitedX = rawX * ratio;
+    const limitedY = rawY * ratio;
 
-  const nudgeCharacter = useCallback(
-    (nextDirection: Direction) => {
-      if (nextDirection === "up") {
-        positionRef.current.y -= NUDGE_STEP;
-      } else if (nextDirection === "down") {
-        positionRef.current.y += NUDGE_STEP;
-      } else if (nextDirection === "left") {
-        positionRef.current.x -= NUDGE_STEP;
-      } else {
-        positionRef.current.x += NUDGE_STEP;
-      }
+    if (stickKnobRef.current) {
+      stickKnobRef.current.style.transform = `translate3d(${limitedX}px, ${limitedY}px, 0)`;
+    }
 
-      positionRef.current = clampToStageBounds(positionRef.current);
-      applyCharacterTransform();
-    },
-    [applyCharacterTransform, clampToStageBounds],
-  );
+    joystickVectorRef.current = toUnitDirection(
+      {
+        x: clamp(limitedX / radius, -1, 1),
+        y: clamp(limitedY / radius, -1, 1),
+      },
+      JOYSTICK_DEAD_ZONE,
+    );
+  }, []);
 
-  const setDirectionPressed = useCallback(
-    (direction: Direction, pressed: boolean) => {
-      if (pressed) {
-        activeDirectionsRef.current.add(direction);
+  const handleStickPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "touch" && event.pointerType !== "pen") {
         return;
       }
 
-      activeDirectionsRef.current.delete(direction);
+      stickPointerIdRef.current = event.pointerId;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      updateStickVectorFromPoint(event.clientX, event.clientY);
     },
-    [],
+    [updateStickVectorFromPoint],
   );
 
+  const handleStickPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (stickPointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      updateStickVectorFromPoint(event.clientX, event.clientY);
+    },
+    [updateStickVectorFromPoint],
+  );
+
+  const handleStickPointerEnd = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (stickPointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      clearJoystickInput();
+
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    },
+    [clearJoystickInput],
+  );
+
+  const resetToStart = useCallback(() => {
+    activeKeysRef.current.clear();
+    clearJoystickInput();
+    velocityRef.current = { x: 0, y: 0 };
+    cameraOffsetRef.current = { x: 0, y: 0 };
+    previousTimestampRef.current = 0;
+    applyWorldTransform();
+  }, [applyWorldTransform, clearJoystickInput]);
+
   useEffect(() => {
-    initializeCharacter();
+    initializeStage();
 
     const observer = new ResizeObserver(() => {
-      initializeCharacter();
+      initializeStage();
     });
 
     if (stageRef.current) {
@@ -182,7 +246,7 @@ export function EmptyStageCharacter({ darkMode = false }: EmptyStageCharacterPro
     return () => {
       observer.disconnect();
     };
-  }, [initializeCharacter]);
+  }, [initializeStage]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -205,7 +269,7 @@ export function EmptyStageCharacter({ darkMode = false }: EmptyStageCharacterPro
 
     const handleWindowBlur = () => {
       activeKeysRef.current.clear();
-      activeDirectionsRef.current.clear();
+      clearJoystickInput();
       velocityRef.current = { x: 0, y: 0 };
     };
 
@@ -218,22 +282,30 @@ export function EmptyStageCharacter({ darkMode = false }: EmptyStageCharacterPro
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleWindowBlur);
     };
-  }, []);
+  }, [clearJoystickInput]);
 
   useEffect(() => {
     const animate = (timestamp: number) => {
       const deltaSeconds =
         previousTimestampRef.current === 0
           ? 0
-          : Math.min(0.05, (timestamp - previousTimestampRef.current) / 1000);
+          : Math.min(MAX_DELTA_SECONDS, (timestamp - previousTimestampRef.current) / 1000);
       previousTimestampRef.current = timestamp;
 
-      const inputAxis = getInputAxis(activeDirectionsRef.current, activeKeysRef.current);
-      const hasInput = inputAxis.x !== 0 || inputAxis.y !== 0;
+      const inputAxis = getInputAxis(activeKeysRef.current);
+      const joystickAxis = joystickVectorRef.current;
+      const combinedTargetVelocity = limitVectorMagnitude(
+        {
+          x: inputAxis.x * MOVE_MAX_SPEED + joystickAxis.x * MOVE_MAX_SPEED,
+          y: inputAxis.y * MOVE_MAX_SPEED + joystickAxis.y * MOVE_MAX_SPEED,
+        },
+        MOVE_MAX_SPEED,
+      );
+      const hasInput = combinedTargetVelocity.x !== 0 || combinedTargetVelocity.y !== 0;
       const response = hasInput ? ACCEL_RESPONSE : BRAKE_RESPONSE;
 
-      const targetVelocityX = inputAxis.x * MAX_SPEED;
-      const targetVelocityY = inputAxis.y * MAX_SPEED;
+      const targetVelocityX = combinedTargetVelocity.x;
+      const targetVelocityY = combinedTargetVelocity.y;
 
       velocityRef.current.x +=
         (targetVelocityX - velocityRef.current.x) * Math.min(1, response * deltaSeconds);
@@ -249,11 +321,11 @@ export function EmptyStageCharacter({ darkMode = false }: EmptyStageCharacterPro
       }
 
       if (velocityRef.current.x !== 0 || velocityRef.current.y !== 0) {
-        positionRef.current = clampToStageBounds({
-          x: positionRef.current.x + velocityRef.current.x * deltaSeconds,
-          y: positionRef.current.y + velocityRef.current.y * deltaSeconds,
+        cameraOffsetRef.current = clampCameraBounds({
+          x: cameraOffsetRef.current.x + velocityRef.current.x * deltaSeconds,
+          y: cameraOffsetRef.current.y + velocityRef.current.y * deltaSeconds,
         });
-        applyCharacterTransform();
+        applyWorldTransform();
       }
 
       animationFrameRef.current = window.requestAnimationFrame(animate);
@@ -264,18 +336,39 @@ export function EmptyStageCharacter({ darkMode = false }: EmptyStageCharacterPro
     return () => {
       window.cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [applyCharacterTransform, clampToStageBounds]);
+  }, [applyWorldTransform, clampCameraBounds]);
 
-  const controlButtonClass = `grid h-8 w-8 place-items-center rounded-md border text-sm font-semibold transition-all active:scale-95 ${
+  const resetButtonClass = `rounded-md border px-3 py-2 text-xs font-semibold transition-all active:scale-95 ${
     darkMode
       ? "border-wa-white/40 bg-wa-white/10 text-wa-white hover:bg-wa-white/20"
       : "border-wa-black/20 bg-wa-white/90 text-wa-black hover:bg-wa-red/10"
   }`;
 
+  const helperTextClass = `text-[10px] ${darkMode ? "text-wa-white/80" : "text-wa-black/70"}`;
+
+  const resetPanelClass = `absolute bottom-5 left-5 z-30 grid gap-2 rounded-xl border p-2 backdrop-blur-sm ${
+    darkMode
+      ? "border-wa-white/30 bg-wa-black/40"
+      : "border-wa-black/20 bg-wa-white/70"
+  }`;
+
+  const mobileStickPanelClass = `absolute bottom-5 right-5 z-40 rounded-2xl border p-2 backdrop-blur-sm sm:hidden ${
+    darkMode
+      ? "border-wa-white/30 bg-wa-black/40"
+      : "border-wa-black/20 bg-wa-white/70"
+  }`;
+
   return (
     <>
-      <div ref={stageRef} className="pointer-events-none absolute inset-0 z-20">
-        <div ref={characterRef} className="absolute left-0 top-0 will-change-transform">
+      <div ref={stageRef} className="absolute inset-0 z-20 overflow-hidden">
+        <div
+          ref={worldRef}
+          className="pointer-events-none absolute left-0 top-0 h-[2160px] w-[3840px] will-change-transform"
+        >
+          {children}
+        </div>
+
+        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <div className="grid justify-items-center gap-1">
             <div
               className={`h-7 w-7 rounded-full border-2 ${
@@ -289,62 +382,48 @@ export function EmptyStageCharacter({ darkMode = false }: EmptyStageCharacterPro
         </div>
       </div>
 
-      <div className="absolute bottom-5 left-5 z-30 grid gap-1 rounded-xl border border-wa-black/20 bg-wa-white/70 p-2 backdrop-blur-sm">
-        <div className="grid grid-cols-3 gap-1">
-          <div />
-          <button
-            type="button"
-            aria-label="上へ移動"
-            onClick={() => nudgeCharacter("up")}
-            onPointerDown={() => setDirectionPressed("up", true)}
-            onPointerUp={() => setDirectionPressed("up", false)}
-            onPointerLeave={() => setDirectionPressed("up", false)}
-            onPointerCancel={() => setDirectionPressed("up", false)}
-            className={controlButtonClass}
-          >
-            ▲
-          </button>
-          <div />
-          <button
-            type="button"
-            aria-label="左へ移動"
-            onClick={() => nudgeCharacter("left")}
-            onPointerDown={() => setDirectionPressed("left", true)}
-            onPointerUp={() => setDirectionPressed("left", false)}
-            onPointerLeave={() => setDirectionPressed("left", false)}
-            onPointerCancel={() => setDirectionPressed("left", false)}
-            className={controlButtonClass}
-          >
-            ◀
-          </button>
-          <button
-            type="button"
-            aria-label="下へ移動"
-            onClick={() => nudgeCharacter("down")}
-            onPointerDown={() => setDirectionPressed("down", true)}
-            onPointerUp={() => setDirectionPressed("down", false)}
-            onPointerLeave={() => setDirectionPressed("down", false)}
-            onPointerCancel={() => setDirectionPressed("down", false)}
-            className={controlButtonClass}
-          >
-            ▼
-          </button>
-          <button
-            type="button"
-            aria-label="右へ移動"
-            onClick={() => nudgeCharacter("right")}
-            onPointerDown={() => setDirectionPressed("right", true)}
-            onPointerUp={() => setDirectionPressed("right", false)}
-            onPointerLeave={() => setDirectionPressed("right", false)}
-            onPointerCancel={() => setDirectionPressed("right", false)}
-            className={controlButtonClass}
-          >
-            ▶
-          </button>
-        </div>
-        <p className={`px-1 text-[10px] ${darkMode ? "text-wa-white/80" : "text-wa-black/70"}`}>
-          WASD / 矢印キーでも移動
+      <div className={resetPanelClass}>
+        <button
+          type="button"
+          onClick={resetToStart}
+          className={resetButtonClass}
+        >
+          開始地点に戻る
+        </button>
+        <p className={helperTextClass}>
+          PC: WASD / 矢印キー ・ スマホ: スティック
         </p>
+      </div>
+
+      <div className={mobileStickPanelClass}>
+        <div
+          ref={stickPadRef}
+          className={`relative grid h-[108px] w-[108px] place-items-center rounded-full border touch-none select-none ${
+            darkMode
+              ? "border-wa-white/40 bg-wa-white/10"
+              : "border-wa-black/20 bg-wa-white/80"
+          }`}
+          onPointerDown={handleStickPointerDown}
+          onPointerMove={handleStickPointerMove}
+          onPointerUp={handleStickPointerEnd}
+          onPointerCancel={handleStickPointerEnd}
+        >
+          <div
+            className={`pointer-events-none absolute inset-2 rounded-full border ${
+              darkMode ? "border-wa-white/25" : "border-wa-black/10"
+            }`}
+          />
+          <div className="pointer-events-none absolute inset-0 grid place-items-center">
+            <div
+              ref={stickKnobRef}
+              className={`h-9 w-9 rounded-full border will-change-transform ${
+                darkMode
+                  ? "border-wa-white/70 bg-wa-white/70"
+                  : "border-wa-black/25 bg-wa-black/30"
+              }`}
+            />
+          </div>
+        </div>
       </div>
     </>
   );
