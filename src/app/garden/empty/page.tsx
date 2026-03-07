@@ -74,6 +74,12 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
             設定を変更する
           </Link>
           <Link
+            href="/garden/me/qr"
+            className="rounded-md border border-wa-black px-4 py-2 text-sm"
+          >
+            この庭のQRを表示する
+          </Link>
+          <Link
             href="/test-ui"
             className="rounded-md border border-wa-black px-4 py-2 text-sm"
           >
