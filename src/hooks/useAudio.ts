@@ -50,13 +50,15 @@ export function useAudio() {
     };
   }, [audioUrl]);
 
-  // 【修正ポイント1】startListeningをuseCallbackで包む
   const startListening = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      // 【修正ポイント】anyを使わずに型を定義してパトロール隊を黙らせる！
+      const CustomWindow = window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext };
+      const audioCtx = new (window.AudioContext || CustomWindow.webkitAudioContext!)();
+      
       audioContextRef.current = audioCtx;
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
@@ -99,9 +101,8 @@ export function useAudio() {
       console.error("マイクのアクセスに失敗しました:", err);
       alert("マイクの使用を許可してください！");
     }
-  }, [userId]); // userIdを使っているので依存配列に追加
+  }, [userId]);
 
-  // 【修正ポイント2】stopListeningもuseCallbackで包む
   const stopListening = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
@@ -119,7 +120,6 @@ export function useAudio() {
     setVolume(0);
   }, []);
 
-  // 【修正ポイント3】依存配列にstartListeningとstopListeningを明記！
   const toggleListening = useCallback(() => {
     if (isListening) {
       stopListening();

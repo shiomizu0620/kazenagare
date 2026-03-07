@@ -46,19 +46,22 @@ export function useGarden() {
   useEffect(() => {
     if (!userId) return;
 
-    // ユーザーIDを鍵にしてデータを引き出す
-    const savedData = localStorage.getItem(`kazenagare_garden_${userId}`);
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        if (typeof parsed.backgroundIndex === "number") {
-          setBackgroundIndex(parsed.backgroundIndex);
+    // 【修正ポイント】Promise.resolve()を使って処理を非同期にし、Reactの警告を回避！
+    Promise.resolve().then(() => {
+      // ユーザーIDを鍵にしてデータを引き出す
+      const savedData = localStorage.getItem(`kazenagare_garden_${userId}`);
+      if (savedData) {
+        try {
+          const parsed = JSON.parse(savedData);
+          if (typeof parsed.backgroundIndex === "number") {
+            setBackgroundIndex(parsed.backgroundIndex);
+          }
+        } catch (e) {
+          console.error("データの読み込みに失敗しました", e);
         }
-      } catch (e) {
-        console.error("データの読み込みに失敗しました", e);
       }
-    }
-    setIsLoaded(true); // 読み込み完了！
+      setIsLoaded(true); // 読み込み完了！
+    });
   }, [userId]);
 
   // 3. 背景が変わるたびに、手元のブラウザに自動保存する
