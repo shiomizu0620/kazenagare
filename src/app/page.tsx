@@ -68,6 +68,13 @@ export default function Home() {
           >
             ランダムな庭へ
           </Link>
+
+          <Link
+            href="/voice-zoo"
+            className="rounded-md border border-gray-400 px-4 py-2 text-sm flex items-center"
+          >
+            オブジェクトを置く
+          </Link>
         </div>
       </div>
     </PageShell>

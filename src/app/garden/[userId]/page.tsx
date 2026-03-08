@@ -11,21 +11,50 @@ import {
   GARDEN_SEASONS,
   GARDEN_TIME_SLOTS,
 } from "@/lib/garden/setup/options";
+import type { ObjectType } from "@/types/garden";
+
+type QueryValue = string | string[] | undefined;
 
 type GardenUserPageProps = {
   params: Promise<{
     userId: string;
   }>;
+  searchParams: Promise<{
+    place?: QueryValue;
+  }>;
 };
 
-export default async function GardenUserPage({ params }: GardenUserPageProps) {
+function normalizeQueryValue(value: QueryValue, fallback: string) {
+  if (Array.isArray(value)) {
+    return value[0] ?? fallback;
+  }
+
+  return value ?? fallback;
+}
+
+function parsePlacementObjectType(value: QueryValue): ObjectType | null {
+  const normalizedValue = normalizeQueryValue(value, "");
+
+  if (normalizedValue === "furin" || normalizedValue === "shishi-odoshi") {
+    return normalizedValue;
+  }
+
+  return null;
+}
+
+export default async function GardenUserPage({
+  params,
+  searchParams,
+}: GardenUserPageProps) {
   const { userId } = await params;
+  const query = await searchParams;
   const isMe = userId === "me";
   const qrHref = `/garden/${encodeURIComponent(userId)}/qr`;
 
   const background = GARDEN_BACKGROUNDS[0];
   const season = GARDEN_SEASONS[0];
   const timeSlot = GARDEN_TIME_SLOTS[0];
+  const selectedPlacementObjectType = parsePlacementObjectType(query.place);
   const isNightPond = background.id === "night-pond";
 
   if (isMe) {
@@ -50,6 +79,11 @@ export default async function GardenUserPage({ params }: GardenUserPageProps) {
         label: "開発プレイグラウンドへ",
         description: "UIテストページを開く",
       },
+      {
+        href: "/voice-zoo",
+        label: "オブジェクトを置く",
+        description: "風鈴や鹿威しから置くものを選ぶ",
+      },
     ];
 
     return (
@@ -62,6 +96,9 @@ export default async function GardenUserPage({ params }: GardenUserPageProps) {
           timeSlotId={timeSlot.id}
           timeSlotName={timeSlot.name}
           fullscreen
+          allowObjectPlacement
+          placementObjectType={selectedPlacementObjectType}
+          objectStorageKey="kazenagare_objects_me"
         />
 
         <GardenOptionsMenu
@@ -87,6 +124,12 @@ export default async function GardenUserPage({ params }: GardenUserPageProps) {
           className="rounded-md border border-wa-black px-3 py-2 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
         >
           この庭のQRを表示する
+        </Link>
+        <Link
+          href="/voice-zoo"
+          className="rounded-md border border-wa-black px-3 py-2 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
+        >
+          オブジェクトを置く
         </Link>
       </div>
       <div className="grid gap-4">

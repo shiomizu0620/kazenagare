@@ -8,6 +8,7 @@ import {
   GARDEN_SEASONS,
   GARDEN_TIME_SLOTS,
 } from "@/lib/garden/setup/options";
+import type { ObjectType } from "@/types/garden";
 
 type QueryValue = string | string[] | undefined;
 
@@ -16,6 +17,7 @@ type GardenEmptyPageProps = {
     background?: QueryValue;
     season?: QueryValue;
     time?: QueryValue;
+    place?: QueryValue;
   }>;
 };
 
@@ -25,6 +27,16 @@ function normalizeQueryValue(value: QueryValue, fallback: string) {
   }
 
   return value ?? fallback;
+}
+
+function parsePlacementObjectType(value: QueryValue): ObjectType | null {
+  const normalizedValue = normalizeQueryValue(value, "");
+
+  if (normalizedValue === "furin" || normalizedValue === "shishi-odoshi") {
+    return normalizedValue;
+  }
+
+  return null;
 }
 
 export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageProps) {
@@ -49,6 +61,7 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
   const selectedTimeSlot =
     GARDEN_TIME_SLOTS.find((option) => option.id === selectedTimeSlotId) ??
     GARDEN_TIME_SLOTS[0];
+  const selectedPlacementObjectType = parsePlacementObjectType(params.place);
   const isNightPond = selectedBackground.id === "night-pond";
 
   const optionActions: GardenOptionAction[] = [
@@ -72,6 +85,11 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
       label: "開発プレイグラウンドへ",
       description: "UIテストページを開く",
     },
+    {
+      href: "/voice-zoo",
+      label: "オブジェクトを置く",
+      description: "風鈴や鹿威しから置くものを選ぶ",
+    },
   ];
 
   return (
@@ -84,6 +102,9 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
         timeSlotId={selectedTimeSlot.id}
         timeSlotName={selectedTimeSlot.name}
         fullscreen
+        allowObjectPlacement
+        placementObjectType={selectedPlacementObjectType}
+        objectStorageKey="kazenagare_objects_me"
       />
 
       <GardenOptionsMenu
@@ -91,16 +112,6 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
         title="自分の庭オプション"
         darkMode={isNightPond}
       />
-
-      <div
-        className={`pointer-events-none absolute bottom-5 left-1/2 z-40 w-[min(92vw,38rem)] -translate-x-1/2 rounded-full border px-4 py-2 text-center text-xs backdrop-blur-sm ${
-          isNightPond
-            ? "border-wa-white/30 bg-wa-black/45 text-wa-white"
-            : "border-wa-black/20 bg-wa-white/75 text-wa-black"
-        }`}
-      >
-        設定変更やQR表示は、右上のオプションから開けます。
-      </div>
     </main>
   );
 }
