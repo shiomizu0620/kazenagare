@@ -3,12 +3,13 @@ import {
   EmptyStageCharacter,
   WORLD_HEIGHT,
   WORLD_WIDTH,
-} from "@/components/garden/empty/empty-stage-character";
+} from "@/components/garden/empty/empty-stage-character/index";
 import {
   getBackgroundTheme,
   getSeasonOverlayClass,
   getTimeOverlayClass,
 } from "@/components/garden/empty/empty-stage-theme";
+import type { ObjectType } from "@/types/garden";
 
 type GardenEmptyStageProps = {
   backgroundId: string;
@@ -18,6 +19,9 @@ type GardenEmptyStageProps = {
   timeSlotId: string;
   timeSlotName: string;
   fullscreen?: boolean;
+  allowObjectPlacement?: boolean;
+  placementObjectType?: ObjectType | null;
+  objectStorageKey?: string;
 };
 
 export function GardenEmptyStage({
@@ -28,6 +32,9 @@ export function GardenEmptyStage({
   timeSlotId,
   timeSlotName,
   fullscreen = false,
+  allowObjectPlacement = false,
+  placementObjectType = null,
+  objectStorageKey,
 }: GardenEmptyStageProps) {
   const theme = getBackgroundTheme(backgroundId);
   const seasonOverlayClass = getSeasonOverlayClass(seasonId);
@@ -39,23 +46,30 @@ export function GardenEmptyStage({
 
   return (
     <section className={stageContainerClass}>
-      <EmptyStageCharacter darkMode={isNightPond}>
+      <EmptyStageCharacter
+        darkMode={isNightPond}
+        allowObjectPlacement={allowObjectPlacement}
+        placementObjectType={placementObjectType}
+        objectStorageKey={objectStorageKey}
+      >
         <EmptyStageDecoration backgroundId={backgroundId} />
         <div className={`absolute inset-0 ${seasonOverlayClass}`} />
         <div className={`absolute inset-0 ${timeOverlayClass}`} />
 
-        <div
-          className={`absolute left-1/2 top-1/2 flex h-[360px] w-[620px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-2xl border border-dashed ${theme.panelClass}`}
-        >
-          <div className="grid gap-2 px-4 text-center">
-            <p className="text-2xl font-semibold">仮キャラクターを配置しました</p>
-            <p className="text-sm">まずは移動だけできる状態です。ここから庭の配置機能を足します。</p>
-            <p className="text-xs">庭サイズ（仮想）: {WORLD_WIDTH} × {WORLD_HEIGHT}</p>
+        {!allowObjectPlacement ? (
+          <div
+            className={`absolute left-1/2 top-1/2 flex h-[360px] w-[620px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-2xl border border-dashed ${theme.panelClass}`}
+          >
+            <div className="grid gap-2 px-4 text-center">
+              <p className="text-2xl font-semibold">仮キャラクターを配置しました</p>
+              <p className="text-sm">まずは移動だけできる状態です。ここから庭の配置機能を足します。</p>
+              <p className="text-xs">庭サイズ（仮想）: {WORLD_WIDTH} × {WORLD_HEIGHT}</p>
+            </div>
           </div>
-        </div>
+        ) : null}
       </EmptyStageCharacter>
 
-      <div className="absolute left-4 top-4 z-40 flex flex-wrap gap-2 text-xs">
+      <div className="pointer-events-none absolute left-4 top-4 z-40 flex flex-wrap gap-2 text-xs">
         <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
           背景: {backgroundName}
         </span>
@@ -67,7 +81,7 @@ export function GardenEmptyStage({
         </span>
       </div>
 
-      <p className={`absolute bottom-4 right-4 z-40 text-xs ${theme.noteClass}`}>
+      <p className={`pointer-events-none absolute bottom-4 right-4 z-40 text-xs ${theme.noteClass}`}>
         和の静けさをベースに、ここから配置を始めます。
       </p>
     </section>

@@ -11,3 +11,33 @@
 		transform: translateY(0px);
 	}
 }
+
+@keyframes kazenagare-coin-pop {
+	0% {
+		opacity: 0;
+		transform: translateY(8px) scale(0.92);
+	}
+	20% {
+		opacity: 1;
+		transform: translateY(-4px) scale(1);
+	}
+	100% {
+		opacity: 0;
+		transform: translateY(-30px) scale(1.02);
+	}
+}
+
+@keyframes kazenagare-wallet-coin-pop {
+	0% {
+		opacity: 0;
+		transform: translateY(8px) scale(0.9);
+	}
+	25% {
+		opacity: 1;
+		transform: translateY(-2px) scale(1);
+	}
+	100% {
+		opacity: 0;
+		transform: translateY(-18px) scale(1.02);
+	}
+}

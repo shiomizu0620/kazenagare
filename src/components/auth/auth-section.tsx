@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 const GARDEN_SETUP_PATH = "/garden/setup";
+const MY_GARDEN_PATH = "/garden/me";
 const OAUTH_REDIRECT_PENDING_KEY = "kazenagare.oauthRedirectPending";
+const GARDEN_LOCAL_STORAGE_PREFIX = "kazenagare_garden_";
 
 export function AuthSection() {
   const router = useRouter();
@@ -14,14 +16,39 @@ export function AuthSection() {
   const [password, setPassword] = useState("");
   const hasNavigatedRef = useRef(false);
 
-  const navigateToGardenSetup = useCallback(() => {
+  const resolvePostAuthPath = useCallback((nextUserId?: string | null) => {
+    if (!nextUserId) {
+      return GARDEN_SETUP_PATH;
+    }
+
+    const savedData = window.localStorage.getItem(
+      `${GARDEN_LOCAL_STORAGE_PREFIX}${nextUserId}`,
+    );
+
+    if (!savedData) {
+      return GARDEN_SETUP_PATH;
+    }
+
+    try {
+      const parsed = JSON.parse(savedData);
+      if (typeof parsed?.backgroundIndex === "number") {
+        return MY_GARDEN_PATH;
+      }
+    } catch {
+      // Ignore malformed saved data and fall back to setup.
+    }
+
+    return GARDEN_SETUP_PATH;
+  }, []);
+
+  const navigateAfterAuth = useCallback((nextUserId?: string | null) => {
     if (hasNavigatedRef.current) {
       return;
     }
 
     hasNavigatedRef.current = true;
-    router.push(GARDEN_SETUP_PATH);
-  }, [router]);
+    router.push(resolvePostAuthPath(nextUserId));
+  }, [resolvePostAuthPath, router]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -44,7 +71,7 @@ export function AuthSection() {
 
       if (data.session) {
         clearPendingOAuthRedirect();
-        navigateToGardenSetup();
+        navigateAfterAuth(data.session.user.id);
       }
     });
 
@@ -53,14 +80,14 @@ export function AuthSection() {
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session && hasPendingOAuthRedirect()) {
         clearPendingOAuthRedirect();
-        navigateToGardenSetup();
+        navigateAfterAuth(session.user.id);
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [navigateToGardenSetup]);
+  }, [navigateAfterAuth]);
 
   // ゲストログイン
   const handleGuestLogin = async () => {
@@ -73,14 +100,14 @@ export function AuthSection() {
     setIsLoggingIn(true);
 
     try {
-      const { error } = await supabase.auth.signInAnonymously();
+      const { data, error } = await supabase.auth.signInAnonymously();
 
       if (error) {
         alert("エラー: " + error.message);
         return;
       }
 
-      navigateToGardenSetup();
+      navigateAfterAuth(data.user?.id);
     } finally {
       setIsLoggingIn(false);
     }
@@ -128,15 +155,18 @@ export function AuthSection() {
     try {
       let authError;
       let shouldNavigate = false;
+      let nextUserId: string | null = null;
 
       if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({ email, password });
         authError = error;
         shouldNavigate = Boolean(data.session);
+        nextUserId = data.user?.id ?? data.session?.user.id ?? null;
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         authError = error;
         shouldNavigate = !error;
+        nextUserId = data.user?.id ?? data.session?.user.id ?? null;
       }
 
       if (authError) {
@@ -145,7 +175,7 @@ export function AuthSection() {
       }
 
       if (shouldNavigate) {
-        navigateToGardenSetup();
+        navigateAfterAuth(nextUserId);
         return;
       }
 
