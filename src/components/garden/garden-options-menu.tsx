@@ -60,12 +60,12 @@ export function GardenOptionsMenu({
         />
       ) : null}
 
-      <div className="absolute right-4 top-4 z-[70] flex flex-col items-end gap-2">
+      <div className="pointer-events-none absolute right-4 top-4 z-[70] flex flex-col items-end gap-2">
         <button
           type="button"
           aria-controls={panelId}
           onClick={() => setIsOpen((value) => !value)}
-          className={triggerClass}
+          className={`pointer-events-auto ${triggerClass}`}
         >
           {isOpen ? "閉じる" : buttonLabel}
         </button>
