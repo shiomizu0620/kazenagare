@@ -6,6 +6,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { getVoiceZooObjectPrice } from "@/lib/voice-zoo/catalog";
+import { applyVoiceZooPlaybackEffect } from "@/lib/voice-zoo/playback-effects";
 import {
   createVoiceZooRecordingId,
   getLatestRecordingIdByObjectType,
@@ -55,8 +56,8 @@ import { useEmptyStageStoredObjects } from "./use-empty-stage-stored-objects";
 
 export { WORLD_HEIGHT, WORLD_WIDTH };
 
-const AUTO_PLAYBACK_MIN_DELAY_MS = 4000;
-const AUTO_PLAYBACK_MAX_DELAY_MS = 7200;
+const AUTO_PLAYBACK_MIN_DELAY_MS = 2800;
+const AUTO_PLAYBACK_MAX_DELAY_MS = 4800;
 const AUTO_PLAYBACK_SCHEDULER_TICK_MS = 220;
 const COIN_POPUP_DURATION_MS = 1200;
 const WALLET_GAIN_POPUP_DURATION_MS = 1050;
@@ -485,6 +486,7 @@ export function EmptyStageCharacter({
       autoPlaybackAudioUrlByObjectIdRef.current[objectId] = nextAudioUrl;
       objectAudio.src = nextAudioUrl;
       objectAudio.currentTime = 0;
+      applyVoiceZooPlaybackEffect(objectAudio, selectedObject.objectType);
 
       let hasFinalizedPlayback = false;
       let hasRewardedPlayback = false;
@@ -1059,9 +1061,16 @@ export function EmptyStageCharacter({
             getVoiceZooRecordingBlobStorageKey(audioOwnerId, recordingMeta.id),
           );
 
+          if (!(blob instanceof Blob)) {
+            return {
+              recordingId: recordingMeta.id,
+              blob: null,
+            };
+          }
+
           return {
             recordingId: recordingMeta.id,
-            blob: blob instanceof Blob ? blob : null,
+            blob,
           };
         }),
       );
