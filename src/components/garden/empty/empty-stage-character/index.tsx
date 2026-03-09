@@ -4,6 +4,13 @@ import { get, set } from "idb-keyval";
 import { usePathname } from "next/navigation";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type KazenagareAudioSettings,
+  KAZENAGARE_AUDIO_SETTINGS_EVENT,
+  KAZENAGARE_AUDIO_SETTINGS_STORAGE_KEY,
+  loadKazenagareAudioSettings,
+  parseKazenagareAudioSettings,
+} from "@/lib/audio/settings";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { getVoiceZooObjectPrice } from "@/lib/voice-zoo/catalog";
 import { applyVoiceZooPlaybackEffect } from "@/lib/voice-zoo/playback-effects";
@@ -92,6 +99,9 @@ export function EmptyStageCharacter({
   const [walletGainPopup, setWalletGainPopup] = useState<{ id: string; coins: number } | null>(
     null,
   );
+  const [characterVoiceVolume, setCharacterVoiceVolume] = useState(
+    () => loadKazenagareAudioSettings().characterVoiceVolume,
+  );
   const [audioOwnerId, setAudioOwnerId] = useState<string>("local_guest");
   const [recordingBlobByRecordingId, setRecordingBlobByRecordingId] = useState<
     Record<string, Blob>
@@ -115,6 +125,7 @@ export function EmptyStageCharacter({
   const placedObjectsRef = useRef<PlacedStageObject[]>([]);
   const recordingBlobByRecordingIdRef = useRef<Record<string, Blob>>({});
   const latestRecordingIdByObjectTypeRef = useRef<Partial<Record<ObjectType, string>>>({});
+  const characterVoiceVolumeRef = useRef(characterVoiceVolume);
   const autoPlaybackSchedulerTimerRef = useRef<number | null>(null);
   const autoPlaybackNextAtByObjectIdRef = useRef<Record<string, number>>({});
   const autoPlaybackAudioByObjectIdRef = useRef<Record<string, HTMLAudioElement>>({});
@@ -486,6 +497,7 @@ export function EmptyStageCharacter({
       autoPlaybackAudioUrlByObjectIdRef.current[objectId] = nextAudioUrl;
       objectAudio.src = nextAudioUrl;
       objectAudio.currentTime = 0;
+      objectAudio.volume = characterVoiceVolumeRef.current;
       applyVoiceZooPlaybackEffect(objectAudio, selectedObject.objectType);
 
       let hasFinalizedPlayback = false;
@@ -905,6 +917,50 @@ export function EmptyStageCharacter({
       placeObjectAtWorldPosition,
     ],
   );
+
+  useEffect(() => {
+    characterVoiceVolumeRef.current = characterVoiceVolume;
+
+    for (const objectAudio of Object.values(autoPlaybackAudioByObjectIdRef.current)) {
+      objectAudio.volume = characterVoiceVolume;
+    }
+  }, [characterVoiceVolume]);
+
+  useEffect(() => {
+    const handleLocalAudioSettingsUpdate: EventListener = (event) => {
+      const customEvent = event as CustomEvent<KazenagareAudioSettings>;
+
+      if (customEvent.detail) {
+        setCharacterVoiceVolume(customEvent.detail.characterVoiceVolume);
+        return;
+      }
+
+      setCharacterVoiceVolume(loadKazenagareAudioSettings().characterVoiceVolume);
+    };
+
+    const handleAudioSettingsStorageUpdate = (event: StorageEvent) => {
+      if (event.key !== KAZENAGARE_AUDIO_SETTINGS_STORAGE_KEY) {
+        return;
+      }
+
+      const parsedSettings = parseKazenagareAudioSettings(event.newValue);
+      setCharacterVoiceVolume(parsedSettings.characterVoiceVolume);
+    };
+
+    window.addEventListener(
+      KAZENAGARE_AUDIO_SETTINGS_EVENT,
+      handleLocalAudioSettingsUpdate,
+    );
+    window.addEventListener("storage", handleAudioSettingsStorageUpdate);
+
+    return () => {
+      window.removeEventListener(
+        KAZENAGARE_AUDIO_SETTINGS_EVENT,
+        handleLocalAudioSettingsUpdate,
+      );
+      window.removeEventListener("storage", handleAudioSettingsStorageUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     initializeStage();

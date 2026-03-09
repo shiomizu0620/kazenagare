@@ -85,11 +85,6 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
       label: "開発プレイグラウンドへ",
       description: "UIテストページを開く",
     },
-    {
-      href: "/voice-zoo",
-      label: "オブジェクトを置く",
-      description: "風鈴や鹿威しから置くものを選ぶ",
-    },
   ];
 
   return (
