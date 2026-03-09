@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useId, useState } from "react";
 import {
+  type KazenagareAudioSettings,
+  loadKazenagareAudioSettings,
+  saveKazenagareAudioSettings,
+} from "@/lib/audio/settings";
+import {
   type VoiceZooEntryStatus,
   VOICE_ZOO_ENTRIES,
 } from "@/lib/voice-zoo/catalog";
@@ -57,6 +62,9 @@ export function GardenOptionsMenu({
   const [isOpen, setIsOpen] = useState(false);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [ownedCatalogObjectTypes, setOwnedCatalogObjectTypes] = useState<ObjectType[]>([]);
+  const [audioSettings, setAudioSettings] = useState<KazenagareAudioSettings>(() =>
+    loadKazenagareAudioSettings(),
+  );
   const [selectedCatalogObjectType, setSelectedCatalogObjectType] =
     useState<ObjectType>(VOICE_ZOO_ENTRIES[0]?.objectType ?? "furin");
   const panelId = useId();
@@ -98,6 +106,20 @@ export function GardenOptionsMenu({
   const catalogSlots = Array.from({ length: 3 }, (_, index) =>
     VOICE_ZOO_ENTRIES[index] ?? null,
   );
+
+  const updateAudioSetting = (
+    key: keyof KazenagareAudioSettings,
+    nextVolumePercent: string,
+  ) => {
+    const nextVolume = Math.min(1, Math.max(0, Number(nextVolumePercent) / 100));
+    const nextSettings: KazenagareAudioSettings = {
+      ...audioSettings,
+      [key]: nextVolume,
+    };
+
+    setAudioSettings(nextSettings);
+    saveKazenagareAudioSettings(nextSettings);
+  };
 
   const closeAllPanels = () => {
     setIsOpen(false);
@@ -157,6 +179,10 @@ export function GardenOptionsMenu({
             aria-label={buttonLabel}
             title={buttonLabel}
             onClick={() => {
+              if (!isOpen) {
+                setAudioSettings(loadKazenagareAudioSettings());
+              }
+
               setIsOpen((value) => !value);
               setIsCatalogOpen(false);
             }}
@@ -181,6 +207,49 @@ export function GardenOptionsMenu({
 
         <div id={panelId} className={`mt-2 w-[min(88vw,22rem)] ${panelClass}`}>
           <p className="text-sm font-semibold">{title}</p>
+
+          <div
+            className={`grid gap-2 rounded-xl border p-3 ${
+              darkMode
+                ? "border-wa-white/20 bg-wa-white/8"
+                : "border-wa-black/15 bg-wa-white/90"
+            }`}
+          >
+            <p className="text-xs font-semibold">サウンド設定</p>
+
+            <label className="grid gap-1">
+              <div className="flex items-center justify-between text-xs">
+                <span>BGM音量</span>
+                <span>{Math.round(audioSettings.bgmVolume * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(audioSettings.bgmVolume * 100)}
+                onChange={(event) => updateAudioSetting("bgmVolume", event.target.value)}
+              />
+            </label>
+
+            <label className="grid gap-1">
+              <div className="flex items-center justify-between text-xs">
+                <span>キャラ音声音量</span>
+                <span>{Math.round(audioSettings.characterVoiceVolume * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(audioSettings.characterVoiceVolume * 100)}
+                onChange={(event) =>
+                  updateAudioSetting("characterVoiceVolume", event.target.value)
+                }
+              />
+            </label>
+          </div>
+
           <div className="grid gap-2">
             {actions.map((action) => (
               <Link
