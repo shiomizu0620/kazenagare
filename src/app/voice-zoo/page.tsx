@@ -28,6 +28,9 @@ import {
   type VoiceZooWallet,
   VOICE_ZOO_WALLET_STORAGE_KEY,
 } from "@/lib/voice-zoo/wallet";
+import {
+  applyVoiceZooPlaybackEffect,
+} from "@/lib/voice-zoo/playback-effects";
 
 function statusLabel(status: "prototype" | "planned") {
   if (status === "prototype") {
@@ -81,6 +84,7 @@ export default function VoiceZooPage() {
     null,
   );
   const rewardAudioRef = useRef<HTMLAudioElement | null>(null);
+  const recordingPreviewAudioRef = useRef<HTMLAudioElement | null>(null);
   const recordingMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingStreamRef = useRef<MediaStream | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
@@ -257,10 +261,12 @@ export default function VoiceZooPage() {
           return;
         }
 
-        updateRecordingAudioUrlForObject(
-          objectType,
-          latestBlob instanceof Blob ? latestBlob : null,
-        );
+        if (!(latestBlob instanceof Blob)) {
+          updateRecordingAudioUrlForObject(objectType, null);
+          continue;
+        }
+
+        updateRecordingAudioUrlForObject(objectType, latestBlob);
       }
     };
 
@@ -345,6 +351,23 @@ export default function VoiceZooPage() {
     setRecordingEntry(null);
   }, [clearRecordingTimers, stopRecordingStream]);
 
+  const resolveCurrentRecordingOwnerId = useCallback(async () => {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      return audioOwnerId || "local_guest";
+    }
+
+    const { data } = await supabase.auth.getSession();
+    const resolvedOwnerId = data.session?.user?.id || "local_guest";
+
+    if (resolvedOwnerId !== audioOwnerId) {
+      setAudioOwnerId(resolvedOwnerId);
+    }
+
+    return resolvedOwnerId;
+  }, [audioOwnerId]);
+
   const startThreeSecondRecording = useCallback(async () => {
     if (!audioOwnerId || !recordingEntry || isRecording) {
       return;
@@ -354,6 +377,7 @@ export default function VoiceZooPage() {
     setRecordingCountdown(RECORDING_DURATION_SECONDS);
 
     try {
+      const recordingOwnerId = await resolveCurrentRecordingOwnerId();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recordingStreamRef.current = stream;
       recordingChunksRef.current = [];
@@ -391,10 +415,12 @@ export default function VoiceZooPage() {
           return;
         }
 
+        const playableBlob = nextBlob;
+
         const nextRecordingId = createVoiceZooRecordingId(recordingObjectType);
         await set(
-          getVoiceZooRecordingBlobStorageKey(audioOwnerId, nextRecordingId),
-          nextBlob,
+          getVoiceZooRecordingBlobStorageKey(recordingOwnerId, nextRecordingId),
+          playableBlob,
         );
 
         const nextCatalogEntry: VoiceZooRecordingMeta = {
@@ -405,12 +431,12 @@ export default function VoiceZooPage() {
         const nextRecordingCatalog = [...recordingCatalogRef.current, nextCatalogEntry];
 
         window.localStorage.setItem(
-          getVoiceZooRecordingCatalogStorageKey(audioOwnerId),
+          getVoiceZooRecordingCatalogStorageKey(recordingOwnerId),
           JSON.stringify(nextRecordingCatalog),
         );
         setRecordingCatalog(nextRecordingCatalog);
 
-        updateRecordingAudioUrlForObject(recordingObjectType, nextBlob);
+        updateRecordingAudioUrlForObject(recordingObjectType, playableBlob);
         setRecordingNotice(`${recordingObjectName}の録音を保存しました。`);
         setRecordingCountdown(RECORDING_DURATION_SECONDS);
       };
@@ -442,6 +468,7 @@ export default function VoiceZooPage() {
     clearRecordingTimers,
     isRecording,
     recordingEntry,
+    resolveCurrentRecordingOwnerId,
     stopRecordingStream,
     updateRecordingAudioUrlForObject,
   ]);
@@ -611,6 +638,7 @@ export default function VoiceZooPage() {
 
     try {
       rewardAudioRef.current.currentTime = 0;
+      applyVoiceZooPlaybackEffect(rewardAudioRef.current, selectedEntry.objectType);
       await rewardAudioRef.current.play();
       setIsRewardPlaybackActive(true);
     } catch {
@@ -680,6 +708,17 @@ export default function VoiceZooPage() {
     clearAllRecordingAudioUrls();
     setTestingNotice("テスト用に録音データを削除しました。");
   }, [audioOwnerId, clearAllRecordingAudioUrls]);
+
+  const handleRecordingPreviewPlay = useCallback(() => {
+    if (!recordingEntry || !recordingPreviewAudioRef.current) {
+      return;
+    }
+
+    applyVoiceZooPlaybackEffect(
+      recordingPreviewAudioRef.current,
+      recordingEntry.objectType,
+    );
+  }, [recordingEntry]);
 
   const selectedEntryOwned = selectedEntry
     ? wallet.ownedObjectTypes.includes(selectedEntry.objectType)
@@ -1062,7 +1101,13 @@ export default function VoiceZooPage() {
             </div>
 
             {recordingEntryAudioUrl ? (
-              <audio controls src={recordingEntryAudioUrl} className="w-full" />
+              <audio
+                ref={recordingPreviewAudioRef}
+                controls
+                src={recordingEntryAudioUrl}
+                onPlay={handleRecordingPreviewPlay}
+                className="w-full"
+              />
             ) : null}
 
             {recordingNotice ? (
