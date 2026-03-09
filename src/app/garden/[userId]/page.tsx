@@ -121,10 +121,10 @@ export default async function GardenUserPage({
           この庭のQRを表示する
         </Link>
         <Link
-          href="/voice-zoo"
+          href="/garden/me"
           className="rounded-md border border-wa-black px-3 py-2 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
         >
-          オブジェクトを置く
+          自分の庭で配置する
         </Link>
       </div>
       <div className="grid gap-4">
