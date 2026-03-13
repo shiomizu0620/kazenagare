@@ -13,6 +13,8 @@ export const GARDEN_BACKGROUNDS: GardenOption[] = [
   { id: "bamboo-forest", name: "竹林" },
   { id: "night-pond", name: "夜の池" },
   { id: "misty-temple", name: "霧の寺" },
+  // NOTE: `garden-all` は実験用の背景 ID であり、あえて public/images/README.md の「現在の ID」一覧には含めていません。
+  { id: "garden-all", name: "庭" },
 ];
 
 export const GARDEN_SEASONS: GardenOption[] = [

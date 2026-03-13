@@ -17,6 +17,7 @@ type EmptyStageCharacterStageProps = {
   isWalking: boolean;
   stageRef: RefObject<HTMLDivElement | null>;
   worldRef: RefObject<HTMLDivElement | null>;
+  characterRef: RefObject<HTMLDivElement | null>;
   stageCursorClass: string;
   onStagePointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onStagePointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -49,6 +50,7 @@ export function EmptyStageCharacterStage({
   isWalking,
   stageRef,
   worldRef,
+  characterRef,
   stageCursorClass,
   onStagePointerMove,
   onStagePointerDown,
@@ -265,7 +267,11 @@ export function EmptyStageCharacterStage({
           </svg>
         ) : null}
 
-        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <div
+          ref={characterRef}
+          className="pointer-events-none absolute left-1/2 top-1/2"
+          style={{ transform: "translate3d(-50%, -50%, 0)" }}
+        >
           <div
             className={`grid justify-items-center gap-1 ${
               isWalking

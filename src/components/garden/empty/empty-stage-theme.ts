@@ -31,6 +31,12 @@ const BACKGROUND_THEME: Record<string, EmptyStageTheme> = {
     panelClass: "border-wa-black/25 bg-wa-white/40",
     noteClass: "text-wa-black/70",
   },
+  "garden-all": {
+    stageClass: "border-wa-black/20 bg-wa-white text-wa-black bg-cover bg-center",
+    chipClass: "border-wa-black/20 bg-wa-white/80",
+    panelClass: "border-wa-black/25 bg-wa-white/40",
+    noteClass: "text-wa-black/70",
+  },
 };
 
 const SEASON_OVERLAY_CLASS: Record<string, string> = {
