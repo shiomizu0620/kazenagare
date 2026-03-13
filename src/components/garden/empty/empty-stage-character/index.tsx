@@ -175,7 +175,6 @@ export function EmptyStageCharacter({
     : null;
   const placedPlacementObject = grabbedPlacedObject;
   const hasPlacedActiveObject = Boolean(canPlaceObject && grabbedPlacedObject);
-  const hasAnyPlacedObject = placedObjects.length > 0;
   const canShowObjectLocator = allowObjectPlacement && Boolean(placementObjectType);
   const selectedPlacementObject = placementObjectType
     ? [...placedObjects]
@@ -1572,15 +1571,12 @@ export function EmptyStageCharacter({
       : "border-wa-black/20 bg-wa-white/90 text-wa-black hover:bg-wa-red/10"
   }`;
 
-  const helperTextClass = `text-[10px] ${darkMode ? "text-wa-white/80" : "text-wa-black/70"}`;
-
-  const resetPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+8.75rem)] left-3 right-3 z-30 grid gap-2 rounded-xl border p-2 backdrop-blur-sm sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[24rem] ${
+  const resetPanelClass = `pointer-events-none absolute left-3 top-[calc(env(safe-area-inset-top)+3.25rem)] z-30 rounded-xl border p-2 backdrop-blur-sm sm:left-5 sm:top-auto sm:bottom-5 ${
     darkMode
       ? "border-wa-white/30 bg-wa-black/40"
       : "border-wa-black/20 bg-wa-white/70"
   }`;
 
-  const placementDividerClass = darkMode ? "border-wa-white/20" : "border-wa-black/15";
   const objectChipFillColor = darkMode ? "rgba(43,43,43,0.78)" : "rgba(242,242,242,0.95)";
   const objectChipStrokeColor = darkMode
     ? "rgba(242,242,242,0.45)"
@@ -1609,7 +1605,6 @@ export function EmptyStageCharacter({
   const locatorArrowChipFillColor = darkMode
     ? "rgba(15,23,42,0.8)"
     : "rgba(255,255,255,0.9)";
-  const selectedObjectLabel = activePlacementObject?.label ?? "オブジェクト";
   const isPointerPlacementArmed = isCoarsePointer
     ? isTouchPlacementArmed
     : isMousePlacementArmed;
@@ -1641,26 +1636,6 @@ export function EmptyStageCharacter({
   const shouldRenderObjectLocator =
     isObjectLocatorVisible &&
     Boolean(objectLocatorIndicator);
-
-  const interactionGuideText = canPlaceObject
-    ? hasPlacedActiveObject
-      ? isCoarsePointer
-        ? isTouchPlacementArmed
-          ? `${selectedObjectLabel}を置く場所をタップで離します。`
-          : `${selectedObjectLabel}をタップで浮かせます。`
-        : isMousePlacementArmed
-          ? `${selectedObjectLabel}を置く場所をクリックで離します。`
-          : `${selectedObjectLabel}をクリックで浮かせます。`
-      : hasPlacedSelectedObject
-        ? `${selectedObjectLabel}をタップしてつかむと移動できます。`
-      : isCoarsePointer
-        ? isTouchPlacementArmed
-          ? `${selectedObjectLabel}を置く場所をタップで配置`
-          : `${selectedObjectLabel}をタップで浮かせます。`
-        : `${selectedObjectLabel}を置く場所をクリックで配置`
-    : hasAnyPlacedObject
-      ? "図鑑を選ばなくても、置いてあるオブジェクトをタップでつかんで移動できます。"
-      : "図鑑でオブジェクトを選ぶと、この庭で配置できます。";
 
   const mobileStickPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] right-3 z-40 rounded-2xl border p-2 backdrop-blur-sm sm:hidden ${
     darkMode
@@ -1706,21 +1681,11 @@ export function EmptyStageCharacter({
 
       <EmptyStageCharacterControls
         allowObjectPlacement={allowObjectPlacement}
-        canPlaceObject={canPlaceObject}
-        canShowObjectLocator={canShowObjectLocator}
-        hasPlacedActiveObject={Boolean(canPlaceObject && (grabbedPlacedObject ?? selectedPlacementObject))}
         walletCoins={walletCoins}
         walletGainPopup={walletGainPopup}
-        isTouchPlacementArmed={isTouchPlacementArmed}
-        isMousePlacementArmed={isMousePlacementArmed}
         resetPanelClass={resetPanelClass}
         resetButtonClass={resetButtonClass}
-        helperTextClass={helperTextClass}
-        placementDividerClass={placementDividerClass}
-        interactionGuideText={interactionGuideText}
         onResetToStart={resetToStart}
-        onShowPlacedObjectLocator={showPlacedObjectLocator}
-        onReleaseGrab={clearPlacementState}
         mobileStickPanelClass={mobileStickPanelClass}
         darkMode={darkMode}
         stickPadRef={stickPadRef}

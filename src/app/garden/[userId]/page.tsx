@@ -74,11 +74,6 @@ export default async function GardenUserPage({
         label: "庭一覧へ",
         description: "他の人の庭を見に行く",
       },
-      {
-        href: "/test-ui",
-        label: "開発プレイグラウンドへ",
-        description: "UIテストページを開く",
-      },
     ];
 
     return (
