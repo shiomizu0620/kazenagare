@@ -68,7 +68,9 @@ export function GardenEmptyStage({
             }}
           />
         ) : null}
-        <EmptyStageDecoration backgroundId={backgroundId} />
+        {backgroundId !== "garden-all" ? (
+          <EmptyStageDecoration backgroundId={backgroundId} />
+        ) : null}
         <div className={`absolute inset-0 ${seasonOverlayClass}`} />
         <div className={`absolute inset-0 ${timeOverlayClass}`} />
 
