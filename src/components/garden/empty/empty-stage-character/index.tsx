@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  DEFAULT_KAZENAGARE_AUDIO_SETTINGS,
   type KazenagareAudioSettings,
   KAZENAGARE_AUDIO_SETTINGS_EVENT,
   KAZENAGARE_AUDIO_SETTINGS_STORAGE_KEY,
@@ -21,12 +22,16 @@ import {
   getVoiceZooRecordingBlobStorageKey,
   getVoiceZooRecordingCatalogStorageKey,
   parseVoiceZooRecordingCatalog,
+  VOICE_ZOO_RECORDING_UPDATED_EVENT,
+  type VoiceZooRecordingUpdatedEventDetail,
   VOICE_ZOO_SUPPORTED_OBJECT_TYPES,
 } from "@/lib/voice-zoo/recordings";
 import {
   calculatePlaybackRewardCoins,
   parseVoiceZooWallet,
+  type VoiceZooWallet,
   VOICE_ZOO_WALLET_STORAGE_KEY,
+  VOICE_ZOO_WALLET_UPDATED_EVENT,
 } from "@/lib/voice-zoo/wallet";
 import type { ObjectType } from "@/types/garden";
 import {
@@ -68,6 +73,27 @@ const AUTO_PLAYBACK_MAX_DELAY_MS = 4800;
 const AUTO_PLAYBACK_SCHEDULER_TICK_MS = 220;
 const COIN_POPUP_DURATION_MS = 1200;
 const WALLET_GAIN_POPUP_DURATION_MS = 1050;
+const AUTO_PLAYBACK_DISTANCE_NEAR_PX = 130;
+const AUTO_PLAYBACK_DISTANCE_FAR_PX = 760;
+const AUTO_PLAYBACK_DISTANCE_MIN_GAIN = 0.04;
+
+function getDistanceAttenuationGain(distancePx: number) {
+  if (distancePx <= AUTO_PLAYBACK_DISTANCE_NEAR_PX) {
+    return 1;
+  }
+
+  if (distancePx >= AUTO_PLAYBACK_DISTANCE_FAR_PX) {
+    return AUTO_PLAYBACK_DISTANCE_MIN_GAIN;
+  }
+
+  const normalizedDistance =
+    (distancePx - AUTO_PLAYBACK_DISTANCE_NEAR_PX) /
+    (AUTO_PLAYBACK_DISTANCE_FAR_PX - AUTO_PLAYBACK_DISTANCE_NEAR_PX);
+  const easedDistance =
+    normalizedDistance * normalizedDistance * (3 - 2 * normalizedDistance);
+
+  return 1 - (1 - AUTO_PLAYBACK_DISTANCE_MIN_GAIN) * easedDistance;
+}
 
 function getRandomPlaybackDelayMs() {
   return Math.floor(
@@ -100,9 +126,10 @@ export function EmptyStageCharacter({
     null,
   );
   const [characterVoiceVolume, setCharacterVoiceVolume] = useState(
-    () => loadKazenagareAudioSettings().characterVoiceVolume,
+    DEFAULT_KAZENAGARE_AUDIO_SETTINGS.characterVoiceVolume,
   );
   const [audioOwnerId, setAudioOwnerId] = useState<string>("local_guest");
+  const [recordingReloadNonce, setRecordingReloadNonce] = useState(0);
   const [recordingBlobByRecordingId, setRecordingBlobByRecordingId] = useState<
     Record<string, Blob>
   >({});
@@ -151,6 +178,42 @@ export function EmptyStageCharacter({
         .find((object) => object.objectType === placementObjectType) ?? null
     : null;
   const hasPlacedSelectedObject = Boolean(canPlaceObject && selectedPlacementObject);
+
+  const getListenerWorldPosition = useCallback(() => {
+    return {
+      x: WORLD_WIDTH * 0.5 + cameraOffsetRef.current.x,
+      y: WORLD_HEIGHT * 0.5 + cameraOffsetRef.current.y,
+    };
+  }, []);
+
+  const getAutoPlaybackVolumeForObject = useCallback(
+    (placedObject: PlacedStageObject) => {
+      const listenerPosition = getListenerWorldPosition();
+      const distanceToListener = Math.hypot(
+        placedObject.x - listenerPosition.x,
+        placedObject.y - listenerPosition.y,
+      );
+      const attenuationGain = getDistanceAttenuationGain(distanceToListener);
+
+      return clamp(characterVoiceVolumeRef.current * attenuationGain, 0, 1);
+    },
+    [getListenerWorldPosition],
+  );
+
+  const updateActiveAutoPlaybackVolumes = useCallback(() => {
+    for (const [objectId, objectAudio] of Object.entries(
+      autoPlaybackAudioByObjectIdRef.current,
+    )) {
+      const placedObject =
+        placedObjectsRef.current.find((candidate) => candidate.id === objectId) ?? null;
+
+      if (!placedObject) {
+        continue;
+      }
+
+      objectAudio.volume = getAutoPlaybackVolumeForObject(placedObject);
+    }
+  }, [getAutoPlaybackVolumeForObject]);
 
   const applyWorldTransform = useCallback(() => {
     if (!worldRef.current) {
@@ -497,7 +560,7 @@ export function EmptyStageCharacter({
       autoPlaybackAudioUrlByObjectIdRef.current[objectId] = nextAudioUrl;
       objectAudio.src = nextAudioUrl;
       objectAudio.currentTime = 0;
-      objectAudio.volume = characterVoiceVolumeRef.current;
+      objectAudio.volume = getAutoPlaybackVolumeForObject(selectedObject);
       applyVoiceZooPlaybackEffect(objectAudio, selectedObject.objectType);
 
       let hasFinalizedPlayback = false;
@@ -559,7 +622,13 @@ export function EmptyStageCharacter({
           finalizePlayback();
         });
     },
-    [awardPlaybackReward, resolveRecordingBlobForObject, revokeAutoPlaybackAudioUrl, stopAutoPlaybackObject],
+    [
+      awardPlaybackReward,
+      getAutoPlaybackVolumeForObject,
+      resolveRecordingBlobForObject,
+      revokeAutoPlaybackAudioUrl,
+      stopAutoPlaybackObject,
+    ],
   );
 
   const {
@@ -585,7 +654,8 @@ export function EmptyStageCharacter({
 
   useEffect(() => {
     placedObjectsRef.current = placedObjects;
-  }, [placedObjects]);
+    updateActiveAutoPlaybackVolumes();
+  }, [placedObjects, updateActiveAutoPlaybackVolumes]);
 
   useEffect(() => {
     recordingBlobByRecordingIdRef.current = recordingBlobByRecordingId;
@@ -920,11 +990,18 @@ export function EmptyStageCharacter({
 
   useEffect(() => {
     characterVoiceVolumeRef.current = characterVoiceVolume;
+    updateActiveAutoPlaybackVolumes();
+  }, [characterVoiceVolume, updateActiveAutoPlaybackVolumes]);
 
-    for (const objectAudio of Object.values(autoPlaybackAudioByObjectIdRef.current)) {
-      objectAudio.volume = characterVoiceVolume;
-    }
-  }, [characterVoiceVolume]);
+  useEffect(() => {
+    const loadTimer = window.setTimeout(() => {
+      setCharacterVoiceVolume(loadKazenagareAudioSettings().characterVoiceVolume);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(loadTimer);
+    };
+  }, []);
 
   useEffect(() => {
     const handleLocalAudioSettingsUpdate: EventListener = (event) => {
@@ -1033,10 +1110,26 @@ export function EmptyStageCharacter({
       setWalletCoins(wallet.coins);
     };
 
+    const handleLocalWalletUpdate: EventListener = (event) => {
+      const customEvent = event as CustomEvent<VoiceZooWallet>;
+
+      if (customEvent.detail) {
+        setWalletCoins(customEvent.detail.coins);
+        return;
+      }
+
+      const wallet = parseVoiceZooWallet(
+        window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
+      );
+      setWalletCoins(wallet.coins);
+    };
+
     window.addEventListener("storage", handleWalletStorageUpdate);
+    window.addEventListener(VOICE_ZOO_WALLET_UPDATED_EVENT, handleLocalWalletUpdate);
 
     return () => {
       window.removeEventListener("storage", handleWalletStorageUpdate);
+      window.removeEventListener(VOICE_ZOO_WALLET_UPDATED_EVENT, handleLocalWalletUpdate);
     };
   }, []);
 
@@ -1061,6 +1154,25 @@ export function EmptyStageCharacter({
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const handleRecordingUpdate: EventListener = (event) => {
+      const customEvent = event as CustomEvent<VoiceZooRecordingUpdatedEventDetail>;
+      const ownerId = customEvent.detail?.ownerId;
+
+      if (ownerId && ownerId !== audioOwnerId) {
+        return;
+      }
+
+      setRecordingReloadNonce((current) => current + 1);
+    };
+
+    window.addEventListener(VOICE_ZOO_RECORDING_UPDATED_EVENT, handleRecordingUpdate);
+
+    return () => {
+      window.removeEventListener(VOICE_ZOO_RECORDING_UPDATED_EVENT, handleRecordingUpdate);
+    };
+  }, [audioOwnerId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1156,7 +1268,7 @@ export function EmptyStageCharacter({
     return () => {
       cancelled = true;
     };
-  }, [audioOwnerId]);
+  }, [audioOwnerId, recordingReloadNonce]);
 
   useEffect(() => {
     if (!pathname.startsWith("/garden")) {
@@ -1372,6 +1484,7 @@ export function EmptyStageCharacter({
           y: cameraOffsetRef.current.y + velocityRef.current.y * deltaSeconds,
         });
         applyWorldTransform();
+        updateActiveAutoPlaybackVolumes();
       }
 
       animationFrameRef.current = window.requestAnimationFrame(animate);
@@ -1382,7 +1495,12 @@ export function EmptyStageCharacter({
     return () => {
       window.cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [applyWorldTransform, clampCameraBounds, syncCharacterAnimationState]);
+  }, [
+    applyWorldTransform,
+    clampCameraBounds,
+    syncCharacterAnimationState,
+    updateActiveAutoPlaybackVolumes,
+  ]);
 
   const resetButtonClass = `pointer-events-auto rounded-md border px-3 py-2 text-xs font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
     darkMode

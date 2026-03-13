@@ -4,6 +4,13 @@ export const VOICE_ZOO_SUPPORTED_OBJECT_TYPES: ObjectType[] = [
   "furin",
   "shishi-odoshi",
 ];
+export const VOICE_ZOO_RECORDING_UPDATED_EVENT = "kazenagare:recording-updated";
+
+export type VoiceZooRecordingUpdatedEventDetail = {
+  ownerId: string;
+  objectType?: ObjectType;
+  recordingId?: string;
+};
 
 export type VoiceZooRecordingMeta = {
   id: string;
