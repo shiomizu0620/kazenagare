@@ -25,6 +25,7 @@ import type { ObjectType } from "@/types/garden";
 import {
   ACCEL_RESPONSE,
   BRAKE_RESPONSE,
+  CHARACTER_HITBOX_RADIUS,
   JOYSTICK_DEAD_ZONE,
   MAX_DELTA_SECONDS,
   MAX_PLACED_OBJECTS,
@@ -47,6 +48,7 @@ import {
   getInputAxis,
   isNearPlacedObject,
   limitVectorMagnitude,
+  resolveMovement,
   toUnitDirection,
 } from "./empty-stage-character.utils";
 import { EmptyStageCharacterStage } from "./empty-stage-character-stage";
@@ -75,6 +77,7 @@ export function EmptyStageCharacter({
   allowObjectPlacement = false,
   placementObjectType = null,
   objectStorageKey,
+  collisionZones = [],
 }: EmptyStageCharacterProps) {
   const pathname = usePathname();
   const resolvedStorageKey = objectStorageKey ?? null;
@@ -101,12 +104,14 @@ export function EmptyStageCharacter({
   >({});
   const stageRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<HTMLDivElement | null>(null);
+  const characterRef = useRef<HTMLDivElement | null>(null);
   const stickPadRef = useRef<HTMLDivElement | null>(null);
   const stickKnobRef = useRef<HTMLDivElement | null>(null);
   const walkingRef = useRef(false);
   const stickPointerIdRef = useRef<number | null>(null);
   const stageSizeRef = useRef<Vector2>({ x: 0, y: 0 });
   const cameraOffsetRef = useRef<Vector2>({ x: 0, y: 0 });
+  const desiredOffsetRef = useRef<Vector2>({ x: 0, y: 0 });
   const velocityRef = useRef<Vector2>({ x: 0, y: 0 });
   const previousTimestampRef = useRef(0);
   const animationFrameRef = useRef(0);
@@ -152,9 +157,30 @@ export function EmptyStageCharacter({
     worldRef.current.style.transform = `translate3d(${worldLeft - cameraOffsetRef.current.x}px, ${worldTop - cameraOffsetRef.current.y}px, 0)`;
   }, []);
 
+  const applyCharacterTransform = useCallback(() => {
+    if (!characterRef.current) {
+      return;
+    }
+
+    const offsetX = desiredOffsetRef.current.x - cameraOffsetRef.current.x;
+    const offsetY = desiredOffsetRef.current.y - cameraOffsetRef.current.y;
+
+    characterRef.current.style.transform = `translate3d(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px), 0)`;
+  }, []);
+
   const clampCameraBounds = useCallback((nextOffset: Vector2) => {
     const maxX = Math.max(0, WORLD_WIDTH * 0.5 - stageSizeRef.current.x * 0.5);
     const maxY = Math.max(0, WORLD_HEIGHT * 0.5 - stageSizeRef.current.y * 0.5);
+
+    return {
+      x: clamp(nextOffset.x, -maxX, maxX),
+      y: clamp(nextOffset.y, -maxY, maxY),
+    };
+  }, []);
+
+  const clampCharacterBounds = useCallback((nextOffset: Vector2) => {
+    const maxX = Math.max(0, WORLD_WIDTH * 0.5 - CHARACTER_HITBOX_RADIUS);
+    const maxY = Math.max(0, WORLD_HEIGHT * 0.5 - CHARACTER_HITBOX_RADIUS);
 
     return {
       x: clamp(nextOffset.x, -maxX, maxX),
@@ -179,9 +205,11 @@ export function EmptyStageCharacter({
         : nextStageSize,
     );
 
-    cameraOffsetRef.current = clampCameraBounds(cameraOffsetRef.current);
+    desiredOffsetRef.current = clampCharacterBounds(desiredOffsetRef.current);
+    cameraOffsetRef.current = clampCameraBounds(desiredOffsetRef.current);
     applyWorldTransform();
-  }, [applyWorldTransform, clampCameraBounds]);
+    applyCharacterTransform();
+  }, [applyCharacterTransform, applyWorldTransform, clampCameraBounds, clampCharacterBounds]);
 
   const clearJoystickInput = useCallback(() => {
     stickPointerIdRef.current = null;
@@ -281,11 +309,13 @@ export function EmptyStageCharacter({
     activeKeysRef.current.clear();
     clearJoystickInput();
     velocityRef.current = { x: 0, y: 0 };
+    desiredOffsetRef.current = { x: 0, y: 0 };
     cameraOffsetRef.current = { x: 0, y: 0 };
     previousTimestampRef.current = 0;
     resetCharacterAnimationState();
     applyWorldTransform();
-  }, [applyWorldTransform, clearJoystickInput, resetCharacterAnimationState]);
+    applyCharacterTransform();
+  }, [applyCharacterTransform, applyWorldTransform, clearJoystickInput, resetCharacterAnimationState]);
 
   const clearPlacementState = useCallback(() => {
     setIsMousePlacementArmed(false);
@@ -1311,11 +1341,24 @@ export function EmptyStageCharacter({
       syncCharacterAnimationState(velocityRef.current);
 
       if (velocityRef.current.x !== 0 || velocityRef.current.y !== 0) {
+        const rawNextOffset = clampCharacterBounds({
+          x: desiredOffsetRef.current.x + velocityRef.current.x * deltaSeconds,
+          y: desiredOffsetRef.current.y + velocityRef.current.y * deltaSeconds,
+        });
+
+        desiredOffsetRef.current = resolveMovement(
+          desiredOffsetRef.current,
+          rawNextOffset,
+          collisionZones,
+          CHARACTER_HITBOX_RADIUS,
+        );
+
         cameraOffsetRef.current = clampCameraBounds({
-          x: cameraOffsetRef.current.x + velocityRef.current.x * deltaSeconds,
-          y: cameraOffsetRef.current.y + velocityRef.current.y * deltaSeconds,
+          x: desiredOffsetRef.current.x,
+          y: desiredOffsetRef.current.y,
         });
         applyWorldTransform();
+        applyCharacterTransform();
       }
 
       animationFrameRef.current = window.requestAnimationFrame(animate);
@@ -1326,7 +1369,13 @@ export function EmptyStageCharacter({
     return () => {
       window.cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [applyWorldTransform, clampCameraBounds, syncCharacterAnimationState]);
+  }, [
+    applyCharacterTransform,
+    applyWorldTransform,
+    clampCameraBounds,
+    clampCharacterBounds,
+    syncCharacterAnimationState,
+  ]);
 
   const resetButtonClass = `pointer-events-auto rounded-md border px-3 py-2 text-xs font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
     darkMode
@@ -1437,6 +1486,7 @@ export function EmptyStageCharacter({
         isWalking={isWalking}
         stageRef={stageRef}
         worldRef={worldRef}
+        characterRef={characterRef}
         stageCursorClass={stageCursorClass}
         onStagePointerMove={handleStagePointerMove}
         onStagePointerDown={handleStagePointerDown}

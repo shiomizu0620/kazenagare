@@ -12,6 +12,7 @@ export const MAX_DELTA_SECONDS = 0.1;
 export const WALK_ANIMATION_SPEED_THRESHOLD = 10;
 export const MAX_PLACED_OBJECTS = 120;
 export const OBJECT_PICKUP_HIT_RADIUS = 72;
+export const CHARACTER_HITBOX_RADIUS = 2;
 
 export const OBJECT_VISUALS: Record<ObjectType, { icon: string; label: string }> = {
   furin: {

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ObjectType } from "@/types/garden";
+import type { CollisionZone } from "./collision-zones";
 
 export type EmptyStageCharacterProps = {
   children?: ReactNode;
@@ -7,6 +8,7 @@ export type EmptyStageCharacterProps = {
   allowObjectPlacement?: boolean;
   placementObjectType?: ObjectType | null;
   objectStorageKey?: string;
+  collisionZones?: CollisionZone[];
 };
 
 export type Vector2 = {

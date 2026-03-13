@@ -5,11 +5,81 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "./empty-stage-character.constants";
+import type { CollisionZone } from "./collision-zones";
 import type {
   ObjectLocatorIndicator,
   PlacedStageObject,
   Vector2,
 } from "./empty-stage-character.types";
+
+/**
+ * キャラクター（円）とコリジョンゾーンが重なっているか判定する
+ */
+export function collidesWithZone(
+  worldX: number,
+  worldY: number,
+  characterRadius: number,
+  zone: CollisionZone,
+): boolean {
+  if (zone.type === "rect") {
+    // AABB vs Circle
+    const nearestX = clamp(worldX, zone.x, zone.x + zone.width);
+    const nearestY = clamp(worldY, zone.y, zone.y + zone.height);
+    const dx = worldX - nearestX;
+    const dy = worldY - nearestY;
+    return dx * dx + dy * dy < characterRadius * characterRadius;
+  }
+  // Circle vs Circle
+  const dx = worldX - zone.cx;
+  const dy = worldY - zone.cy;
+  const minDist = characterRadius + zone.radius;
+  return dx * dx + dy * dy < minDist * minDist;
+}
+
+/**
+ * 移動後の位置にコリジョンがある場合、軸ごとにスライドを試みて
+ * 通れる方向の最終オフセットを返す（壁ずりあり）
+ * desiredOffset はワールド中心からのオフセット座標
+ */
+export function resolveMovement(
+  currentDesiredOffset: Vector2,
+  nextDesiredOffset: Vector2,
+  zones: CollisionZone[],
+  characterRadius: number,
+): Vector2 {
+  if (zones.length === 0) {
+    return nextDesiredOffset;
+  }
+
+  const cx = WORLD_WIDTH / 2;
+  const cy = WORLD_HEIGHT / 2;
+
+  const isBlocked = (ox: number, oy: number) =>
+    zones.some((z) => collidesWithZone(cx + ox, cy + oy, characterRadius, z));
+
+  // そもそも現在地が衝突中なら制限しない（はまり防止）
+  if (isBlocked(currentDesiredOffset.x, currentDesiredOffset.y)) {
+    return nextDesiredOffset;
+  }
+
+  // 全軸移動を試みる
+  if (!isBlocked(nextDesiredOffset.x, nextDesiredOffset.y)) {
+    return nextDesiredOffset;
+  }
+
+  // X軸のみ移動
+  if (!isBlocked(nextDesiredOffset.x, currentDesiredOffset.y)) {
+    return { x: nextDesiredOffset.x, y: currentDesiredOffset.y };
+  }
+
+  // Y軸のみ移動
+  if (!isBlocked(currentDesiredOffset.x, nextDesiredOffset.y)) {
+    return { x: currentDesiredOffset.x, y: nextDesiredOffset.y };
+  }
+
+  // 完全に詰まっている
+  return currentDesiredOffset;
+}
 
 type LocatorIndicatorInput = {
   stageSize: Vector2;

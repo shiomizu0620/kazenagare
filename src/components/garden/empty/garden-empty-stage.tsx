@@ -1,3 +1,5 @@
+"use client";
+
 import { EmptyStageDecoration } from "@/components/garden/empty/empty-stage-decoration";
 import {
   EmptyStageCharacter,
@@ -10,6 +12,7 @@ import {
   getTimeOverlayClass,
 } from "@/components/garden/empty/empty-stage-theme";
 import type { ObjectType } from "@/types/garden";
+import { COLLISION_ZONES } from "@/components/garden/empty/empty-stage-character/collision-zones";
 
 type GardenEmptyStageProps = {
   backgroundId: string;
@@ -51,7 +54,20 @@ export function GardenEmptyStage({
         allowObjectPlacement={allowObjectPlacement}
         placementObjectType={placementObjectType}
         objectStorageKey={objectStorageKey}
+        collisionZones={COLLISION_ZONES[backgroundId] ?? []}
       >
+        {backgroundId === "garden-all" ? (
+          <div
+            className="pointer-events-none absolute left-0 top-0"
+            style={{
+              width: WORLD_WIDTH,
+              height: WORLD_HEIGHT,
+              backgroundImage: "url('/images/garden/backgrounds/garden-all/庭.png')",
+              backgroundSize: "100% 100%",
+              backgroundPosition: "left top",
+            }}
+          />
+        ) : null}
         <EmptyStageDecoration backgroundId={backgroundId} />
         <div className={`absolute inset-0 ${seasonOverlayClass}`} />
         <div className={`absolute inset-0 ${timeOverlayClass}`} />

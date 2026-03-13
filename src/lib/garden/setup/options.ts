@@ -13,6 +13,7 @@ export const GARDEN_BACKGROUNDS: GardenOption[] = [
   { id: "bamboo-forest", name: "竹林" },
   { id: "night-pond", name: "夜の池" },
   { id: "misty-temple", name: "霧の寺" },
+  { id: "garden-all", name: "庭" },
 ];
 
 export const GARDEN_SEASONS: GardenOption[] = [
