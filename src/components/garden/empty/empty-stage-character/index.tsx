@@ -186,14 +186,18 @@ export function EmptyStageCharacter({
 
   const getListenerWorldPosition = useCallback(() => {
     return {
-      x: WORLD_WIDTH * 0.5 + cameraOffsetRef.current.x,
-      y: WORLD_HEIGHT * 0.5 + cameraOffsetRef.current.y,
+      x: WORLD_WIDTH * 0.5 + desiredOffsetRef.current.x,
+      y: WORLD_HEIGHT * 0.5 + desiredOffsetRef.current.y,
     };
   }, []);
 
   const getAutoPlaybackVolumeForObject = useCallback(
-    (placedObject: PlacedStageObject) => {
-      const listenerPosition = getListenerWorldPosition();
+    (
+      placedObject: PlacedStageObject,
+      listenerPositionOverride?: Vector2,
+    ) => {
+      const listenerPosition =
+        listenerPositionOverride ?? getListenerWorldPosition();
       const distanceToListener = Math.hypot(
         placedObject.x - listenerPosition.x,
         placedObject.y - listenerPosition.y,
@@ -205,20 +209,31 @@ export function EmptyStageCharacter({
     [getListenerWorldPosition],
   );
 
-  const updateActiveAutoPlaybackVolumes = useCallback(() => {
-    for (const [objectId, objectAudio] of Object.entries(
-      autoPlaybackAudioByObjectIdRef.current,
-    )) {
-      const placedObject =
-        placedObjectsRef.current.find((candidate) => candidate.id === objectId) ?? null;
+  const updateActiveAutoPlaybackVolumes = useCallback(
+    (listenerWorldX?: number, listenerWorldY?: number) => {
+      const listenerPosition =
+        typeof listenerWorldX === "number" && typeof listenerWorldY === "number"
+          ? { x: listenerWorldX, y: listenerWorldY }
+          : getListenerWorldPosition();
 
-      if (!placedObject) {
-        continue;
+      for (const [objectId, objectAudio] of Object.entries(
+        autoPlaybackAudioByObjectIdRef.current,
+      )) {
+        const placedObject =
+          placedObjectsRef.current.find((candidate) => candidate.id === objectId) ?? null;
+
+        if (!placedObject) {
+          continue;
+        }
+
+        objectAudio.volume = getAutoPlaybackVolumeForObject(
+          placedObject,
+          listenerPosition,
+        );
       }
-
-      objectAudio.volume = getAutoPlaybackVolumeForObject(placedObject);
-    }
-  }, [getAutoPlaybackVolumeForObject]);
+    },
+    [getAutoPlaybackVolumeForObject, getListenerWorldPosition],
+  );
 
   const applyWorldTransform = useCallback(() => {
     if (!worldRef.current) {
