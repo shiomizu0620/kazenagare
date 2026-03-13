@@ -1574,7 +1574,7 @@ export function EmptyStageCharacter({
 
   const helperTextClass = `text-[10px] ${darkMode ? "text-wa-white/80" : "text-wa-black/70"}`;
 
-  const resetPanelClass = `pointer-events-none absolute bottom-5 left-5 z-30 grid gap-2 rounded-xl border p-2 backdrop-blur-sm ${
+  const resetPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+8.75rem)] left-3 right-3 z-30 grid gap-2 rounded-xl border p-2 backdrop-blur-sm sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[24rem] ${
     darkMode
       ? "border-wa-white/30 bg-wa-black/40"
       : "border-wa-black/20 bg-wa-white/70"
@@ -1662,7 +1662,7 @@ export function EmptyStageCharacter({
       ? "図鑑を選ばなくても、置いてあるオブジェクトをタップでつかんで移動できます。"
       : "図鑑でオブジェクトを選ぶと、この庭で配置できます。";
 
-  const mobileStickPanelClass = `pointer-events-none absolute bottom-5 right-5 z-40 rounded-2xl border p-2 backdrop-blur-sm sm:hidden ${
+  const mobileStickPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] right-3 z-40 rounded-2xl border p-2 backdrop-blur-sm sm:hidden ${
     darkMode
       ? "border-wa-white/30 bg-wa-black/40"
       : "border-wa-black/20 bg-wa-white/70"
