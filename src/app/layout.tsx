@@ -13,10 +13,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const isProduction = process.env.NODE_ENV === "production";
+
 export const metadata: Metadata = {
   title: "風流 - Kazenagare",
   description: "声を和の情景へ溶け込ませるインタラクティブ体験",
-  robots: "noindex, nofollow",// ここはまだ開発中のサイトなので、検索エンジンにインデックスされないようにするための設定です。
+  robots: isProduction
+    ? "index, follow"
+    : "noindex, nofollow", // 開発・ステージング環境ではインデックスされないようにし、本番環境ではインデックスを許可します。
 };
 
 export default function RootLayout({
