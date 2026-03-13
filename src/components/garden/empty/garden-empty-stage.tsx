@@ -62,7 +62,7 @@ export function GardenEmptyStage({
             style={{
               width: WORLD_WIDTH,
               height: WORLD_HEIGHT,
-              backgroundImage: "url('/images/garden/backgrounds/garden-all/庭.png')",
+              backgroundImage: `url('/images/garden/backgrounds/${backgroundId}/${seasonId}/${timeSlotId}/background.png')`,
               backgroundSize: "100% 100%",
               backgroundPosition: "left top",
             }}
