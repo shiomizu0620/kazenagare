@@ -303,6 +303,7 @@ export default function VoiceZooPage() {
   const recordingEntryAudioUrl = recordingEntry
     ? (recordingAudioUrls[recordingEntry.objectType] ?? null)
     : null;
+  const canPlaceFromRecordingModal = Boolean(recordingEntryAudioUrl) && !isRecording;
 
   const clearAllRecordingAudioUrls = useCallback(() => {
     for (const objectType of VOICE_ZOO_SUPPORTED_OBJECT_TYPES) {
@@ -580,7 +581,7 @@ export default function VoiceZooPage() {
 
     openRecordingModalForEntry(
       purchasedEntry,
-      `${purchasedEntry.name}を購入しました。次は3秒録音を作成しましょう。`,
+      `${purchasedEntry.name}を購入しました。3秒録音を開始してください。`,
     );
   };
 
@@ -974,13 +975,6 @@ export default function VoiceZooPage() {
                   >
                     録音しなおす（3秒）
                   </button>
-                  <Link
-                    href={`/garden/me?place=${selectedEntry.objectType}`}
-                    onClick={closeModal}
-                    className="rounded-md border border-wa-black bg-wa-red/10 px-4 py-2 text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/20 active:translate-y-[1px] active:scale-[0.98]"
-                  >
-                    このオブジェクトを庭に置く
-                  </Link>
                 </>
               ) : (
                 <button
@@ -1078,13 +1072,23 @@ export default function VoiceZooPage() {
                 {isRecording ? "録音中..." : "3秒録音を開始"}
               </button>
 
-              <Link
-                href={`/garden/me?place=${recordingEntry.objectType}`}
-                onClick={closeRecordingModal}
-                className="rounded-md border border-wa-black px-4 py-2 text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
-              >
-                録音してこのオブジェクトを庭に置く
-              </Link>
+              {canPlaceFromRecordingModal ? (
+                <Link
+                  href={`/garden/me?place=${recordingEntry.objectType}`}
+                  onClick={closeRecordingModal}
+                  className="rounded-md border border-wa-black px-4 py-2 text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
+                >
+                  録音し終わって配置する
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="cursor-not-allowed rounded-md border border-wa-black/20 bg-wa-black/10 px-4 py-2 text-sm font-semibold text-wa-black/50"
+                >
+                  録音し終わって配置する
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1113,6 +1117,12 @@ export default function VoiceZooPage() {
             {recordingNotice ? (
               <p className="rounded-lg border border-wa-black/20 bg-wa-white px-3 py-2 text-xs text-wa-black">
                 {recordingNotice}
+              </p>
+            ) : null}
+
+            {!recordingEntryAudioUrl ? (
+              <p className="rounded-lg border border-wa-gold/35 bg-wa-gold/10 px-3 py-2 text-xs text-wa-black">
+                配置するには先に3秒録音を完了してください。
               </p>
             ) : null}
           </section>

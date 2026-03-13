@@ -70,10 +70,10 @@ export default function Home() {
           </Link>
 
           <Link
-            href="/voice-zoo"
+            href="/garden/me"
             className="rounded-md border border-gray-400 px-4 py-2 text-sm flex items-center"
           >
-            オブジェクトを置く
+            自分の庭でオブジェクトを置く
           </Link>
         </div>
       </div>
