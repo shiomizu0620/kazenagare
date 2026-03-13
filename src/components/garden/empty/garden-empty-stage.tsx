@@ -4,6 +4,7 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "@/components/garden/empty/empty-stage-character/index";
+import { GardenStageBgm } from "@/components/garden/empty/garden-stage-bgm";
 import {
   getBackgroundTheme,
   getSeasonOverlayClass,
@@ -46,6 +47,12 @@ export function GardenEmptyStage({
 
   return (
     <section className={stageContainerClass}>
+      <GardenStageBgm
+        backgroundId={backgroundId}
+        seasonId={seasonId}
+        timeSlotId={timeSlotId}
+      />
+
       <EmptyStageCharacter
         darkMode={isNightPond}
         allowObjectPlacement={allowObjectPlacement}

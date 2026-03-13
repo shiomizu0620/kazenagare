@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "defaultTrackId": "default",
+  "tracks": {
+    "default": {
+      "src": "/audio/garden/bgm.mp3",
+      "volumeMultiplier": 1
+    }
+  },
+  "scenes": {
+    "byBackgroundSeasonTime": {},
+    "byBackgroundSeason": {},
+    "byBackgroundTime": {},
+    "byBackground": {},
+    "bySeasonTime": {},
+    "bySeason": {},
+    "byTimeSlot": {}
+  }
+}
