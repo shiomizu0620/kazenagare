@@ -1543,6 +1543,7 @@ export function EmptyStageCharacter({
     applyWorldTransform,
     clampCameraBounds,
     clampCharacterBounds,
+    collisionZones,
     syncCharacterAnimationState,
     updateActiveAutoPlaybackVolumes,
   ]);
