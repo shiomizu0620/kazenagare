@@ -695,14 +695,14 @@ export function GardenOptionsMenu({
         </div>
       </div>
 
-      {isCatalogOpen ? (
+            {isCatalogOpen ? (
         <div className="fixed inset-0 z-[70] grid place-items-center overflow-y-auto p-2 sm:p-6">
           <section
             id={catalogPanelId}
             role="dialog"
             aria-modal="true"
             aria-label="図鑑"
-            className={`pointer-events-auto relative w-full max-w-5xl overflow-hidden rounded-3xl border shadow-[0_34px_90px_rgba(0,0,0,0.45)] [transform-style:preserve-3d] animate-[kazenagare-catalog-burst_220ms_cubic-bezier(0.2,1,0.36,1)] ${
+            className={`pointer-events-auto relative mx-auto min-w-[46rem] w-[max(46rem,calc(100vw-1.5rem))] max-w-5xl overflow-hidden rounded-3xl border shadow-[0_34px_90px_rgba(0,0,0,0.45)] [transform-style:preserve-3d] animate-[kazenagare-catalog-burst_220ms_cubic-bezier(0.2,1,0.36,1)] sm:min-w-0 sm:w-full ${
               darkMode
                 ? "border-wa-white/35 bg-[linear-gradient(160deg,rgba(23,23,23,0.98)_0%,rgba(35,35,35,0.95)_52%,rgba(15,15,15,0.98)_100%)] text-wa-white"
                 : "border-wa-black/25 bg-[linear-gradient(160deg,rgba(255,250,242,0.99)_0%,rgba(248,236,220,0.96)_54%,rgba(255,249,240,0.99)_100%)] text-wa-black"
@@ -970,6 +970,10 @@ export function GardenOptionsMenu({
                   />
                 </div>
               ) : null}
+
+              <p className={`text-[11px] sm:hidden ${darkMode ? "text-wa-white/70" : "text-wa-black/65"}`}>
+                横にスワイプすると見開き全体を確認できます。
+              </p>
             </div>
           </section>
         </div>

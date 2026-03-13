@@ -1636,7 +1636,6 @@ export function EmptyStageCharacter({
   const shouldRenderObjectLocator =
     isObjectLocatorVisible &&
     Boolean(objectLocatorIndicator);
-
   const mobileStickPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] right-3 z-40 rounded-2xl border p-2 backdrop-blur-sm sm:hidden ${
     darkMode
       ? "border-wa-white/30 bg-wa-black/40"
