@@ -1527,7 +1527,10 @@ export function EmptyStageCharacter({
         });
         applyWorldTransform();
         applyCharacterTransform();
-        updateActiveAutoPlaybackVolumes();
+        updateActiveAutoPlaybackVolumes(
+          WORLD_WIDTH / 2 + desiredOffsetRef.current.x,
+          WORLD_HEIGHT / 2 + desiredOffsetRef.current.y,
+        );
       }
 
       animationFrameRef.current = window.requestAnimationFrame(animate);
