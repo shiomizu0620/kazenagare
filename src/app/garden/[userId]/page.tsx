@@ -20,6 +20,9 @@ type GardenUserPageProps = {
     userId: string;
   }>;
   searchParams: Promise<{
+    background?: QueryValue;
+    season?: QueryValue;
+    time?: QueryValue;
     place?: QueryValue;
   }>;
 };
@@ -51,11 +54,23 @@ export default async function GardenUserPage({
   const isMe = userId === "me";
   const qrHref = `/garden/${encodeURIComponent(userId)}/qr`;
 
-  const background = GARDEN_BACKGROUNDS[0];
-  const season = GARDEN_SEASONS[0];
-  const timeSlot = GARDEN_TIME_SLOTS[0];
+  const selectedBackgroundId = normalizeQueryValue(
+    query.background,
+    GARDEN_BACKGROUNDS[0].id,
+  );
+  const selectedSeasonId = normalizeQueryValue(query.season, GARDEN_SEASONS[0].id);
+  const selectedTimeSlotId = normalizeQueryValue(query.time, GARDEN_TIME_SLOTS[0].id);
+
+  const background =
+    GARDEN_BACKGROUNDS.find((option) => option.id === selectedBackgroundId) ??
+    GARDEN_BACKGROUNDS[0];
+  const season =
+    GARDEN_SEASONS.find((option) => option.id === selectedSeasonId) ?? GARDEN_SEASONS[0];
+  const timeSlot =
+    GARDEN_TIME_SLOTS.find((option) => option.id === selectedTimeSlotId) ??
+    GARDEN_TIME_SLOTS[0];
   const selectedPlacementObjectType = parsePlacementObjectType(query.place);
-  const isNightPond = background.id === "night-pond";
+  const isNight = timeSlot.id === "night";
 
   if (isMe) {
     const optionActions: GardenOptionAction[] = [
@@ -99,7 +114,7 @@ export default async function GardenUserPage({
         <GardenOptionsMenu
           actions={optionActions}
           title="自分の庭オプション"
-          darkMode={isNightPond}
+          darkMode={isNight}
         />
       </main>
     );

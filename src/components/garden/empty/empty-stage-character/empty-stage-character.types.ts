@@ -9,11 +9,20 @@ export type EmptyStageCharacterProps = {
   placementObjectType?: ObjectType | null;
   objectStorageKey?: string;
   collisionZones?: CollisionZone[];
+  initialCharacterWorldPosition?: Vector2;
+  movementBounds?: WorldBounds;
 };
 
 export type Vector2 = {
   x: number;
   y: number;
+};
+
+export type WorldBounds = {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
 };
 
 export type ObjectLocatorIndicator = {
