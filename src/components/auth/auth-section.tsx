@@ -142,22 +142,7 @@ export function AuthSection() {
     hasNavigatedRef.current = true;
 
     if (nextUserId) {
-      // 1. ローカルストレージから復元（同じデバイスなら高速）
-      const localState = parseGardenLocalState(
-        window.localStorage.getItem(createGardenLocalStateStorageKey(nextUserId)),
-      );
-
-      if (localState) {
-        const params = new URLSearchParams({
-          background: localState.backgroundId,
-          season: localState.seasonId,
-          time: localState.timeSlotId,
-        });
-        router.push(`${EMPTY_GARDEN_PATH}?${params.toString()}`);
-        return;
-      }
-
-      // 2. DBから復元（別デバイスなどローカルに無い場合）
+      // 1. DBから復元（アカウント単位データを優先）
       const supabase = getSupabaseClient();
       if (supabase) {
         const { data } = await supabase
@@ -175,6 +160,21 @@ export function AuthSection() {
           router.push(`${EMPTY_GARDEN_PATH}?${params.toString()}`);
           return;
         }
+      }
+
+      // 2. ローカルストレージから復元（DB未保存時のフォールバック）
+      const localState = parseGardenLocalState(
+        window.localStorage.getItem(createGardenLocalStateStorageKey(nextUserId)),
+      );
+
+      if (localState) {
+        const params = new URLSearchParams({
+          background: localState.backgroundId,
+          season: localState.seasonId,
+          time: localState.timeSlotId,
+        });
+        router.push(`${EMPTY_GARDEN_PATH}?${params.toString()}`);
+        return;
       }
     }
 

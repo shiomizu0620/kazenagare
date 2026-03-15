@@ -1,6 +1,6 @@
 "use client";
 
-import { del, set } from "idb-keyval";
+import { del, keys as getIdbKeys, set } from "idb-keyval";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -34,14 +34,16 @@ import {
 import {
   calculatePlaybackRewardCoins,
   createInitialVoiceZooWallet,
+  getVoiceZooWalletStorageKey,
   INITIAL_VOICE_ZOO_COINS,
+  loadVoiceZooWallet,
   parseVoiceZooWallet,
   saveVoiceZooWallet,
-  VOICE_ZOO_WALLET_STORAGE_KEY,
 } from "@/lib/voice-zoo/wallet";
 import type { ObjectType } from "@/types/garden";
 
 const RECORDING_DURATION_SECONDS = 3;
+const LOCAL_STORAGE_PREFIX = "kazenagare_";
 
 export type GardenOptionAction = {
   href: string;
@@ -436,9 +438,7 @@ export function GardenOptionsMenu({
     }
 
     const targetObjectType = selectedCatalogEntry.objectType;
-    const currentWallet = parseVoiceZooWallet(
-      window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
-    );
+    const currentWallet = loadVoiceZooWallet(audioOwnerId);
 
     if (currentWallet.ownedObjectTypes.includes(targetObjectType)) {
       setOwnedCatalogObjectTypes(currentWallet.ownedObjectTypes);
@@ -461,7 +461,7 @@ export function GardenOptionsMenu({
       ownedObjectTypes: [...currentWallet.ownedObjectTypes, targetObjectType],
     };
 
-    saveVoiceZooWallet(nextWallet);
+    saveVoiceZooWallet(nextWallet, audioOwnerId);
     setOwnedCatalogObjectTypes(nextWallet.ownedObjectTypes);
     openRecordingModalForEntry(
       selectedCatalogEntry,
@@ -494,6 +494,9 @@ export function GardenOptionsMenu({
   }, [pathname, router, searchParams]);
 
   const handleResetWalletForTesting = () => {
+    saveVoiceZooWallet(createInitialVoiceZooWallet(), audioOwnerId);
+    window.localStorage.removeItem(`kazenagare_objects_me_${audioOwnerId}`);
+    window.localStorage.removeItem("kazenagare_objects_me");
     saveVoiceZooWallet(createInitialVoiceZooWallet());
     resetGardenPlacedObjects(GARDEN_OBJECTS_STORAGE_KEY_ME);
     clearPlacementQueryIfNeeded();
@@ -505,15 +508,13 @@ export function GardenOptionsMenu({
   };
 
   const handleAddTestCoins = (coinsToAdd: number) => {
-    const currentWallet = parseVoiceZooWallet(
-      window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
-    );
+    const currentWallet = loadVoiceZooWallet(audioOwnerId);
     const nextWallet = {
       ...currentWallet,
       coins: currentWallet.coins + coinsToAdd,
     };
 
-    saveVoiceZooWallet(nextWallet);
+    saveVoiceZooWallet(nextWallet, audioOwnerId);
     setOwnedCatalogObjectTypes(nextWallet.ownedObjectTypes);
     setTestingNotice(`テスト用に ${coinsToAdd} コインを追加しました。`);
   };
@@ -560,6 +561,44 @@ export function GardenOptionsMenu({
     }
   };
 
+  const handleClearAllLocalSaveData = useCallback(async () => {
+    const shouldClear = window.confirm(
+      "このブラウザに保存されているローカルデータを削除します。続行しますか？",
+    );
+    if (!shouldClear) {
+      return;
+    }
+
+    let removedLocalStorageCount = 0;
+    const localStorageKeys = Object.keys(window.localStorage);
+    for (const key of localStorageKeys) {
+      if (!key.startsWith(LOCAL_STORAGE_PREFIX)) {
+        continue;
+      }
+
+      window.localStorage.removeItem(key);
+      removedLocalStorageCount += 1;
+    }
+
+    let removedIdbCount = 0;
+    const idbKeys = await getIdbKeys();
+    await Promise.all(
+      idbKeys.map(async (key) => {
+        if (typeof key !== "string" || !key.startsWith(LOCAL_STORAGE_PREFIX)) {
+          return;
+        }
+
+        await del(key);
+        removedIdbCount += 1;
+      }),
+    );
+
+    window.alert(
+      `ローカル保存データを削除しました（localStorage: ${removedLocalStorageCount}件 / IndexedDB: ${removedIdbCount}件）。`,
+    );
+    window.location.reload();
+  }, []);
+
   return (
     <>
       {isOpen || isCatalogOpen ? (
@@ -583,7 +622,7 @@ export function GardenOptionsMenu({
               onClick={() => {
                 if (typeof window !== "undefined") {
                   const storedWallet = parseVoiceZooWallet(
-                    window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
+                    window.localStorage.getItem(getVoiceZooWalletStorageKey(audioOwnerId)),
                   );
                   setOwnedCatalogObjectTypes(storedWallet.ownedObjectTypes);
                 }
@@ -702,6 +741,20 @@ export function GardenOptionsMenu({
                 ) : null}
               </Link>
             ))}
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                void handleClearAllLocalSaveData();
+              }}
+              className={`${itemClass} border-wa-red/45 text-wa-red`}
+            >
+              <span className="text-sm font-semibold">ローカル保存を削除</span>
+              <span className={descriptionClass}>
+                このブラウザの庭設定・配置・録音キャッシュを初期化します
+              </span>
+            </button>
           </div>
         </div>
       </div>
