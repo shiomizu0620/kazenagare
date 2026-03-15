@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { GARDEN_BACKGROUNDS } from "@/lib/garden/setup/options";
 import type { GardenBackground, GardenProfile } from "@/types/garden";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import {
+  createGardenLocalStateStorageKey,
+  parseGardenLocalState,
+} from "@/lib/garden/local-state";
 
 const BACKGROUNDS: GardenBackground[] = GARDEN_BACKGROUNDS;
 const RANDOM_USER_IDS = ["akari", "ren", "sora", "yui"];
@@ -49,15 +53,15 @@ export function useGarden() {
     // 【修正ポイント】Promise.resolve()を使って処理を非同期にし、Reactの警告を回避！
     Promise.resolve().then(() => {
       // ユーザーIDを鍵にしてデータを引き出す
-      const savedData = localStorage.getItem(`kazenagare_garden_${userId}`);
-      if (savedData) {
-        try {
-          const parsed = JSON.parse(savedData);
-          if (typeof parsed.backgroundIndex === "number") {
-            setBackgroundIndex(parsed.backgroundIndex);
-          }
-        } catch (e) {
-          console.error("データの読み込みに失敗しました", e);
+      const savedData = localStorage.getItem(createGardenLocalStateStorageKey(userId));
+      const parsed = parseGardenLocalState(savedData);
+
+      if (parsed) {
+        const nextIndex = BACKGROUNDS.findIndex(
+          (option) => option.id === parsed.backgroundId,
+        );
+        if (nextIndex >= 0) {
+          setBackgroundIndex(nextIndex);
         }
       }
       setIsLoaded(true); // 読み込み完了！
@@ -69,13 +73,16 @@ export function useGarden() {
     // ユーザーIDがない、または初期読み込みが終わっていない時は保存しない（上書き防止）
     if (!userId || !isLoaded) return;
 
+    const selectedBackgroundId = BACKGROUNDS[backgroundIndex]?.id ?? BACKGROUNDS[0].id;
     const dataToSave = {
       backgroundIndex,
-      // 今後、音の設定値や投稿内容が増えたら、ここにどんどん追加していけます！
+      backgroundId: selectedBackgroundId,
+      seasonId: "spring",
+      timeSlotId: "daytime",
     };
     
     // ユーザーIDを鍵にして保存する
-    localStorage.setItem(`kazenagare_garden_${userId}`, JSON.stringify(dataToSave));
+    localStorage.setItem(createGardenLocalStateStorageKey(userId), JSON.stringify(dataToSave));
   }, [backgroundIndex, userId, isLoaded]);
 
   const selectedBackground = BACKGROUNDS[backgroundIndex];
