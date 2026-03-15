@@ -107,6 +107,7 @@ function SeasonTimeBackgroundLayer({
   const activeImage = candidates[Math.min(candidateIndex, Math.max(0, candidates.length - 1))];
 
   return (
+    // eslint-disable-next-line @next/next/no-img-element -- onError フォールバックが必要なため <img> を使用
     <img
       className="pointer-events-none absolute left-0 top-0 block"
       src={activeImage}
