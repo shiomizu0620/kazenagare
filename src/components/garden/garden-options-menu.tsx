@@ -2,6 +2,7 @@
 
 import { del, set } from "idb-keyval";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   DEFAULT_KAZENAGARE_AUDIO_SETTINGS,
@@ -9,6 +10,10 @@ import {
   loadKazenagareAudioSettings,
   saveKazenagareAudioSettings,
 } from "@/lib/audio/settings";
+import {
+  GARDEN_OBJECTS_STORAGE_KEY_ME,
+  resetGardenPlacedObjects,
+} from "@/lib/garden/placed-objects-storage";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import {
   type VoiceZooEntry,
@@ -79,6 +84,9 @@ export function GardenOptionsMenu({
   darkMode = false,
   catalogLabel = "図鑑を開く",
 }: GardenOptionsMenuProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [catalogActionNotice, setCatalogActionNotice] = useState<string | null>(null);
@@ -470,9 +478,23 @@ export function GardenOptionsMenu({
     );
   };
 
+  const clearPlacementQueryIfNeeded = useCallback(() => {
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+
+    if (!nextSearchParams.has("place")) {
+      return;
+    }
+
+    nextSearchParams.delete("place");
+    const nextSearch = nextSearchParams.toString();
+    const nextHref = nextSearch.length > 0 ? `${pathname}?${nextSearch}` : pathname;
+    router.replace(nextHref, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   const handleResetWalletForTesting = () => {
     saveVoiceZooWallet(createInitialVoiceZooWallet());
-    window.localStorage.removeItem("kazenagare_objects_me");
+    resetGardenPlacedObjects(GARDEN_OBJECTS_STORAGE_KEY_ME);
+    clearPlacementQueryIfNeeded();
     setOwnedCatalogObjectTypes([]);
     setCatalogActionNotice(null);
     setTestingNotice(

@@ -23,6 +23,22 @@ type GardenStageBgmProps = {
 
 const GARDEN_BGM_EXTENSIONS = ["mp3", "ogg", "m4a", "wav", "webm"] as const;
 
+type CompatibleAudioContextWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
+function getAudioContextConstructor() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return (
+    window.AudioContext ??
+    (window as CompatibleAudioContextWindow).webkitAudioContext ??
+    null
+  );
+}
+
 function buildGardenBgmCandidates(
   backgroundId: string,
   seasonId: string,
@@ -104,6 +120,9 @@ export function GardenStageBgm({
   timeSlotId,
 }: GardenStageBgmProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaSourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   const [bgmVolume, setBgmVolume] = useState(DEFAULT_KAZENAGARE_AUDIO_SETTINGS.bgmVolume);
   const bgmVolumeRef = useRef(DEFAULT_KAZENAGARE_AUDIO_SETTINGS.bgmVolume);
   const resolvedVolumeMultiplierRef = useRef(1);
@@ -115,6 +134,79 @@ export function GardenStageBgm({
     [backgroundId, seasonId, timeSlotId],
   );
 
+  const getEffectiveVolume = useCallback(() => {
+    return Math.min(
+      1,
+      Math.max(0, bgmVolumeRef.current * resolvedVolumeMultiplierRef.current),
+    );
+  }, []);
+
+  const ensureVolumeController = useCallback(() => {
+    const audioElement = audioRef.current;
+
+    if (!audioElement || mediaSourceNodeRef.current || gainNodeRef.current) {
+      return;
+    }
+
+    const AudioContextConstructor = getAudioContextConstructor();
+
+    if (!AudioContextConstructor) {
+      return;
+    }
+
+    try {
+      const audioContext = audioContextRef.current ?? new AudioContextConstructor();
+      const sourceNode = audioContext.createMediaElementSource(audioElement);
+      const gainNode = audioContext.createGain();
+
+      sourceNode.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      audioContextRef.current = audioContext;
+      mediaSourceNodeRef.current = sourceNode;
+      gainNodeRef.current = gainNode;
+      audioElement.volume = 1;
+    } catch {
+      // Keep HTMLMediaElement volume control as a fallback.
+    }
+  }, []);
+
+  const applyEffectiveVolume = useCallback(() => {
+    const audioElement = audioRef.current;
+
+    if (!audioElement) {
+      return;
+    }
+
+    const effectiveVolume = getEffectiveVolume();
+    const gainNode = gainNodeRef.current;
+
+    if (gainNode) {
+      gainNode.gain.setValueAtTime(
+        effectiveVolume,
+        gainNode.context.currentTime,
+      );
+      audioElement.volume = 1;
+      return;
+    }
+
+    audioElement.volume = effectiveVolume;
+  }, [getEffectiveVolume]);
+
+  const resumeAudioContextIfNeeded = useCallback(async () => {
+    const audioContext = audioContextRef.current;
+
+    if (!audioContext || audioContext.state !== "suspended") {
+      return;
+    }
+
+    try {
+      await audioContext.resume();
+    } catch {
+      // Ignore resume failures and continue with media element playback.
+    }
+  }, []);
+
   const startPlayback = useCallback(async () => {
     const audioElement = audioRef.current;
 
@@ -122,22 +214,21 @@ export function GardenStageBgm({
       return;
     }
 
-    const effectiveVolume = Math.min(
-      1,
-      Math.max(0, bgmVolumeRef.current * resolvedVolumeMultiplierRef.current),
-    );
-    audioElement.volume = effectiveVolume;
+    ensureVolumeController();
+    applyEffectiveVolume();
 
     if (!audioElement.paused && !audioElement.ended) {
       return;
     }
+
+    await resumeAudioContextIfNeeded();
 
     try {
       await audioElement.play();
     } catch {
       // Autoplay may be blocked until user interaction.
     }
-  }, [resolvedSource]);
+  }, [applyEffectiveVolume, ensureVolumeController, resolvedSource, resumeAudioContextIfNeeded]);
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
@@ -188,18 +279,8 @@ export function GardenStageBgm({
   useEffect(() => {
     bgmVolumeRef.current = bgmVolume;
     resolvedVolumeMultiplierRef.current = resolvedVolumeMultiplier;
-
-    const audioElement = audioRef.current;
-
-    if (!audioElement) {
-      return;
-    }
-
-    audioElement.volume = Math.min(
-      1,
-      Math.max(0, bgmVolume * resolvedVolumeMultiplier),
-    );
-  }, [bgmVolume, resolvedVolumeMultiplier]);
+    applyEffectiveVolume();
+  }, [applyEffectiveVolume, bgmVolume, resolvedVolumeMultiplier]);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -284,13 +365,14 @@ export function GardenStageBgm({
       return;
     }
 
+    ensureVolumeController();
     audioElement.currentTime = 0;
     void startPlayback();
 
     return () => {
       audioElement.pause();
     };
-  }, [resolvedSource, startPlayback]);
+  }, [ensureVolumeController, resolvedSource, startPlayback]);
 
   useEffect(() => {
     if (!resolvedSource) {
@@ -298,6 +380,7 @@ export function GardenStageBgm({
     }
 
     const resumePlayback = () => {
+      ensureVolumeController();
       void startPlayback();
     };
 
@@ -310,7 +393,23 @@ export function GardenStageBgm({
       window.removeEventListener("keydown", resumePlayback);
       window.removeEventListener("touchstart", resumePlayback);
     };
-  }, [resolvedSource, startPlayback]);
+  }, [ensureVolumeController, resolvedSource, startPlayback]);
+
+  useEffect(() => {
+    return () => {
+      gainNodeRef.current?.disconnect();
+      mediaSourceNodeRef.current?.disconnect();
+      gainNodeRef.current = null;
+      mediaSourceNodeRef.current = null;
+
+      const audioContext = audioContextRef.current;
+      audioContextRef.current = null;
+
+      if (audioContext) {
+        void audioContext.close();
+      }
+    };
+  }, []);
 
   if (!resolvedSource) {
     return null;

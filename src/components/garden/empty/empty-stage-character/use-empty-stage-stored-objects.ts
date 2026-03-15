@@ -1,5 +1,9 @@
 import { useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import {
+  GARDEN_PLACED_OBJECTS_UPDATED_EVENT,
+  type GardenPlacedObjectsUpdatedEventDetail,
+} from "@/lib/garden/placed-objects-storage";
 import type { PlacedStageObject } from "./empty-stage-character.types";
 import { parseStoredObjects } from "./empty-stage-character.utils";
 
@@ -41,9 +45,56 @@ export function useEmptyStageStoredObjects({
       return;
     }
 
-    window.localStorage.setItem(
-      resolvedStorageKey,
-      JSON.stringify(placedObjects),
-    );
+    const serializedPlacedObjects = JSON.stringify(placedObjects);
+
+    if (window.localStorage.getItem(resolvedStorageKey) === serializedPlacedObjects) {
+      return;
+    }
+
+    window.localStorage.setItem(resolvedStorageKey, serializedPlacedObjects);
   }, [placedObjects, resolvedStorageKey]);
+
+  useEffect(() => {
+    if (!resolvedStorageKey) {
+      return;
+    }
+
+    const applyStoredObjects = (rawValue: string | null) => {
+      const nextStoredObjects = parseStoredObjects(rawValue);
+      hasLoadedStoredObjectsRef.current = true;
+      setPlacedObjects(nextStoredObjects);
+    };
+
+    const handleLocalObjectsUpdate: EventListener = (event) => {
+      const customEvent = event as CustomEvent<GardenPlacedObjectsUpdatedEventDetail>;
+
+      if (customEvent.detail?.storageKey !== resolvedStorageKey) {
+        return;
+      }
+
+      applyStoredObjects(window.localStorage.getItem(resolvedStorageKey));
+    };
+
+    const handleStorageUpdate = (event: StorageEvent) => {
+      if (event.key !== resolvedStorageKey) {
+        return;
+      }
+
+      applyStoredObjects(event.newValue);
+    };
+
+    window.addEventListener(
+      GARDEN_PLACED_OBJECTS_UPDATED_EVENT,
+      handleLocalObjectsUpdate,
+    );
+    window.addEventListener("storage", handleStorageUpdate);
+
+    return () => {
+      window.removeEventListener(
+        GARDEN_PLACED_OBJECTS_UPDATED_EVENT,
+        handleLocalObjectsUpdate,
+      );
+      window.removeEventListener("storage", handleStorageUpdate);
+    };
+  }, [resolvedStorageKey, setPlacedObjects]);
 }
