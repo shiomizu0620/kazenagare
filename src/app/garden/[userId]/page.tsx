@@ -187,7 +187,7 @@ export default async function GardenUserPage({
       <GardenOptionsMenu
         actions={visitorActions}
         title={`${userId} の庭オプション`}
-        darkMode={isNightPond}
+        darkMode={isNight}
         showCatalogButton={false}
       />
     </main>
