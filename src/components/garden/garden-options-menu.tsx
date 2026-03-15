@@ -2,6 +2,7 @@
 
 import { del, keys as getIdbKeys, set } from "idb-keyval";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   DEFAULT_KAZENAGARE_AUDIO_SETTINGS,
@@ -9,6 +10,10 @@ import {
   loadKazenagareAudioSettings,
   saveKazenagareAudioSettings,
 } from "@/lib/audio/settings";
+import {
+  GARDEN_OBJECTS_STORAGE_KEY_ME,
+  resetGardenPlacedObjects,
+} from "@/lib/garden/placed-objects-storage";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import {
   type VoiceZooEntry,
@@ -52,6 +57,7 @@ type GardenOptionsMenuProps = {
   title?: string;
   darkMode?: boolean;
   catalogLabel?: string;
+  showCatalogButton?: boolean;
 };
 
 function catalogStatusLabel(status: VoiceZooEntryStatus) {
@@ -80,7 +86,11 @@ export function GardenOptionsMenu({
   title = "庭のメニュー",
   darkMode = false,
   catalogLabel = "図鑑を開く",
+  showCatalogButton = true,
 }: GardenOptionsMenuProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [catalogActionNotice, setCatalogActionNotice] = useState<string | null>(null);
@@ -470,10 +480,26 @@ export function GardenOptionsMenu({
     );
   };
 
+  const clearPlacementQueryIfNeeded = useCallback(() => {
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+
+    if (!nextSearchParams.has("place")) {
+      return;
+    }
+
+    nextSearchParams.delete("place");
+    const nextSearch = nextSearchParams.toString();
+    const nextHref = nextSearch.length > 0 ? `${pathname}?${nextSearch}` : pathname;
+    router.replace(nextHref, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   const handleResetWalletForTesting = () => {
     saveVoiceZooWallet(createInitialVoiceZooWallet(), audioOwnerId);
     window.localStorage.removeItem(`kazenagare_objects_me_${audioOwnerId}`);
     window.localStorage.removeItem("kazenagare_objects_me");
+    saveVoiceZooWallet(createInitialVoiceZooWallet());
+    resetGardenPlacedObjects(GARDEN_OBJECTS_STORAGE_KEY_ME);
+    clearPlacementQueryIfNeeded();
     setOwnedCatalogObjectTypes([]);
     setCatalogActionNotice(null);
     setTestingNotice(
@@ -599,28 +625,43 @@ export function GardenOptionsMenu({
                 );
                 setOwnedCatalogObjectTypes(storedWallet.ownedObjectTypes);
               }
+          {showCatalogButton ? (
+            <button
+              type="button"
+              aria-controls={catalogPanelId}
+              aria-label={catalogLabel}
+              title={catalogLabel}
+              className={`pointer-events-auto ${iconButtonClass}`}
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  const storedWallet = parseVoiceZooWallet(
+                    window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
+                  );
+                  setOwnedCatalogObjectTypes(storedWallet.ownedObjectTypes);
+                }
 
-              setCatalogActionNotice(null);
-              setTestingNotice(null);
-              setIsCatalogOpen((value) => !value);
-              setIsOpen(false);
-            }}
-          >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+                setCatalogActionNotice(null);
+                setTestingNotice(null);
+                setIsCatalogOpen((value) => !value);
+                setIsOpen(false);
+              }}
             >
-              <path d="M3.75 6.75A2.75 2.75 0 0 1 6.5 4h4.25a2.75 2.75 0 0 1 2.75 2.75V20a2.25 2.25 0 0 0-2.25-2.25H6.5A2.75 2.75 0 0 0 3.75 20Z" />
-              <path d="M20.25 6.75A2.75 2.75 0 0 0 17.5 4h-4.25a2.75 2.75 0 0 0-2.75 2.75V20a2.25 2.25 0 0 1 2.25-2.25h4.75A2.75 2.75 0 0 1 20.25 20Z" />
-            </svg>
-            <span className="sr-only">{catalogLabel}</span>
-          </button>
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3.75 6.75A2.75 2.75 0 0 1 6.5 4h4.25a2.75 2.75 0 0 1 2.75 2.75V20a2.25 2.25 0 0 0-2.25-2.25H6.5A2.75 2.75 0 0 0 3.75 20Z" />
+                <path d="M20.25 6.75A2.75 2.75 0 0 0 17.5 4h-4.25a2.75 2.75 0 0 0-2.75 2.75V20a2.25 2.25 0 0 1 2.25-2.25h4.75A2.75 2.75 0 0 1 20.25 20Z" />
+              </svg>
+              <span className="sr-only">{catalogLabel}</span>
+            </button>
+          ) : null}
 
           <button
             type="button"

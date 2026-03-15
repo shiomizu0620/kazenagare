@@ -63,23 +63,18 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
     GARDEN_TIME_SLOTS.find((option) => option.id === selectedTimeSlotId) ??
     GARDEN_TIME_SLOTS[0];
   const selectedPlacementObjectType = parsePlacementObjectType(params.place);
-  const isNightPond = selectedBackground.id === "night-pond";
+  const isNight = selectedTimeSlot.id === "night";
 
   const optionActions: GardenOptionAction[] = [
-    {
-      href: `/garden/publish?background=${encodeURIComponent(selectedBackground.id)}&season=${encodeURIComponent(selectedSeason.id)}&time=${encodeURIComponent(selectedTimeSlot.id)}`,
-      label: "この庭を投稿する",
-      description: "他の人が /garden/[userId] で見られるようにする",
-    },
     {
       href: "/garden/setup",
       label: "設定を変更する",
       description: "背景・季節・時間帯を選び直す",
     },
     {
-      href: "/garden/me/qr",
-      label: "この庭のQRを表示する",
-      description: "スマホ共有用のQRコードを開く",
+      href: "/",
+      label: "トップへ戻る",
+      description: "最初のページへ戻る",
     },
     {
       href: "/garden",
@@ -87,9 +82,14 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
       description: "他の人の庭を見に行く",
     },
     {
-      href: "/test-ui",
-      label: "開発プレイグラウンドへ",
-      description: "UIテストページを開く",
+      href: `/garden/publish?background=${encodeURIComponent(selectedBackground.id)}&season=${encodeURIComponent(selectedSeason.id)}&time=${encodeURIComponent(selectedTimeSlot.id)}`,
+      label: "この庭を投稿する",
+      description: "他の人が /garden/[userId] で見られるようにする",
+    },
+    {
+      href: "/garden/me/qr",
+      label: "この庭のQRを表示する",
+      description: "スマホ共有用のQRコードを開く",
     },
   ];
 
@@ -117,7 +117,7 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
       <GardenOptionsMenu
         actions={optionActions}
         title="自分の庭オプション"
-        darkMode={isNightPond}
+        darkMode={isNight}
       />
     </main>
   );

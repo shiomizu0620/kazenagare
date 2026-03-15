@@ -4,6 +4,10 @@ import Link from "next/link";
 import { del, get, set } from "idb-keyval";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PageShell } from "@/components/ui/page-shell";
+import {
+  GARDEN_OBJECTS_STORAGE_KEY_ME,
+  resetGardenPlacedObjects,
+} from "@/lib/garden/placed-objects-storage";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { ObjectType } from "@/types/garden";
 import {
@@ -659,7 +663,7 @@ export default function VoiceZooPage() {
     closeModal();
     closeRecordingModal();
     setWallet(createInitialVoiceZooWallet());
-    window.localStorage.removeItem("kazenagare_objects_me");
+    resetGardenPlacedObjects(GARDEN_OBJECTS_STORAGE_KEY_ME);
     setTestingNotice(
       `テスト用に購入状態を初期化しました（所持コイン: ${INITIAL_VOICE_ZOO_COINS}）。`,
     );

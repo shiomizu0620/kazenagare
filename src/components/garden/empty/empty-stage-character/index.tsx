@@ -3,7 +3,7 @@
 import { get, set } from "idb-keyval";
 import { usePathname } from "next/navigation";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_KAZENAGARE_AUDIO_SETTINGS,
   type KazenagareAudioSettings,
@@ -56,6 +56,7 @@ import type {
   EmptyStageCharacterProps,
   PlacedStageObject,
   Vector2,
+  WorldBounds,
 } from "./empty-stage-character.types";
 import {
   clamp,
@@ -80,6 +81,22 @@ const WALLET_GAIN_POPUP_DURATION_MS = 1050;
 const AUTO_PLAYBACK_DISTANCE_NEAR_PX = 130;
 const AUTO_PLAYBACK_DISTANCE_FAR_PX = 760;
 const AUTO_PLAYBACK_DISTANCE_MIN_GAIN = 0.04;
+
+type CompatibleAudioContextWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
+function getAudioContextConstructor() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return (
+    window.AudioContext ??
+    (window as CompatibleAudioContextWindow).webkitAudioContext ??
+    null
+  );
+}
 
 function getDistanceAttenuationGain(distancePx: number) {
   if (distancePx <= AUTO_PLAYBACK_DISTANCE_NEAR_PX) {
@@ -106,21 +123,60 @@ function getRandomPlaybackDelayMs() {
   );
 }
 
+const DEFAULT_WORLD_BOUNDS: WorldBounds = {
+  minX: 0,
+  maxX: WORLD_WIDTH,
+  minY: 0,
+  maxY: WORLD_HEIGHT,
+};
+
+function toCharacterOffset(worldPosition?: Vector2 | null, movementBounds: WorldBounds = DEFAULT_WORLD_BOUNDS): Vector2 {
+  if (!worldPosition) {
+    return { x: 0, y: 0 };
+  }
+
+  const clampedMinX = Math.min(movementBounds.minX, movementBounds.maxX);
+  const clampedMaxX = Math.max(movementBounds.minX, movementBounds.maxX);
+  const clampedMinY = Math.min(movementBounds.minY, movementBounds.maxY);
+  const clampedMaxY = Math.max(movementBounds.minY, movementBounds.maxY);
+  const minWorldX = clampedMinX + CHARACTER_HITBOX_RADIUS;
+  const maxWorldX = clampedMaxX - CHARACTER_HITBOX_RADIUS;
+  const minWorldY = clampedMinY + CHARACTER_HITBOX_RADIUS;
+  const maxWorldY = clampedMaxY - CHARACTER_HITBOX_RADIUS;
+  const clampedWorldX = clamp(worldPosition.x, minWorldX, Math.max(minWorldX, maxWorldX));
+  const clampedWorldY = clamp(worldPosition.y, minWorldY, Math.max(minWorldY, maxWorldY));
+
+  return {
+    x: clampedWorldX - WORLD_WIDTH * 0.5,
+    y: clampedWorldY - WORLD_HEIGHT * 0.5,
+  };
+}
+
 export function EmptyStageCharacter({
   children,
   darkMode = false,
   allowObjectPlacement = false,
   placementObjectType = null,
   objectStorageKey,
+  initialPlacedObjects = [],
+  audioOwnerIdOverride = null,
+  initialCharacterWorldPosition,
+  movementBounds = DEFAULT_WORLD_BOUNDS,
   collisionZones = [],
 }: EmptyStageCharacterProps) {
+  const initialCharacterOffset = useMemo(
+    () => toCharacterOffset(initialCharacterWorldPosition, movementBounds),
+    [initialCharacterWorldPosition, movementBounds],
+  );
   const pathname = usePathname();
   const [audioOwnerId, setAudioOwnerId] = useState<string>("local_guest");
   const resolvedStorageKey = objectStorageKey
     ? `${objectStorageKey}_${audioOwnerId}`
     : null;
   const [isWalking, setIsWalking] = useState(false);
-  const [placedObjects, setPlacedObjects] = useState<PlacedStageObject[]>([]);
+  const [placedObjects, setPlacedObjects] = useState<PlacedStageObject[]>(() =>
+    resolvedStorageKey ? [] : initialPlacedObjects,
+  );
   const [grabbedObjectId, setGrabbedObjectId] = useState<string | null>(null);
   const [grabbedObjectType, setGrabbedObjectType] = useState<ObjectType | null>(null);
   const [pointerWorldPosition, setPointerWorldPosition] = useState<Vector2 | null>(null);
@@ -151,8 +207,8 @@ export function EmptyStageCharacter({
   const walkingRef = useRef(false);
   const stickPointerIdRef = useRef<number | null>(null);
   const stageSizeRef = useRef<Vector2>({ x: 0, y: 0 });
-  const cameraOffsetRef = useRef<Vector2>({ x: 0, y: 0 });
-  const desiredOffsetRef = useRef<Vector2>({ x: 0, y: 0 });
+  const cameraOffsetRef = useRef<Vector2>(initialCharacterOffset);
+  const desiredOffsetRef = useRef<Vector2>(initialCharacterOffset);
   const velocityRef = useRef<Vector2>({ x: 0, y: 0 });
   const previousTimestampRef = useRef(0);
   const animationFrameRef = useRef(0);
@@ -165,11 +221,17 @@ export function EmptyStageCharacter({
   const autoPlaybackSchedulerTimerRef = useRef<number | null>(null);
   const autoPlaybackNextAtByObjectIdRef = useRef<Record<string, number>>({});
   const autoPlaybackAudioByObjectIdRef = useRef<Record<string, HTMLAudioElement>>({});
+  const autoPlaybackAudioContextRef = useRef<AudioContext | null>(null);
+  const autoPlaybackSourceNodeByObjectIdRef = useRef<
+    Record<string, MediaElementAudioSourceNode>
+  >({});
+  const autoPlaybackGainNodeByObjectIdRef = useRef<Record<string, GainNode>>({});
   const autoPlaybackAudioUrlByObjectIdRef = useRef<Record<string, string>>({});
   const autoPlaybackInFlightObjectIdsRef = useRef<Set<string>>(new Set());
   const coinRewardPopupTimerIdsRef = useRef<number[]>([]);
   const walletGainPopupTimerIdRef = useRef<number | null>(null);
   const activePlacementObjectType = grabbedObjectType ?? placementObjectType;
+  const effectiveAudioOwnerId = audioOwnerIdOverride ?? audioOwnerId;
   const activePlacementObject = activePlacementObjectType
     ? OBJECT_VISUALS[activePlacementObjectType]
     : null;
@@ -213,6 +275,87 @@ export function EmptyStageCharacter({
     [getListenerWorldPosition],
   );
 
+  const resolveAutoPlaybackAudioContext = useCallback(() => {
+    const AudioContextConstructor = getAudioContextConstructor();
+
+    if (!AudioContextConstructor) {
+      return null;
+    }
+
+    if (!autoPlaybackAudioContextRef.current) {
+      autoPlaybackAudioContextRef.current = new AudioContextConstructor();
+    }
+
+    return autoPlaybackAudioContextRef.current;
+  }, []);
+
+  const resumeAutoPlaybackAudioContextIfNeeded = useCallback(async () => {
+    const audioContext = autoPlaybackAudioContextRef.current;
+
+    if (!audioContext || audioContext.state !== "suspended") {
+      return;
+    }
+
+    try {
+      await audioContext.resume();
+    } catch {
+      // Keep standard media element playback when resume fails.
+    }
+  }, []);
+
+  const ensureAutoPlaybackGainNode = useCallback(
+    (objectId: string, objectAudio: HTMLAudioElement) => {
+      const existingGainNode = autoPlaybackGainNodeByObjectIdRef.current[objectId];
+
+      if (existingGainNode) {
+        return existingGainNode;
+      }
+
+      const audioContext = resolveAutoPlaybackAudioContext();
+
+      if (!audioContext) {
+        return null;
+      }
+
+      try {
+        const sourceNode = audioContext.createMediaElementSource(objectAudio);
+        const gainNode = audioContext.createGain();
+
+        sourceNode.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        autoPlaybackSourceNodeByObjectIdRef.current[objectId] = sourceNode;
+        autoPlaybackGainNodeByObjectIdRef.current[objectId] = gainNode;
+        objectAudio.volume = 1;
+        return gainNode;
+      } catch {
+        return null;
+      }
+    },
+    [resolveAutoPlaybackAudioContext],
+  );
+
+  const setAutoPlaybackVolume = useCallback(
+    (objectId: string, objectAudio: HTMLAudioElement, nextVolume: number) => {
+      const normalizedVolume = clamp(nextVolume, 0, 1);
+      const gainNode =
+        autoPlaybackGainNodeByObjectIdRef.current[objectId] ??
+        ensureAutoPlaybackGainNode(objectId, objectAudio);
+
+      if (gainNode) {
+        gainNode.gain.setValueAtTime(
+          normalizedVolume,
+          gainNode.context.currentTime,
+        );
+        objectAudio.volume = 1;
+        return;
+      }
+
+      objectAudio.volume = normalizedVolume;
+    },
+    [ensureAutoPlaybackGainNode],
+  );
+
   const updateActiveAutoPlaybackVolumes = useCallback(
     (listenerWorldX?: number, listenerWorldY?: number) => {
       const listenerPosition =
@@ -230,13 +373,18 @@ export function EmptyStageCharacter({
           continue;
         }
 
-        objectAudio.volume = getAutoPlaybackVolumeForObject(
+        const nextVolume = getAutoPlaybackVolumeForObject(
           placedObject,
           listenerPosition,
         );
+        setAutoPlaybackVolume(objectId, objectAudio, nextVolume);
       }
     },
-    [getAutoPlaybackVolumeForObject, getListenerWorldPosition],
+    [
+      getAutoPlaybackVolumeForObject,
+      getListenerWorldPosition,
+      setAutoPlaybackVolume,
+    ],
   );
 
   const applyWorldTransform = useCallback(() => {
@@ -262,24 +410,40 @@ export function EmptyStageCharacter({
   }, []);
 
   const clampCameraBounds = useCallback((nextOffset: Vector2) => {
-    const maxX = Math.max(0, WORLD_WIDTH * 0.5 - stageSizeRef.current.x * 0.5);
-    const maxY = Math.max(0, WORLD_HEIGHT * 0.5 - stageSizeRef.current.y * 0.5);
+    const minCameraOffsetX = movementBounds.minX + stageSizeRef.current.x * 0.5 - WORLD_WIDTH * 0.5;
+    const maxCameraOffsetX = movementBounds.maxX - stageSizeRef.current.x * 0.5 - WORLD_WIDTH * 0.5;
+    const minCameraOffsetY = movementBounds.minY + stageSizeRef.current.y * 0.5 - WORLD_HEIGHT * 0.5;
+    const maxCameraOffsetY = movementBounds.maxY - stageSizeRef.current.y * 0.5 - WORLD_HEIGHT * 0.5;
 
     return {
-      x: clamp(nextOffset.x, -maxX, maxX),
-      y: clamp(nextOffset.y, -maxY, maxY),
+      x: clamp(
+        nextOffset.x,
+        Math.min(minCameraOffsetX, maxCameraOffsetX),
+        Math.max(minCameraOffsetX, maxCameraOffsetX),
+      ),
+      y: clamp(
+        nextOffset.y,
+        Math.min(minCameraOffsetY, maxCameraOffsetY),
+        Math.max(minCameraOffsetY, maxCameraOffsetY),
+      ),
     };
-  }, []);
+  }, [movementBounds.maxX, movementBounds.maxY, movementBounds.minX, movementBounds.minY]);
 
   const clampCharacterBounds = useCallback((nextOffset: Vector2) => {
-    const maxX = Math.max(0, WORLD_WIDTH * 0.5 - CHARACTER_HITBOX_RADIUS);
-    const maxY = Math.max(0, WORLD_HEIGHT * 0.5 - CHARACTER_HITBOX_RADIUS);
+    const minWorldX = Math.min(movementBounds.minX, movementBounds.maxX) + CHARACTER_HITBOX_RADIUS;
+    const maxWorldX = Math.max(movementBounds.minX, movementBounds.maxX) - CHARACTER_HITBOX_RADIUS;
+    const minWorldY = Math.min(movementBounds.minY, movementBounds.maxY) + CHARACTER_HITBOX_RADIUS;
+    const maxWorldY = Math.max(movementBounds.minY, movementBounds.maxY) - CHARACTER_HITBOX_RADIUS;
+    const minOffsetX = minWorldX - WORLD_WIDTH * 0.5;
+    const maxOffsetX = maxWorldX - WORLD_WIDTH * 0.5;
+    const minOffsetY = minWorldY - WORLD_HEIGHT * 0.5;
+    const maxOffsetY = maxWorldY - WORLD_HEIGHT * 0.5;
 
     return {
-      x: clamp(nextOffset.x, -maxX, maxX),
-      y: clamp(nextOffset.y, -maxY, maxY),
+      x: clamp(nextOffset.x, Math.min(minOffsetX, maxOffsetX), Math.max(minOffsetX, maxOffsetX)),
+      y: clamp(nextOffset.y, Math.min(minOffsetY, maxOffsetY), Math.max(minOffsetY, maxOffsetY)),
     };
-  }, []);
+  }, [movementBounds.maxX, movementBounds.maxY, movementBounds.minX, movementBounds.minY]);
 
   const initializeStage = useCallback(() => {
     if (!stageRef.current) {
@@ -393,22 +557,27 @@ export function EmptyStageCharacter({
 
   const resetCharacterAnimationState = useCallback(() => {
     walkingRef.current = false;
-    if (isWalking) {
-      setIsWalking(false);
-    }
-  }, [isWalking]);
+    setIsWalking(false);
+  }, []);
 
   const resetToStart = useCallback(() => {
     activeKeysRef.current.clear();
     clearJoystickInput();
     velocityRef.current = { x: 0, y: 0 };
-    desiredOffsetRef.current = { x: 0, y: 0 };
-    cameraOffsetRef.current = { x: 0, y: 0 };
+    desiredOffsetRef.current = { x: initialCharacterOffset.x, y: initialCharacterOffset.y };
+    cameraOffsetRef.current = { x: initialCharacterOffset.x, y: initialCharacterOffset.y };
     previousTimestampRef.current = 0;
     resetCharacterAnimationState();
     applyWorldTransform();
     applyCharacterTransform();
-  }, [applyCharacterTransform, applyWorldTransform, clearJoystickInput, resetCharacterAnimationState]);
+  }, [
+    applyCharacterTransform,
+    applyWorldTransform,
+    clearJoystickInput,
+    initialCharacterOffset.x,
+    initialCharacterOffset.y,
+    resetCharacterAnimationState,
+  ]);
 
   const clearPlacementState = useCallback(() => {
     setIsMousePlacementArmed(false);
@@ -452,6 +621,20 @@ export function EmptyStageCharacter({
         objectAudio.removeAttribute("src");
         objectAudio.load();
         delete autoPlaybackAudioByObjectIdRef.current[objectId];
+      }
+
+      const sourceNode = autoPlaybackSourceNodeByObjectIdRef.current[objectId];
+
+      if (sourceNode) {
+        sourceNode.disconnect();
+        delete autoPlaybackSourceNodeByObjectIdRef.current[objectId];
+      }
+
+      const gainNode = autoPlaybackGainNodeByObjectIdRef.current[objectId];
+
+      if (gainNode) {
+        gainNode.disconnect();
+        delete autoPlaybackGainNodeByObjectIdRef.current[objectId];
       }
 
       revokeAutoPlaybackAudioUrl(objectId);
@@ -588,6 +771,7 @@ export function EmptyStageCharacter({
 
       if (!objectAudio) {
         objectAudio = new Audio();
+        objectAudio.preload = "auto";
         autoPlaybackAudioByObjectIdRef.current[objectId] = objectAudio;
       }
 
@@ -604,7 +788,8 @@ export function EmptyStageCharacter({
       autoPlaybackAudioUrlByObjectIdRef.current[objectId] = nextAudioUrl;
       objectAudio.src = nextAudioUrl;
       objectAudio.currentTime = 0;
-      objectAudio.volume = getAutoPlaybackVolumeForObject(selectedObject);
+      const nextVolume = getAutoPlaybackVolumeForObject(selectedObject);
+      setAutoPlaybackVolume(objectId, objectAudio, nextVolume);
       applyVoiceZooPlaybackEffect(objectAudio, selectedObject.objectType);
 
       let hasFinalizedPlayback = false;
@@ -657,8 +842,8 @@ export function EmptyStageCharacter({
         rewardPlayback();
       };
 
-      void objectAudio
-        .play()
+      void resumeAutoPlaybackAudioContextIfNeeded()
+        .then(() => objectAudio.play())
         .then(() => {
           rewardPlayback();
         })
@@ -671,6 +856,8 @@ export function EmptyStageCharacter({
       getAutoPlaybackVolumeForObject,
       resolveRecordingBlobForObject,
       revokeAutoPlaybackAudioUrl,
+      resumeAutoPlaybackAudioContextIfNeeded,
+      setAutoPlaybackVolume,
       stopAutoPlaybackObject,
     ],
   );
@@ -1038,6 +1225,27 @@ export function EmptyStageCharacter({
   }, [characterVoiceVolume, updateActiveAutoPlaybackVolumes]);
 
   useEffect(() => {
+    activeKeysRef.current.clear();
+    clearJoystickInput();
+    velocityRef.current = { x: 0, y: 0 };
+    desiredOffsetRef.current = { x: initialCharacterOffset.x, y: initialCharacterOffset.y };
+    cameraOffsetRef.current = clampCameraBounds(desiredOffsetRef.current);
+    previousTimestampRef.current = 0;
+    // 速度を 0 にリセット済みなのでアニメーションループが次フレームで isWalking を解決する
+    // effect 内での setState 呼び出しを避けるため ref のみ更新する
+    walkingRef.current = false;
+    applyWorldTransform();
+    applyCharacterTransform();
+  }, [
+    applyCharacterTransform,
+    applyWorldTransform,
+    clampCameraBounds,
+    clearJoystickInput,
+    initialCharacterOffset.x,
+    initialCharacterOffset.y,
+  ]);
+
+  useEffect(() => {
     const loadTimer = window.setTimeout(() => {
       setCharacterVoiceVolume(loadKazenagareAudioSettings().characterVoiceVolume);
     }, 0);
@@ -1180,6 +1388,10 @@ export function EmptyStageCharacter({
   }, [audioOwnerId]);
 
   useEffect(() => {
+    if (audioOwnerIdOverride) {
+      return;
+    }
+
     const supabase = getSupabaseClient();
 
     if (!supabase) {
@@ -1199,14 +1411,14 @@ export function EmptyStageCharacter({
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [audioOwnerIdOverride]);
 
   useEffect(() => {
     const handleRecordingUpdate: EventListener = (event) => {
       const customEvent = event as CustomEvent<VoiceZooRecordingUpdatedEventDetail>;
       const ownerId = customEvent.detail?.ownerId;
 
-      if (ownerId && ownerId !== audioOwnerId) {
+      if (ownerId && ownerId !== effectiveAudioOwnerId) {
         return;
       }
 
@@ -1218,13 +1430,13 @@ export function EmptyStageCharacter({
     return () => {
       window.removeEventListener(VOICE_ZOO_RECORDING_UPDATED_EVENT, handleRecordingUpdate);
     };
-  }, [audioOwnerId]);
+  }, [effectiveAudioOwnerId]);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadRecordingCatalogAndBlobs = async () => {
-      const catalogStorageKey = getVoiceZooRecordingCatalogStorageKey(audioOwnerId);
+      const catalogStorageKey = getVoiceZooRecordingCatalogStorageKey(effectiveAudioOwnerId);
       let recordingCatalog = parseVoiceZooRecordingCatalog(
         window.localStorage.getItem(catalogStorageKey),
       );
@@ -1241,7 +1453,7 @@ export function EmptyStageCharacter({
         }
 
         const legacyBlob = await get(
-          getVoiceZooLegacyRecordingStorageKey(audioOwnerId, objectType),
+          getVoiceZooLegacyRecordingStorageKey(effectiveAudioOwnerId, objectType),
         );
 
         if (!(legacyBlob instanceof Blob)) {
@@ -1250,7 +1462,7 @@ export function EmptyStageCharacter({
 
         const migratedRecordingId = createVoiceZooRecordingId(objectType);
         await set(
-          getVoiceZooRecordingBlobStorageKey(audioOwnerId, migratedRecordingId),
+          getVoiceZooRecordingBlobStorageKey(effectiveAudioOwnerId, migratedRecordingId),
           legacyBlob,
         );
 
@@ -1272,7 +1484,7 @@ export function EmptyStageCharacter({
       const loadedBlobEntries = await Promise.all(
         recordingCatalog.map(async (recordingMeta) => {
           const blob = await get(
-            getVoiceZooRecordingBlobStorageKey(audioOwnerId, recordingMeta.id),
+            getVoiceZooRecordingBlobStorageKey(effectiveAudioOwnerId, recordingMeta.id),
           );
 
           if (!(blob instanceof Blob)) {
@@ -1314,7 +1526,7 @@ export function EmptyStageCharacter({
     return () => {
       cancelled = true;
     };
-  }, [audioOwnerId, recordingReloadNonce]);
+  }, [effectiveAudioOwnerId, recordingReloadNonce]);
 
   useEffect(() => {
     if (!pathname.startsWith("/garden")) {
@@ -1422,6 +1634,28 @@ export function EmptyStageCharacter({
       }
 
       coinRewardPopupTimerIdsRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      for (const sourceNode of Object.values(autoPlaybackSourceNodeByObjectIdRef.current)) {
+        sourceNode.disconnect();
+      }
+
+      for (const gainNode of Object.values(autoPlaybackGainNodeByObjectIdRef.current)) {
+        gainNode.disconnect();
+      }
+
+      autoPlaybackSourceNodeByObjectIdRef.current = {};
+      autoPlaybackGainNodeByObjectIdRef.current = {};
+
+      const audioContext = autoPlaybackAudioContextRef.current;
+      autoPlaybackAudioContextRef.current = null;
+
+      if (audioContext) {
+        void audioContext.close();
+      }
     };
   }, []);
 
