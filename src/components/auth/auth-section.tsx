@@ -1,13 +1,87 @@
 "use client";
 
+import { get as getIdbValue, keys as getIdbKeys, set as setIdbValue } from "idb-keyval";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import {
+  createGardenLocalStateStorageKey,
+  parseGardenLocalState,
+} from "@/lib/garden/local-state";
+import { isAnonymousSupabaseUser } from "@/lib/auth/user";
 
 const GARDEN_SETUP_PATH = "/garden/setup";
-const MY_GARDEN_PATH = "/garden/me";
+const EMPTY_GARDEN_PATH = "/garden/empty";
 const OAUTH_REDIRECT_PENDING_KEY = "kazenagare.oauthRedirectPending";
-const GARDEN_LOCAL_STORAGE_PREFIX = "kazenagare_garden_";
+const OAUTH_PENDING_GUEST_USER_ID_KEY = "kazenagare.oauthPendingGuestUserId";
+const LEGACY_LOCAL_GUEST_USER_ID = "local_guest";
+const AUDIO_CATALOG_STORAGE_PREFIX = "kazenagare_audio_catalog_";
+const AUDIO_BLOB_STORAGE_PREFIX = "kazenagare_audio_blob_";
+
+function replaceOwnerInStorageKey(storageKey: string, previousOwnerId: string, nextOwnerId: string) {
+  if (!storageKey.includes(previousOwnerId)) {
+    return null;
+  }
+
+  if (storageKey.startsWith(AUDIO_BLOB_STORAGE_PREFIX)) {
+    return storageKey.replace(`_${previousOwnerId}_`, `_${nextOwnerId}_`);
+  }
+
+  return storageKey.replace(previousOwnerId, nextOwnerId);
+}
+
+async function migrateGuestDataToUser(previousOwnerId: string, nextOwnerId: string) {
+  if (!previousOwnerId || !nextOwnerId || previousOwnerId === nextOwnerId) {
+    return;
+  }
+
+  const previousGardenKey = createGardenLocalStateStorageKey(previousOwnerId);
+  const nextGardenKey = createGardenLocalStateStorageKey(nextOwnerId);
+  const previousGardenData = window.localStorage.getItem(previousGardenKey);
+  const nextGardenData = window.localStorage.getItem(nextGardenKey);
+
+  if (previousGardenData && !nextGardenData) {
+    window.localStorage.setItem(nextGardenKey, previousGardenData);
+  }
+
+  const previousAudioCatalogKey = `${AUDIO_CATALOG_STORAGE_PREFIX}${previousOwnerId}`;
+  const nextAudioCatalogKey = `${AUDIO_CATALOG_STORAGE_PREFIX}${nextOwnerId}`;
+  const previousAudioCatalog = window.localStorage.getItem(previousAudioCatalogKey);
+  const nextAudioCatalog = window.localStorage.getItem(nextAudioCatalogKey);
+
+  if (previousAudioCatalog && !nextAudioCatalog) {
+    window.localStorage.setItem(nextAudioCatalogKey, previousAudioCatalog);
+  }
+
+  const idbKeys = await getIdbKeys();
+  for (const idbKey of idbKeys) {
+    if (typeof idbKey !== "string") {
+      continue;
+    }
+
+    if (
+      !idbKey.startsWith(AUDIO_BLOB_STORAGE_PREFIX) &&
+      !idbKey.startsWith(`kazenagare_audio_${previousOwnerId}_`)
+    ) {
+      continue;
+    }
+
+    const nextIdbKey = replaceOwnerInStorageKey(idbKey, previousOwnerId, nextOwnerId);
+    if (!nextIdbKey) {
+      continue;
+    }
+
+    const [previousBlob, existingNextBlob] = await Promise.all([
+      getIdbValue(idbKey),
+      getIdbValue(nextIdbKey),
+    ]);
+    if (!(previousBlob instanceof Blob) || existingNextBlob instanceof Blob) {
+      continue;
+    }
+
+    await setIdbValue(nextIdbKey, previousBlob);
+  }
+}
 
 export function AuthSection() {
   const router = useRouter();
@@ -16,39 +90,96 @@ export function AuthSection() {
   const [password, setPassword] = useState("");
   const hasNavigatedRef = useRef(false);
 
-  const resolvePostAuthPath = useCallback((nextUserId?: string | null) => {
+  const migratePendingGuestData = useCallback(async (nextUserId?: string | null) => {
     if (!nextUserId) {
-      return GARDEN_SETUP_PATH;
+      return;
     }
 
-    const savedData = window.localStorage.getItem(
-      `${GARDEN_LOCAL_STORAGE_PREFIX}${nextUserId}`,
-    );
-
-    if (!savedData) {
-      return GARDEN_SETUP_PATH;
+    const pendingGuestId = window.sessionStorage.getItem(OAUTH_PENDING_GUEST_USER_ID_KEY);
+    if (pendingGuestId) {
+      await migrateGuestDataToUser(pendingGuestId, nextUserId);
+      window.sessionStorage.removeItem(OAUTH_PENDING_GUEST_USER_ID_KEY);
     }
 
-    try {
-      const parsed = JSON.parse(savedData);
-      if (typeof parsed?.backgroundIndex === "number") {
-        return MY_GARDEN_PATH;
-      }
-    } catch {
-      // Ignore malformed saved data and fall back to setup.
-    }
-
-    return GARDEN_SETUP_PATH;
+    await migrateGuestDataToUser(LEGACY_LOCAL_GUEST_USER_ID, nextUserId);
   }, []);
 
-  const navigateAfterAuth = useCallback((nextUserId?: string | null) => {
+  const cacheCurrentGuestIdForTransfer = useCallback(async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return;
+    }
+
+    const { data } = await supabase.auth.getSession();
+    if (isAnonymousSupabaseUser(data.session?.user)) {
+      window.sessionStorage.setItem(
+        OAUTH_PENDING_GUEST_USER_ID_KEY,
+        data.session?.user.id ?? LEGACY_LOCAL_GUEST_USER_ID,
+      );
+      return;
+    }
+
+    const legacyGuestState = parseGardenLocalState(
+      window.localStorage.getItem(createGardenLocalStateStorageKey(LEGACY_LOCAL_GUEST_USER_ID)),
+    );
+
+    if (legacyGuestState) {
+      window.sessionStorage.setItem(
+        OAUTH_PENDING_GUEST_USER_ID_KEY,
+        LEGACY_LOCAL_GUEST_USER_ID,
+      );
+      return;
+    }
+
+    window.sessionStorage.removeItem(OAUTH_PENDING_GUEST_USER_ID_KEY);
+  }, []);
+
+  const navigateAfterAuth = useCallback(async (nextUserId?: string | null) => {
     if (hasNavigatedRef.current) {
       return;
     }
 
     hasNavigatedRef.current = true;
-    router.push(resolvePostAuthPath(nextUserId));
-  }, [resolvePostAuthPath, router]);
+
+    if (nextUserId) {
+      // 1. ローカルストレージから復元（同じデバイスなら高速）
+      const localState = parseGardenLocalState(
+        window.localStorage.getItem(createGardenLocalStateStorageKey(nextUserId)),
+      );
+
+      if (localState) {
+        const params = new URLSearchParams({
+          background: localState.backgroundId,
+          season: localState.seasonId,
+          time: localState.timeSlotId,
+        });
+        router.push(`${EMPTY_GARDEN_PATH}?${params.toString()}`);
+        return;
+      }
+
+      // 2. DBから復元（別デバイスなどローカルに無い場合）
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { data } = await supabase
+          .from("garden_posts")
+          .select("background_id,season_id,time_slot_id")
+          .eq("user_id", nextUserId)
+          .maybeSingle();
+
+        if (data?.background_id && data?.season_id && data?.time_slot_id) {
+          const params = new URLSearchParams({
+            background: data.background_id as string,
+            season: data.season_id as string,
+            time: data.time_slot_id as string,
+          });
+          router.push(`${EMPTY_GARDEN_PATH}?${params.toString()}`);
+          return;
+        }
+      }
+    }
+
+    router.push(GARDEN_SETUP_PATH);
+  }, [router]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -70,8 +201,10 @@ export function AuthSection() {
       }
 
       if (data.session) {
-        clearPendingOAuthRedirect();
-        navigateAfterAuth(data.session.user.id);
+        void migratePendingGuestData(data.session.user.id).finally(() => {
+          clearPendingOAuthRedirect();
+          void navigateAfterAuth(data.session.user.id);
+        });
       }
     });
 
@@ -79,15 +212,17 @@ export function AuthSection() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session && hasPendingOAuthRedirect()) {
-        clearPendingOAuthRedirect();
-        navigateAfterAuth(session.user.id);
+        void migratePendingGuestData(session.user.id).finally(() => {
+          clearPendingOAuthRedirect();
+          void navigateAfterAuth(session.user.id);
+        });
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [navigateAfterAuth]);
+  }, [migratePendingGuestData, navigateAfterAuth]);
 
   // ゲストログイン
   const handleGuestLogin = async () => {
@@ -100,6 +235,16 @@ export function AuthSection() {
     setIsLoggingIn(true);
 
     try {
+      const { data: currentSessionData } = await supabase.auth.getSession();
+      if (currentSessionData.session && !isAnonymousSupabaseUser(currentSessionData.session.user)) {
+        const { error: signOutError } = await supabase.auth.signOut();
+        if (signOutError) {
+          alert("ログアウトに失敗しました: " + signOutError.message);
+          return;
+        }
+      }
+
+      window.sessionStorage.removeItem(OAUTH_PENDING_GUEST_USER_ID_KEY);
       const { data, error } = await supabase.auth.signInAnonymously();
 
       if (error) {
@@ -107,7 +252,7 @@ export function AuthSection() {
         return;
       }
 
-      navigateAfterAuth(data.user?.id);
+      void navigateAfterAuth(data.user?.id);
     } finally {
       setIsLoggingIn(false);
     }
@@ -122,6 +267,8 @@ export function AuthSection() {
     }
 
     setIsLoggingIn(true);
+
+    await cacheCurrentGuestIdForTransfer();
 
     window.sessionStorage.setItem(OAUTH_REDIRECT_PENDING_KEY, "1");
 
@@ -153,6 +300,8 @@ export function AuthSection() {
     setIsLoggingIn(true);
 
     try {
+      await cacheCurrentGuestIdForTransfer();
+
       let authError;
       let shouldNavigate = false;
       let nextUserId: string | null = null;
@@ -175,7 +324,8 @@ export function AuthSection() {
       }
 
       if (shouldNavigate) {
-        navigateAfterAuth(nextUserId);
+        await migratePendingGuestData(nextUserId);
+        await navigateAfterAuth(nextUserId);
         return;
       }
 
