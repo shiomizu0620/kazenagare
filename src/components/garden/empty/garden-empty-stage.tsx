@@ -12,6 +12,7 @@ import {
   getSeasonOverlayClass,
   getTimeOverlayClass,
 } from "@/components/garden/empty/empty-stage-theme";
+import type { PlacedStageObject } from "@/components/garden/empty/empty-stage-character/empty-stage-character.types";
 import type { ObjectType } from "@/types/garden";
 import { COLLISION_ZONES } from "@/components/garden/empty/empty-stage-character/collision-zones";
 
@@ -26,6 +27,9 @@ type GardenEmptyStageProps = {
   allowObjectPlacement?: boolean;
   placementObjectType?: ObjectType | null;
   objectStorageKey?: string;
+  initialPlacedObjects?: PlacedStageObject[];
+  audioOwnerIdOverride?: string | null;
+  showDevelopmentPlaceholder?: boolean;
 };
 
 const CHARACTER_START_POSITION_BY_BACKGROUND: Record<string, { x: number; y: number }> = {
@@ -105,21 +109,13 @@ function SeasonTimeBackgroundLayer({
   return (
     // eslint-disable-next-line @next/next/no-img-element -- onError フォールバックが必要なため <img> を使用
     <img
-      className="pointer-events-none absolute left-0 top-0 block"
+      className="pointer-events-none absolute left-0 top-0 block h-[2160px] w-[3840px] origin-center scale-[1.5] object-fill"
       src={activeImage}
       alt=""
       aria-hidden
       draggable={false}
       width={WORLD_WIDTH}
       height={WORLD_HEIGHT}
-      style={{
-        width: WORLD_WIDTH,
-        height: WORLD_HEIGHT,
-        objectFit: "fill",
-        objectPosition: "center center",
-        transform: `scale(${BACKGROUND_IMAGE_SCALE})`,
-        transformOrigin: "center center",
-      }}
       onError={() => {
         setCandidateIndex((current) => {
           const lastIndex = candidates.length - 1;
@@ -141,6 +137,9 @@ export function GardenEmptyStage({
   allowObjectPlacement = false,
   placementObjectType = null,
   objectStorageKey,
+  initialPlacedObjects = [],
+  audioOwnerIdOverride = null,
+  showDevelopmentPlaceholder = false,
 }: GardenEmptyStageProps) {
   const isNight = timeSlotId === "night";
   const theme = getBackgroundTheme(isNight ? "night-pond" : "misty-temple");
@@ -166,6 +165,8 @@ export function GardenEmptyStage({
         allowObjectPlacement={allowObjectPlacement}
         placementObjectType={placementObjectType}
         objectStorageKey={objectStorageKey}
+        initialPlacedObjects={initialPlacedObjects}
+        audioOwnerIdOverride={audioOwnerIdOverride}
         initialCharacterWorldPosition={initialCharacterWorldPosition}
         movementBounds={movementBounds}
         collisionZones={COLLISION_ZONES[backgroundId] ?? []}
@@ -174,7 +175,7 @@ export function GardenEmptyStage({
         <div className={`absolute inset-0 ${seasonOverlayClass}`} />
         <div className={`absolute inset-0 ${timeOverlayClass}`} />
 
-        {!allowObjectPlacement ? (
+        {showDevelopmentPlaceholder ? (
           <div
             className={`absolute left-1/2 top-1/2 flex h-[360px] w-[620px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-2xl border border-dashed ${theme.panelClass}`}
           >

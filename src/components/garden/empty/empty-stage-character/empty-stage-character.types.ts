@@ -8,6 +8,8 @@ export type EmptyStageCharacterProps = {
   allowObjectPlacement?: boolean;
   placementObjectType?: ObjectType | null;
   objectStorageKey?: string;
+  initialPlacedObjects?: PlacedStageObject[];
+  audioOwnerIdOverride?: string | null;
   collisionZones?: CollisionZone[];
   initialCharacterWorldPosition?: Vector2;
   movementBounds?: WorldBounds;

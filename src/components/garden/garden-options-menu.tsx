@@ -55,6 +55,7 @@ type GardenOptionsMenuProps = {
   title?: string;
   darkMode?: boolean;
   catalogLabel?: string;
+  showCatalogButton?: boolean;
 };
 
 function catalogStatusLabel(status: VoiceZooEntryStatus) {
@@ -83,6 +84,7 @@ export function GardenOptionsMenu({
   title = "庭のメニュー",
   darkMode = false,
   catalogLabel = "図鑑を開く",
+  showCatalogButton = true,
 }: GardenOptionsMenuProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -571,41 +573,43 @@ export function GardenOptionsMenu({
 
       <div className="pointer-events-none absolute right-4 top-4 z-[70]">
         <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            aria-controls={catalogPanelId}
-            aria-label={catalogLabel}
-            title={catalogLabel}
-            className={`pointer-events-auto ${iconButtonClass}`}
-            onClick={() => {
-              if (typeof window !== "undefined") {
-                const storedWallet = parseVoiceZooWallet(
-                  window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
-                );
-                setOwnedCatalogObjectTypes(storedWallet.ownedObjectTypes);
-              }
+          {showCatalogButton ? (
+            <button
+              type="button"
+              aria-controls={catalogPanelId}
+              aria-label={catalogLabel}
+              title={catalogLabel}
+              className={`pointer-events-auto ${iconButtonClass}`}
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  const storedWallet = parseVoiceZooWallet(
+                    window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
+                  );
+                  setOwnedCatalogObjectTypes(storedWallet.ownedObjectTypes);
+                }
 
-              setCatalogActionNotice(null);
-              setTestingNotice(null);
-              setIsCatalogOpen((value) => !value);
-              setIsOpen(false);
-            }}
-          >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+                setCatalogActionNotice(null);
+                setTestingNotice(null);
+                setIsCatalogOpen((value) => !value);
+                setIsOpen(false);
+              }}
             >
-              <path d="M3.75 6.75A2.75 2.75 0 0 1 6.5 4h4.25a2.75 2.75 0 0 1 2.75 2.75V20a2.25 2.25 0 0 0-2.25-2.25H6.5A2.75 2.75 0 0 0 3.75 20Z" />
-              <path d="M20.25 6.75A2.75 2.75 0 0 0 17.5 4h-4.25a2.75 2.75 0 0 0-2.75 2.75V20a2.25 2.25 0 0 1 2.25-2.25h4.75A2.75 2.75 0 0 1 20.25 20Z" />
-            </svg>
-            <span className="sr-only">{catalogLabel}</span>
-          </button>
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3.75 6.75A2.75 2.75 0 0 1 6.5 4h4.25a2.75 2.75 0 0 1 2.75 2.75V20a2.25 2.25 0 0 0-2.25-2.25H6.5A2.75 2.75 0 0 0 3.75 20Z" />
+                <path d="M20.25 6.75A2.75 2.75 0 0 0 17.5 4h-4.25a2.75 2.75 0 0 0-2.75 2.75V20a2.25 2.25 0 0 1 2.25-2.25h4.75A2.75 2.75 0 0 1 20.25 20Z" />
+              </svg>
+              <span className="sr-only">{catalogLabel}</span>
+            </button>
+          ) : null}
 
           <button
             type="button"

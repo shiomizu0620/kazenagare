@@ -49,6 +49,12 @@ export default async function GardenIndexPage() {
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <Link
+          href="/"
+          className="rounded-md border border-wa-black px-4 py-3 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
+        >
+          トップへ戻る
+        </Link>
+        <Link
           href="/garden/me"
           className="rounded-md border border-wa-black px-4 py-3 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
         >
