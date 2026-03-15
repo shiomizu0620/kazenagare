@@ -147,6 +147,7 @@ export default async function GardenUserPage({
   return (
     <main className="relative h-[100dvh] overflow-hidden bg-wa-white text-wa-black font-serif">
       <GardenEmptyStage
+        key={`${userId}-${publishedPost?.publishedAt ?? "draft"}`}
         backgroundId={background.id}
         backgroundName={background.name}
         seasonId={season.id}

@@ -133,7 +133,9 @@ export function EmptyStageCharacter({
   const pathname = usePathname();
   const resolvedStorageKey = objectStorageKey ?? null;
   const [isWalking, setIsWalking] = useState(false);
-  const [placedObjects, setPlacedObjects] = useState<PlacedStageObject[]>(initialPlacedObjects);
+  const [placedObjects, setPlacedObjects] = useState<PlacedStageObject[]>(() =>
+    resolvedStorageKey ? [] : initialPlacedObjects,
+  );
   const [grabbedObjectId, setGrabbedObjectId] = useState<string | null>(null);
   const [grabbedObjectType, setGrabbedObjectType] = useState<ObjectType | null>(null);
   const [pointerWorldPosition, setPointerWorldPosition] = useState<Vector2 | null>(null);
@@ -189,6 +191,7 @@ export function EmptyStageCharacter({
   const coinRewardPopupTimerIdsRef = useRef<number[]>([]);
   const walletGainPopupTimerIdRef = useRef<number | null>(null);
   const activePlacementObjectType = grabbedObjectType ?? placementObjectType;
+  const effectiveAudioOwnerId = audioOwnerIdOverride ?? audioOwnerId;
   const activePlacementObject = activePlacementObjectType
     ? OBJECT_VISUALS[activePlacementObjectType]
     : null;
@@ -825,14 +828,6 @@ export function EmptyStageCharacter({
   });
 
   useEffect(() => {
-    if (resolvedStorageKey) {
-      return;
-    }
-
-    setPlacedObjects(initialPlacedObjects);
-  }, [initialPlacedObjects, resolvedStorageKey]);
-
-  useEffect(() => {
     placedObjectsRef.current = placedObjects;
     updateActiveAutoPlaybackVolumes();
   }, [placedObjects, updateActiveAutoPlaybackVolumes]);
@@ -1315,7 +1310,6 @@ export function EmptyStageCharacter({
 
   useEffect(() => {
     if (audioOwnerIdOverride) {
-      setAudioOwnerId(audioOwnerIdOverride);
       return;
     }
 
@@ -1345,7 +1339,7 @@ export function EmptyStageCharacter({
       const customEvent = event as CustomEvent<VoiceZooRecordingUpdatedEventDetail>;
       const ownerId = customEvent.detail?.ownerId;
 
-      if (ownerId && ownerId !== audioOwnerId) {
+      if (ownerId && ownerId !== effectiveAudioOwnerId) {
         return;
       }
 
@@ -1357,13 +1351,13 @@ export function EmptyStageCharacter({
     return () => {
       window.removeEventListener(VOICE_ZOO_RECORDING_UPDATED_EVENT, handleRecordingUpdate);
     };
-  }, [audioOwnerId]);
+  }, [effectiveAudioOwnerId]);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadRecordingCatalogAndBlobs = async () => {
-      const catalogStorageKey = getVoiceZooRecordingCatalogStorageKey(audioOwnerId);
+      const catalogStorageKey = getVoiceZooRecordingCatalogStorageKey(effectiveAudioOwnerId);
       let recordingCatalog = parseVoiceZooRecordingCatalog(
         window.localStorage.getItem(catalogStorageKey),
       );
@@ -1380,7 +1374,7 @@ export function EmptyStageCharacter({
         }
 
         const legacyBlob = await get(
-          getVoiceZooLegacyRecordingStorageKey(audioOwnerId, objectType),
+          getVoiceZooLegacyRecordingStorageKey(effectiveAudioOwnerId, objectType),
         );
 
         if (!(legacyBlob instanceof Blob)) {
@@ -1389,7 +1383,7 @@ export function EmptyStageCharacter({
 
         const migratedRecordingId = createVoiceZooRecordingId(objectType);
         await set(
-          getVoiceZooRecordingBlobStorageKey(audioOwnerId, migratedRecordingId),
+          getVoiceZooRecordingBlobStorageKey(effectiveAudioOwnerId, migratedRecordingId),
           legacyBlob,
         );
 
@@ -1411,7 +1405,7 @@ export function EmptyStageCharacter({
       const loadedBlobEntries = await Promise.all(
         recordingCatalog.map(async (recordingMeta) => {
           const blob = await get(
-            getVoiceZooRecordingBlobStorageKey(audioOwnerId, recordingMeta.id),
+            getVoiceZooRecordingBlobStorageKey(effectiveAudioOwnerId, recordingMeta.id),
           );
 
           if (!(blob instanceof Blob)) {
@@ -1453,7 +1447,7 @@ export function EmptyStageCharacter({
     return () => {
       cancelled = true;
     };
-  }, [audioOwnerId, recordingReloadNonce]);
+  }, [effectiveAudioOwnerId, recordingReloadNonce]);
 
   useEffect(() => {
     if (!pathname.startsWith("/garden")) {

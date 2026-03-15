@@ -10,13 +10,11 @@ import { isAnonymousSupabaseUser } from "@/lib/auth/user";
 
 export default function Home() {
   const router = useRouter();
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const supabase = getSupabaseClient();
+  const [isCheckingSession, setIsCheckingSession] = useState(() => Boolean(supabase));
 
   useEffect(() => {
-    const supabase = getSupabaseClient();
-
     if (!supabase) {
-      setIsCheckingSession(false);
       return;
     }
 
@@ -28,7 +26,7 @@ export default function Home() {
         setIsCheckingSession(false);
       }
     });
-  }, [router]);
+  }, [router, supabase]);
 
   if (isCheckingSession) {
     return null;
