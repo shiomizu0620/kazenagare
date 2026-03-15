@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { isAnonymousSupabaseUser } from "@/lib/auth/user";
@@ -23,7 +23,7 @@ function normalizeOptionId(value: string | null, fallback: string, options: { id
   return options.some((option) => option.id === value) ? value : fallback;
 }
 
-export default function GardenPublishPage() {
+function GardenPublishContent() {
   const supabase = useMemo(() => getSupabaseClient(), []);
   const searchParams = useSearchParams();
   const [isAuthLoading, setIsAuthLoading] = useState(Boolean(supabase));
@@ -263,5 +263,13 @@ export default function GardenPublishPage() {
         </Link>
       </div>
     </main>
+  );
+}
+
+export default function GardenPublishPage() {
+  return (
+    <Suspense>
+      <GardenPublishContent />
+    </Suspense>
   );
 }
