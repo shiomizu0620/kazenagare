@@ -1,6 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
+import { EmptyStageDecoration } from "@/components/garden/empty/empty-stage-decoration";
 import {
   EmptyStageCharacter,
   WORLD_HEIGHT,
@@ -47,7 +49,7 @@ const GARDEN_ALL_SEASON_IMAGE: Record<string, string> = {
 };
 
 const BACKGROUND_IMAGE_EXTENSIONS = ["avif", "webp", "png", "jpg", "jpeg"] as const;
-const BACKGROUND_IMAGE_SCALE = 1.5;
+const BACKGROUND_IMAGE_SCALE = 1;
 
 function getMovementBoundsFromBackgroundScale(scale: number) {
   if (scale <= 1) {
@@ -72,12 +74,16 @@ function getMovementBoundsFromBackgroundScale(scale: number) {
   };
 }
 
-function buildSeasonTimeBackgroundCandidates(seasonId: string, timeSlotId: string) {
+function buildBackgroundCandidates(
+  backgroundId: string,
+  seasonId: string,
+  timeSlotId: string,
+) {
   const candidates: string[] = [];
 
   for (const extension of BACKGROUND_IMAGE_EXTENSIONS) {
     candidates.push(
-      `/images/garden/backgrounds/garden-all/${seasonId}/${timeSlotId}/background.${extension}`,
+      `/images/garden/backgrounds/${backgroundId}/${seasonId}/${timeSlotId}/background.${extension}`,
     );
   }
 
@@ -92,37 +98,40 @@ function buildSeasonTimeBackgroundCandidates(seasonId: string, timeSlotId: strin
 }
 
 function SeasonTimeBackgroundLayer({
+  backgroundId,
   seasonId,
   timeSlotId,
 }: {
+  backgroundId: string;
   seasonId: string;
   timeSlotId: string;
 }) {
   const candidates = useMemo(
-    () => buildSeasonTimeBackgroundCandidates(seasonId, timeSlotId),
-    [seasonId, timeSlotId],
+    () => buildBackgroundCandidates(backgroundId, seasonId, timeSlotId),
+    [backgroundId, seasonId, timeSlotId],
   );
   const [candidateIndex, setCandidateIndex] = useState(0);
 
   const activeImage = candidates[Math.min(candidateIndex, Math.max(0, candidates.length - 1))];
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- onError フォールバックが必要なため <img> を使用
-    <img
-      className="pointer-events-none absolute left-0 top-0 block h-[2160px] w-[3840px] origin-center scale-[1.5] object-fill"
-      src={activeImage}
-      alt=""
-      aria-hidden
-      draggable={false}
-      width={WORLD_WIDTH}
-      height={WORLD_HEIGHT}
-      onError={() => {
-        setCandidateIndex((current) => {
-          const lastIndex = candidates.length - 1;
-          return current < lastIndex ? current + 1 : current;
-        });
-      }}
-    />
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <Image
+        src={activeImage}
+        alt=""
+        aria-hidden
+        fill
+        unoptimized
+        sizes="100vw"
+        className="select-none object-cover"
+        onError={() => {
+          setCandidateIndex((current) => {
+            const lastIndex = candidates.length - 1;
+            return current < lastIndex ? current + 1 : current;
+          });
+        }}
+      />
+    </div>
   );
 }
 
@@ -171,7 +180,15 @@ export function GardenEmptyStage({
         movementBounds={movementBounds}
         collisionZones={COLLISION_ZONES[backgroundId] ?? []}
       >
-        <SeasonTimeBackgroundLayer key={`${seasonId}-${timeSlotId}`} seasonId={seasonId} timeSlotId={timeSlotId} />
+        <SeasonTimeBackgroundLayer
+          key={`${backgroundId}-${seasonId}-${timeSlotId}`}
+          backgroundId={backgroundId}
+          seasonId={seasonId}
+          timeSlotId={timeSlotId}
+        />
+        {backgroundId !== "garden-all" ? (
+          <EmptyStageDecoration backgroundId={backgroundId} />
+        ) : null}
         <div className={`absolute inset-0 ${seasonOverlayClass}`} />
         <div className={`absolute inset-0 ${timeOverlayClass}`} />
 
