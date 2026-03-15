@@ -298,7 +298,10 @@ export function EmptyStageCharacter({
         ensureAutoPlaybackGainNode(objectId, objectAudio);
 
       if (gainNode) {
-        gainNode.gain.value = normalizedVolume;
+        gainNode.gain.setValueAtTime(
+          normalizedVolume,
+          gainNode.context.currentTime,
+        );
         objectAudio.volume = 1;
         return;
       }

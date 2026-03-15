@@ -182,7 +182,10 @@ export function GardenStageBgm({
     const gainNode = gainNodeRef.current;
 
     if (gainNode) {
-      gainNode.gain.value = effectiveVolume;
+      gainNode.gain.setValueAtTime(
+        effectiveVolume,
+        gainNode.context.currentTime,
+      );
       audioElement.volume = 1;
       return;
     }
