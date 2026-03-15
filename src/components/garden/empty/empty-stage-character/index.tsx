@@ -3,7 +3,7 @@
 import { get, set } from "idb-keyval";
 import { usePathname } from "next/navigation";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_KAZENAGARE_AUDIO_SETTINGS,
   type KazenagareAudioSettings,
@@ -54,6 +54,7 @@ import type {
   EmptyStageCharacterProps,
   PlacedStageObject,
   Vector2,
+  WorldBounds,
 } from "./empty-stage-character.types";
 import {
   clamp,
@@ -120,14 +121,49 @@ function getRandomPlaybackDelayMs() {
   );
 }
 
+const DEFAULT_WORLD_BOUNDS: WorldBounds = {
+  minX: 0,
+  maxX: WORLD_WIDTH,
+  minY: 0,
+  maxY: WORLD_HEIGHT,
+};
+
+function toCharacterOffset(worldPosition?: Vector2 | null, movementBounds: WorldBounds = DEFAULT_WORLD_BOUNDS): Vector2 {
+  if (!worldPosition) {
+    return { x: 0, y: 0 };
+  }
+
+  const clampedMinX = Math.min(movementBounds.minX, movementBounds.maxX);
+  const clampedMaxX = Math.max(movementBounds.minX, movementBounds.maxX);
+  const clampedMinY = Math.min(movementBounds.minY, movementBounds.maxY);
+  const clampedMaxY = Math.max(movementBounds.minY, movementBounds.maxY);
+  const minWorldX = clampedMinX + CHARACTER_HITBOX_RADIUS;
+  const maxWorldX = clampedMaxX - CHARACTER_HITBOX_RADIUS;
+  const minWorldY = clampedMinY + CHARACTER_HITBOX_RADIUS;
+  const maxWorldY = clampedMaxY - CHARACTER_HITBOX_RADIUS;
+  const clampedWorldX = clamp(worldPosition.x, minWorldX, Math.max(minWorldX, maxWorldX));
+  const clampedWorldY = clamp(worldPosition.y, minWorldY, Math.max(minWorldY, maxWorldY));
+
+  return {
+    x: clampedWorldX - WORLD_WIDTH * 0.5,
+    y: clampedWorldY - WORLD_HEIGHT * 0.5,
+  };
+}
+
 export function EmptyStageCharacter({
   children,
   darkMode = false,
   allowObjectPlacement = false,
   placementObjectType = null,
   objectStorageKey,
+  initialCharacterWorldPosition,
+  movementBounds = DEFAULT_WORLD_BOUNDS,
   collisionZones = [],
 }: EmptyStageCharacterProps) {
+  const initialCharacterOffset = useMemo(
+    () => toCharacterOffset(initialCharacterWorldPosition, movementBounds),
+    [initialCharacterWorldPosition, movementBounds],
+  );
   const pathname = usePathname();
   const resolvedStorageKey = objectStorageKey ?? null;
   const [isWalking, setIsWalking] = useState(false);
@@ -163,8 +199,8 @@ export function EmptyStageCharacter({
   const walkingRef = useRef(false);
   const stickPointerIdRef = useRef<number | null>(null);
   const stageSizeRef = useRef<Vector2>({ x: 0, y: 0 });
-  const cameraOffsetRef = useRef<Vector2>({ x: 0, y: 0 });
-  const desiredOffsetRef = useRef<Vector2>({ x: 0, y: 0 });
+  const cameraOffsetRef = useRef<Vector2>(initialCharacterOffset);
+  const desiredOffsetRef = useRef<Vector2>(initialCharacterOffset);
   const velocityRef = useRef<Vector2>({ x: 0, y: 0 });
   const previousTimestampRef = useRef(0);
   const animationFrameRef = useRef(0);
@@ -365,24 +401,40 @@ export function EmptyStageCharacter({
   }, []);
 
   const clampCameraBounds = useCallback((nextOffset: Vector2) => {
-    const maxX = Math.max(0, WORLD_WIDTH * 0.5 - stageSizeRef.current.x * 0.5);
-    const maxY = Math.max(0, WORLD_HEIGHT * 0.5 - stageSizeRef.current.y * 0.5);
+    const minCameraOffsetX = movementBounds.minX + stageSizeRef.current.x * 0.5 - WORLD_WIDTH * 0.5;
+    const maxCameraOffsetX = movementBounds.maxX - stageSizeRef.current.x * 0.5 - WORLD_WIDTH * 0.5;
+    const minCameraOffsetY = movementBounds.minY + stageSizeRef.current.y * 0.5 - WORLD_HEIGHT * 0.5;
+    const maxCameraOffsetY = movementBounds.maxY - stageSizeRef.current.y * 0.5 - WORLD_HEIGHT * 0.5;
 
     return {
-      x: clamp(nextOffset.x, -maxX, maxX),
-      y: clamp(nextOffset.y, -maxY, maxY),
+      x: clamp(
+        nextOffset.x,
+        Math.min(minCameraOffsetX, maxCameraOffsetX),
+        Math.max(minCameraOffsetX, maxCameraOffsetX),
+      ),
+      y: clamp(
+        nextOffset.y,
+        Math.min(minCameraOffsetY, maxCameraOffsetY),
+        Math.max(minCameraOffsetY, maxCameraOffsetY),
+      ),
     };
-  }, []);
+  }, [movementBounds.maxX, movementBounds.maxY, movementBounds.minX, movementBounds.minY]);
 
   const clampCharacterBounds = useCallback((nextOffset: Vector2) => {
-    const maxX = Math.max(0, WORLD_WIDTH * 0.5 - CHARACTER_HITBOX_RADIUS);
-    const maxY = Math.max(0, WORLD_HEIGHT * 0.5 - CHARACTER_HITBOX_RADIUS);
+    const minWorldX = Math.min(movementBounds.minX, movementBounds.maxX) + CHARACTER_HITBOX_RADIUS;
+    const maxWorldX = Math.max(movementBounds.minX, movementBounds.maxX) - CHARACTER_HITBOX_RADIUS;
+    const minWorldY = Math.min(movementBounds.minY, movementBounds.maxY) + CHARACTER_HITBOX_RADIUS;
+    const maxWorldY = Math.max(movementBounds.minY, movementBounds.maxY) - CHARACTER_HITBOX_RADIUS;
+    const minOffsetX = minWorldX - WORLD_WIDTH * 0.5;
+    const maxOffsetX = maxWorldX - WORLD_WIDTH * 0.5;
+    const minOffsetY = minWorldY - WORLD_HEIGHT * 0.5;
+    const maxOffsetY = maxWorldY - WORLD_HEIGHT * 0.5;
 
     return {
-      x: clamp(nextOffset.x, -maxX, maxX),
-      y: clamp(nextOffset.y, -maxY, maxY),
+      x: clamp(nextOffset.x, Math.min(minOffsetX, maxOffsetX), Math.max(minOffsetX, maxOffsetX)),
+      y: clamp(nextOffset.y, Math.min(minOffsetY, maxOffsetY), Math.max(minOffsetY, maxOffsetY)),
     };
-  }, []);
+  }, [movementBounds.maxX, movementBounds.maxY, movementBounds.minX, movementBounds.minY]);
 
   const initializeStage = useCallback(() => {
     if (!stageRef.current) {
@@ -496,22 +548,27 @@ export function EmptyStageCharacter({
 
   const resetCharacterAnimationState = useCallback(() => {
     walkingRef.current = false;
-    if (isWalking) {
-      setIsWalking(false);
-    }
-  }, [isWalking]);
+    setIsWalking(false);
+  }, []);
 
   const resetToStart = useCallback(() => {
     activeKeysRef.current.clear();
     clearJoystickInput();
     velocityRef.current = { x: 0, y: 0 };
-    desiredOffsetRef.current = { x: 0, y: 0 };
-    cameraOffsetRef.current = { x: 0, y: 0 };
+    desiredOffsetRef.current = { x: initialCharacterOffset.x, y: initialCharacterOffset.y };
+    cameraOffsetRef.current = { x: initialCharacterOffset.x, y: initialCharacterOffset.y };
     previousTimestampRef.current = 0;
     resetCharacterAnimationState();
     applyWorldTransform();
     applyCharacterTransform();
-  }, [applyCharacterTransform, applyWorldTransform, clearJoystickInput, resetCharacterAnimationState]);
+  }, [
+    applyCharacterTransform,
+    applyWorldTransform,
+    clearJoystickInput,
+    initialCharacterOffset.x,
+    initialCharacterOffset.y,
+    resetCharacterAnimationState,
+  ]);
 
   const clearPlacementState = useCallback(() => {
     setIsMousePlacementArmed(false);
@@ -1162,6 +1219,27 @@ export function EmptyStageCharacter({
     characterVoiceVolumeRef.current = characterVoiceVolume;
     updateActiveAutoPlaybackVolumes();
   }, [characterVoiceVolume, updateActiveAutoPlaybackVolumes]);
+
+  useEffect(() => {
+    activeKeysRef.current.clear();
+    clearJoystickInput();
+    velocityRef.current = { x: 0, y: 0 };
+    desiredOffsetRef.current = { x: initialCharacterOffset.x, y: initialCharacterOffset.y };
+    cameraOffsetRef.current = clampCameraBounds(desiredOffsetRef.current);
+    previousTimestampRef.current = 0;
+    // 速度を 0 にリセット済みなのでアニメーションループが次フレームで isWalking を解決する
+    // effect 内での setState 呼び出しを避けるため ref のみ更新する
+    walkingRef.current = false;
+    applyWorldTransform();
+    applyCharacterTransform();
+  }, [
+    applyCharacterTransform,
+    applyWorldTransform,
+    clampCameraBounds,
+    clearJoystickInput,
+    initialCharacterOffset.x,
+    initialCharacterOffset.y,
+  ]);
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {

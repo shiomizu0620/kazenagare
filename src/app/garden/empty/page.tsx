@@ -63,7 +63,7 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
     GARDEN_TIME_SLOTS.find((option) => option.id === selectedTimeSlotId) ??
     GARDEN_TIME_SLOTS[0];
   const selectedPlacementObjectType = parsePlacementObjectType(params.place);
-  const isNightPond = selectedBackground.id === "night-pond";
+  const isNight = selectedTimeSlot.id === "night";
 
   const optionActions: GardenOptionAction[] = [
     {
@@ -112,7 +112,7 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
       <GardenOptionsMenu
         actions={optionActions}
         title="自分の庭オプション"
-        darkMode={isNightPond}
+        darkMode={isNight}
       />
     </main>
   );
