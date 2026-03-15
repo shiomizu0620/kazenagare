@@ -1,9 +1,47 @@
 import Link from "next/link";
 import { PageShell } from "@/components/ui/page-shell";
+import { fetchPublishedGardenPosts } from "@/lib/garden/posts";
+import {
+  GARDEN_BACKGROUNDS,
+  GARDEN_SEASONS,
+  GARDEN_TIME_SLOTS,
+} from "@/lib/garden/setup/options";
 
-const SAMPLE_USER_IDS = ["akari", "ren", "sora", "yui"];
+function resolveOptionName(options: { id: string; name: string }[], id: string) {
+  return options.find((option) => option.id === id)?.name ?? id;
+}
 
-export default function GardenIndexPage() {
+function formatGardenOwnerLabel(userId: string) {
+  if (userId.length <= 12) {
+    return userId;
+  }
+
+  return `${userId.slice(0, 8)}...`;
+}
+
+function formatPublishedAt(publishedAt: string | null) {
+  if (!publishedAt) {
+    return "公開日時不明";
+  }
+
+  const date = new Date(publishedAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return "公開日時不明";
+  }
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+export default async function GardenIndexPage() {
+  const publishedPosts = await fetchPublishedGardenPosts();
+
   return (
     <PageShell
       title="庭一覧"
@@ -16,17 +54,69 @@ export default function GardenIndexPage() {
         >
           自分の庭へ
         </Link>
-
-        {SAMPLE_USER_IDS.map((userId) => (
-          <Link
-            key={userId}
-            href={`/garden/${userId}`}
-            className="rounded-md border border-wa-black px-4 py-3 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
-          >
-            {userId} の庭へ
-          </Link>
-        ))}
       </div>
+
+      <section className="grid gap-4">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">公開された庭</h2>
+          <p className="text-sm text-wa-black/70">
+            投稿済みの庭はここに並びます。カードを選ぶと、そのまま訪問できます。
+          </p>
+        </div>
+
+        {publishedPosts.length === 0 ? (
+          <p className="rounded-xl border border-wa-black/15 bg-white/70 px-4 py-4 text-sm text-wa-black/70">
+            まだ公開された庭はありません。自分の庭を投稿すると、この一覧から他の人が訪問できるようになります。
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {publishedPosts.map((post) => {
+              const backgroundName = resolveOptionName(
+                GARDEN_BACKGROUNDS,
+                post.backgroundId,
+              );
+              const seasonName = resolveOptionName(GARDEN_SEASONS, post.seasonId);
+              const timeSlotName = resolveOptionName(
+                GARDEN_TIME_SLOTS,
+                post.timeSlotId,
+              );
+
+              return (
+                <Link
+                  key={post.userId}
+                  href={`/garden/${post.userId}`}
+                  className="grid gap-3 rounded-2xl border border-wa-black/15 bg-white/80 px-4 py-4 transition-all duration-150 ease-out hover:-translate-y-0.5 hover:border-wa-black/40 hover:bg-wa-red/5 active:translate-y-[1px] active:scale-[0.99]"
+                >
+                  <div className="space-y-1">
+                    <p className="text-xs tracking-[0.22em] text-wa-black/45">PUBLIC GARDEN</p>
+                    <p className="text-lg font-semibold">
+                      {formatGardenOwnerLabel(post.userId)} の庭
+                    </p>
+                    <p className="break-all text-xs text-wa-black/55">ID: {post.userId}</p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full border border-wa-black/15 px-3 py-1">
+                      背景: {backgroundName}
+                    </span>
+                    <span className="rounded-full border border-wa-black/15 px-3 py-1">
+                      季節: {seasonName}
+                    </span>
+                    <span className="rounded-full border border-wa-black/15 px-3 py-1">
+                      時間帯: {timeSlotName}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 text-sm text-wa-black/65">
+                    <span>{formatPublishedAt(post.publishedAt)}</span>
+                    <span className="font-semibold text-wa-red">庭を見る</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </PageShell>
   );
 }

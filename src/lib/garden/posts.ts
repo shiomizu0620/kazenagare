@@ -33,6 +33,51 @@ function normalizePostRow(row: SupabaseGardenPostRow): GardenPostRecord | null {
   };
 }
 
+export async function fetchPublishedGardenPosts(limit = 24) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return [] as GardenPostRecord[];
+  }
+
+  const requestUrl = new URL(`${supabaseUrl}/rest/v1/garden_posts`);
+  requestUrl.searchParams.set(
+    "select",
+    "user_id,background_id,season_id,time_slot_id,published_at",
+  );
+  requestUrl.searchParams.set("published_at", "not.is.null");
+  requestUrl.searchParams.set("order", "published_at.desc");
+  requestUrl.searchParams.set("limit", String(limit));
+
+  try {
+    const response = await fetch(requestUrl.toString(), {
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+      next: {
+        revalidate: 0,
+      },
+    });
+
+    if (!response.ok) {
+      return [] as GardenPostRecord[];
+    }
+
+    const data: unknown = await response.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      return [] as GardenPostRecord[];
+    }
+
+    return data
+      .map((row) => normalizePostRow(row as SupabaseGardenPostRow))
+      .filter((row): row is GardenPostRecord => row !== null);
+  } catch {
+    return [] as GardenPostRecord[];
+  }
+}
+
 export async function fetchPublishedGardenPostByUserId(userId: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

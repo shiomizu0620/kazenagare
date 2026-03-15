@@ -17,7 +17,7 @@
 | Route | Purpose | 現状 |
 | --- | --- | --- |
 | `/` | ホーム。音量メーター、認証UI、庭導線 | 実装済み |
-| `/garden` | 庭一覧（自分 + サンプルユーザー） | 実装済み |
+| `/garden` | 庭一覧（自分 + 公開済みユーザーの庭） | 実装済み |
 | `/garden/setup` | 背景/季節/時間帯の選択フォーム | 実装済み |
 | `/garden/empty` | 設定反映ステージ（query: background/season/time/place） | 実装済み |
 | `/garden/[userId]` | 他ユーザー閲覧 + `me` の場合は配置モード | 実装済み |
