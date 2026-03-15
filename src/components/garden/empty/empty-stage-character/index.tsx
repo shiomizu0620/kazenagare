@@ -1227,7 +1227,9 @@ export function EmptyStageCharacter({
     desiredOffsetRef.current = { x: initialCharacterOffset.x, y: initialCharacterOffset.y };
     cameraOffsetRef.current = clampCameraBounds(desiredOffsetRef.current);
     previousTimestampRef.current = 0;
-    resetCharacterAnimationState();
+    // 速度を 0 にリセット済みなのでアニメーションループが次フレームで isWalking を解決する
+    // effect 内での setState 呼び出しを避けるため ref のみ更新する
+    walkingRef.current = false;
     applyWorldTransform();
     applyCharacterTransform();
   }, [
@@ -1237,7 +1239,6 @@ export function EmptyStageCharacter({
     clearJoystickInput,
     initialCharacterOffset.x,
     initialCharacterOffset.y,
-    resetCharacterAnimationState,
   ]);
 
   useEffect(() => {

@@ -100,10 +100,6 @@ function SeasonTimeBackgroundLayer({
   );
   const [candidateIndex, setCandidateIndex] = useState(0);
 
-  useEffect(() => {
-    setCandidateIndex(0);
-  }, [candidates]);
-
   const activeImage = candidates[Math.min(candidateIndex, Math.max(0, candidates.length - 1))];
 
   return (
@@ -174,7 +170,7 @@ export function GardenEmptyStage({
         movementBounds={movementBounds}
         collisionZones={COLLISION_ZONES[backgroundId] ?? []}
       >
-        <SeasonTimeBackgroundLayer seasonId={seasonId} timeSlotId={timeSlotId} />
+        <SeasonTimeBackgroundLayer key={`${seasonId}-${timeSlotId}`} seasonId={seasonId} timeSlotId={timeSlotId} />
         <div className={`absolute inset-0 ${seasonOverlayClass}`} />
         <div className={`absolute inset-0 ${timeOverlayClass}`} />
 
