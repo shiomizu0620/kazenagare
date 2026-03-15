@@ -612,19 +612,6 @@ export function GardenOptionsMenu({
 
       <div className="pointer-events-none absolute right-4 top-4 z-[70]">
         <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            aria-controls={catalogPanelId}
-            aria-label={catalogLabel}
-            title={catalogLabel}
-            className={`pointer-events-auto ${iconButtonClass}`}
-            onClick={() => {
-              if (typeof window !== "undefined") {
-                const storedWallet = parseVoiceZooWallet(
-                  window.localStorage.getItem(getVoiceZooWalletStorageKey(audioOwnerId)),
-                );
-                setOwnedCatalogObjectTypes(storedWallet.ownedObjectTypes);
-              }
           {showCatalogButton ? (
             <button
               type="button"
@@ -635,7 +622,7 @@ export function GardenOptionsMenu({
               onClick={() => {
                 if (typeof window !== "undefined") {
                   const storedWallet = parseVoiceZooWallet(
-                    window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
+                    window.localStorage.getItem(getVoiceZooWalletStorageKey(audioOwnerId)),
                   );
                   setOwnedCatalogObjectTypes(storedWallet.ownedObjectTypes);
                 }
