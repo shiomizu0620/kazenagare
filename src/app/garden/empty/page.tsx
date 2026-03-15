@@ -67,24 +67,29 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
 
   const optionActions: GardenOptionAction[] = [
     {
-      href: `/garden/publish?background=${encodeURIComponent(selectedBackground.id)}&season=${encodeURIComponent(selectedSeason.id)}&time=${encodeURIComponent(selectedTimeSlot.id)}`,
-      label: "この庭を投稿する",
-      description: "他の人が /garden/[userId] で見られるようにする",
-    },
-    {
       href: "/garden/setup",
       label: "設定を変更する",
       description: "背景・季節・時間帯を選び直す",
     },
     {
-      href: "/garden/me/qr",
-      label: "この庭のQRを表示する",
-      description: "スマホ共有用のQRコードを開く",
+      href: "/",
+      label: "トップへ戻る",
+      description: "最初のページへ戻る",
     },
     {
       href: "/garden",
       label: "庭一覧へ",
       description: "他の人の庭を見に行く",
+    },
+    {
+      href: `/garden/publish?background=${encodeURIComponent(selectedBackground.id)}&season=${encodeURIComponent(selectedSeason.id)}&time=${encodeURIComponent(selectedTimeSlot.id)}`,
+      label: "この庭を投稿する",
+      description: "他の人が /garden/[userId] で見られるようにする",
+    },
+    {
+      href: "/garden/me/qr",
+      label: "この庭のQRを表示する",
+      description: "スマホ共有用のQRコードを開く",
     },
   ];
 

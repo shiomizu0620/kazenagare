@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { EmptyStageDecoration } from "@/components/garden/empty/empty-stage-decoration";
 import {
   EmptyStageCharacter,
@@ -12,6 +13,7 @@ import {
   getSeasonOverlayClass,
   getTimeOverlayClass,
 } from "@/components/garden/empty/empty-stage-theme";
+import type { PlacedStageObject } from "@/components/garden/empty/empty-stage-character/empty-stage-character.types";
 import type { ObjectType } from "@/types/garden";
 import { COLLISION_ZONES } from "@/components/garden/empty/empty-stage-character/collision-zones";
 
@@ -26,6 +28,9 @@ type GardenEmptyStageProps = {
   allowObjectPlacement?: boolean;
   placementObjectType?: ObjectType | null;
   objectStorageKey?: string;
+  initialPlacedObjects?: PlacedStageObject[];
+  audioOwnerIdOverride?: string | null;
+  showDevelopmentPlaceholder?: boolean;
 };
 
 export function GardenEmptyStage({
@@ -39,6 +44,9 @@ export function GardenEmptyStage({
   allowObjectPlacement = false,
   placementObjectType = null,
   objectStorageKey,
+  initialPlacedObjects = [],
+  audioOwnerIdOverride = null,
+  showDevelopmentPlaceholder = false,
 }: GardenEmptyStageProps) {
   const theme = getBackgroundTheme(backgroundId);
   const seasonOverlayClass = getSeasonOverlayClass(seasonId);
@@ -61,18 +69,18 @@ export function GardenEmptyStage({
         allowObjectPlacement={allowObjectPlacement}
         placementObjectType={placementObjectType}
         objectStorageKey={objectStorageKey}
+        initialPlacedObjects={initialPlacedObjects}
+        audioOwnerIdOverride={audioOwnerIdOverride}
         collisionZones={COLLISION_ZONES[backgroundId] ?? []}
       >
         {backgroundId === "garden-all" ? (
-          <div
-            className="pointer-events-none absolute left-0 top-0"
-            style={{
-              width: WORLD_WIDTH,
-              height: WORLD_HEIGHT,
-              backgroundImage: `url('/images/garden/backgrounds/${backgroundId}/${seasonId}/${timeSlotId}/background.png')`,
-              backgroundSize: "100% 100%",
-              backgroundPosition: "left top",
-            }}
+          <Image
+            src={`/images/garden/backgrounds/${backgroundId}/${seasonId}/${timeSlotId}/background.png`}
+            alt=""
+            aria-hidden="true"
+            width={WORLD_WIDTH}
+            height={WORLD_HEIGHT}
+            className="pointer-events-none absolute left-0 top-0 h-full w-full select-none object-fill"
           />
         ) : null}
         {backgroundId !== "garden-all" ? (
@@ -81,7 +89,7 @@ export function GardenEmptyStage({
         <div className={`absolute inset-0 ${seasonOverlayClass}`} />
         <div className={`absolute inset-0 ${timeOverlayClass}`} />
 
-        {!allowObjectPlacement ? (
+        {showDevelopmentPlaceholder ? (
           <div
             className={`absolute left-1/2 top-1/2 flex h-[360px] w-[620px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-2xl border border-dashed ${theme.panelClass}`}
           >

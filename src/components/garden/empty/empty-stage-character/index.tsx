@@ -126,12 +126,14 @@ export function EmptyStageCharacter({
   allowObjectPlacement = false,
   placementObjectType = null,
   objectStorageKey,
+  initialPlacedObjects = [],
+  audioOwnerIdOverride = null,
   collisionZones = [],
 }: EmptyStageCharacterProps) {
   const pathname = usePathname();
   const resolvedStorageKey = objectStorageKey ?? null;
   const [isWalking, setIsWalking] = useState(false);
-  const [placedObjects, setPlacedObjects] = useState<PlacedStageObject[]>([]);
+  const [placedObjects, setPlacedObjects] = useState<PlacedStageObject[]>(initialPlacedObjects);
   const [grabbedObjectId, setGrabbedObjectId] = useState<string | null>(null);
   const [grabbedObjectType, setGrabbedObjectType] = useState<ObjectType | null>(null);
   const [pointerWorldPosition, setPointerWorldPosition] = useState<Vector2 | null>(null);
@@ -823,6 +825,14 @@ export function EmptyStageCharacter({
   });
 
   useEffect(() => {
+    if (resolvedStorageKey) {
+      return;
+    }
+
+    setPlacedObjects(initialPlacedObjects);
+  }, [initialPlacedObjects, resolvedStorageKey]);
+
+  useEffect(() => {
     placedObjectsRef.current = placedObjects;
     updateActiveAutoPlaybackVolumes();
   }, [placedObjects, updateActiveAutoPlaybackVolumes]);
@@ -1304,6 +1314,11 @@ export function EmptyStageCharacter({
   }, []);
 
   useEffect(() => {
+    if (audioOwnerIdOverride) {
+      setAudioOwnerId(audioOwnerIdOverride);
+      return;
+    }
+
     const supabase = getSupabaseClient();
 
     if (!supabase) {
@@ -1323,7 +1338,7 @@ export function EmptyStageCharacter({
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [audioOwnerIdOverride]);
 
   useEffect(() => {
     const handleRecordingUpdate: EventListener = (event) => {
