@@ -105,7 +105,6 @@ async function getRequestOrigin() {
 export default async function GardenUserQrPage({ params }: GardenUserQrPageProps) {
   const { userId } = await params;
   const origin = await getRequestOrigin();
-  const shareUrl = `${origin}/garden/${encodeURIComponent(userId)}`;
   const backHref =
     userId === "me"
       ? "/garden/empty"
@@ -138,7 +137,7 @@ export default async function GardenUserQrPage({ params }: GardenUserQrPageProps
           }}
           backgroundName="竹林"
         />
-        <GardenShareQr shareUrl={shareUrl} />
+        <GardenShareQr origin={origin} userId={userId} />
       </div>
     </PageShell>
   );
