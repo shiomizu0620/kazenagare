@@ -472,6 +472,7 @@ export function GardenOptionsMenu({
 
   const handleResetWalletForTesting = () => {
     saveVoiceZooWallet(createInitialVoiceZooWallet(), audioOwnerId);
+    window.localStorage.removeItem(`kazenagare_objects_me_${audioOwnerId}`);
     window.localStorage.removeItem("kazenagare_objects_me");
     setOwnedCatalogObjectTypes([]);
     setCatalogActionNotice(null);
