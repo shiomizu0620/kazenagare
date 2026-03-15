@@ -24,9 +24,9 @@ import {
   calculatePlaybackRewardCoins,
   createInitialVoiceZooWallet,
   INITIAL_VOICE_ZOO_COINS,
-  parseVoiceZooWallet,
+  loadVoiceZooWallet,
   type VoiceZooWallet,
-  VOICE_ZOO_WALLET_STORAGE_KEY,
+  saveVoiceZooWallet,
 } from "@/lib/voice-zoo/wallet";
 import {
   applyVoiceZooPlaybackEffect,
@@ -120,28 +120,22 @@ export default function VoiceZooPage() {
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
-      const storedWallet = parseVoiceZooWallet(
-        window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
-      );
-      setWallet(storedWallet);
+      setWallet(loadVoiceZooWallet(audioOwnerId));
       setIsWalletLoaded(true);
     }, 0);
 
     return () => {
       window.clearTimeout(loadTimer);
     };
-  }, []);
+  }, [audioOwnerId]);
 
   useEffect(() => {
     if (!isWalletLoaded) {
       return;
     }
 
-    window.localStorage.setItem(
-      VOICE_ZOO_WALLET_STORAGE_KEY,
-      JSON.stringify(wallet),
-    );
-  }, [isWalletLoaded, wallet]);
+    saveVoiceZooWallet(wallet, audioOwnerId);
+  }, [audioOwnerId, isWalletLoaded, wallet]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();

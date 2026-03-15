@@ -28,9 +28,11 @@ import {
 } from "@/lib/voice-zoo/recordings";
 import {
   calculatePlaybackRewardCoins,
+  getVoiceZooWalletStorageKey,
+  loadVoiceZooWallet,
   parseVoiceZooWallet,
-  type VoiceZooWallet,
-  VOICE_ZOO_WALLET_STORAGE_KEY,
+  saveVoiceZooWallet,
+  type VoiceZooWalletUpdatedEventDetail,
   VOICE_ZOO_WALLET_UPDATED_EVENT,
 } from "@/lib/voice-zoo/wallet";
 import type { ObjectType } from "@/types/garden";
@@ -113,7 +115,10 @@ export function EmptyStageCharacter({
   collisionZones = [],
 }: EmptyStageCharacterProps) {
   const pathname = usePathname();
-  const resolvedStorageKey = objectStorageKey ?? null;
+  const [audioOwnerId, setAudioOwnerId] = useState<string>("local_guest");
+  const resolvedStorageKey = objectStorageKey
+    ? `${objectStorageKey}_${audioOwnerId}`
+    : null;
   const [isWalking, setIsWalking] = useState(false);
   const [placedObjects, setPlacedObjects] = useState<PlacedStageObject[]>([]);
   const [grabbedObjectId, setGrabbedObjectId] = useState<string | null>(null);
@@ -131,7 +136,6 @@ export function EmptyStageCharacter({
   const [characterVoiceVolume, setCharacterVoiceVolume] = useState(
     DEFAULT_KAZENAGARE_AUDIO_SETTINGS.characterVoiceVolume,
   );
-  const [audioOwnerId, setAudioOwnerId] = useState<string>("local_guest");
   const [recordingReloadNonce, setRecordingReloadNonce] = useState(0);
   const [recordingBlobByRecordingId, setRecordingBlobByRecordingId] = useState<
     Record<string, Blob>
@@ -525,18 +529,13 @@ export function EmptyStageCharacter({
       );
 
       try {
-        const currentWallet = parseVoiceZooWallet(
-          window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
-        );
+        const currentWallet = loadVoiceZooWallet(audioOwnerId);
         const nextWallet = {
           ...currentWallet,
           coins: currentWallet.coins + rewardCoins,
         };
 
-        window.localStorage.setItem(
-          VOICE_ZOO_WALLET_STORAGE_KEY,
-          JSON.stringify(nextWallet),
-        );
+        saveVoiceZooWallet(nextWallet, audioOwnerId);
         setWalletCoins(nextWallet.coins);
       } catch {
         // Fallback to local state update when storage write fails.
@@ -565,7 +564,7 @@ export function EmptyStageCharacter({
 
       addCoinRewardPopup(placedObject, rewardCoins);
     },
-    [addCoinRewardPopup],
+    [addCoinRewardPopup, audioOwnerId],
   );
 
   const playAutoPlaybackForObject = useCallback(
@@ -1134,20 +1133,20 @@ export function EmptyStageCharacter({
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
-      const wallet = parseVoiceZooWallet(
-        window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
-      );
+      const wallet = loadVoiceZooWallet(audioOwnerId);
       setWalletCoins(wallet.coins);
     }, 0);
 
     return () => {
       window.clearTimeout(loadTimer);
     };
-  }, []);
+  }, [audioOwnerId]);
 
   useEffect(() => {
+    const walletStorageKey = getVoiceZooWalletStorageKey(audioOwnerId);
+
     const handleWalletStorageUpdate = (event: StorageEvent) => {
-      if (event.key !== VOICE_ZOO_WALLET_STORAGE_KEY) {
+      if (event.key !== walletStorageKey) {
         return;
       }
 
@@ -1156,16 +1155,18 @@ export function EmptyStageCharacter({
     };
 
     const handleLocalWalletUpdate: EventListener = (event) => {
-      const customEvent = event as CustomEvent<VoiceZooWallet>;
+      const customEvent = event as CustomEvent<VoiceZooWalletUpdatedEventDetail>;
 
-      if (customEvent.detail) {
-        setWalletCoins(customEvent.detail.coins);
+      if (customEvent.detail && customEvent.detail.ownerId !== audioOwnerId) {
         return;
       }
 
-      const wallet = parseVoiceZooWallet(
-        window.localStorage.getItem(VOICE_ZOO_WALLET_STORAGE_KEY),
-      );
+      if (customEvent.detail?.wallet) {
+        setWalletCoins(customEvent.detail.wallet.coins);
+        return;
+      }
+
+      const wallet = loadVoiceZooWallet(audioOwnerId);
       setWalletCoins(wallet.coins);
     };
 
@@ -1176,7 +1177,7 @@ export function EmptyStageCharacter({
       window.removeEventListener("storage", handleWalletStorageUpdate);
       window.removeEventListener(VOICE_ZOO_WALLET_UPDATED_EVENT, handleLocalWalletUpdate);
     };
-  }, []);
+  }, [audioOwnerId]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
