@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GardenEmptyStage } from "@/components/garden/empty/garden-empty-stage";
+import { GardenLocalStateSync } from "@/components/garden/garden-local-state-sync";
 import {
   GardenOptionsMenu,
   type GardenOptionAction,
@@ -11,6 +12,7 @@ import {
   GARDEN_SEASONS,
   GARDEN_TIME_SLOTS,
 } from "@/lib/garden/setup/options";
+import { fetchPublishedGardenPostByUserId } from "@/lib/garden/posts";
 import type { ObjectType } from "@/types/garden";
 
 type QueryValue = string | string[] | undefined;
@@ -50,15 +52,26 @@ export default async function GardenUserPage({
   const query = await searchParams;
   const isMe = userId === "me";
   const qrHref = `/garden/${encodeURIComponent(userId)}/qr`;
-
-  const background = GARDEN_BACKGROUNDS[0];
-  const season = GARDEN_SEASONS[0];
-  const timeSlot = GARDEN_TIME_SLOTS[0];
+  const publishedPost = !isMe ? await fetchPublishedGardenPostByUserId(userId) : null;
+  const background =
+    GARDEN_BACKGROUNDS.find((option) => option.id === publishedPost?.backgroundId) ??
+    GARDEN_BACKGROUNDS[0];
+  const season =
+    GARDEN_SEASONS.find((option) => option.id === publishedPost?.seasonId) ??
+    GARDEN_SEASONS[0];
+  const timeSlot =
+    GARDEN_TIME_SLOTS.find((option) => option.id === publishedPost?.timeSlotId) ??
+    GARDEN_TIME_SLOTS[0];
   const selectedPlacementObjectType = parsePlacementObjectType(query.place);
   const isNightPond = background.id === "night-pond";
 
   if (isMe) {
     const optionActions: GardenOptionAction[] = [
+      {
+        href: "/garden/publish",
+        label: "この庭を投稿する",
+        description: "他の人があなたの庭を訪問できるようにする",
+      },
       {
         href: "/garden/setup",
         label: "設定を変更する",
@@ -83,6 +96,12 @@ export default async function GardenUserPage({
 
     return (
       <main className="relative h-[100dvh] overflow-hidden bg-wa-white text-wa-black font-serif">
+        <GardenLocalStateSync
+          backgroundId={background.id}
+          seasonId={season.id}
+          timeSlotId={timeSlot.id}
+        />
+
         <GardenEmptyStage
           backgroundId={background.id}
           backgroundName={background.name}
@@ -107,6 +126,11 @@ export default async function GardenUserPage({
 
   return (
     <PageShell title={`${userId} の庭`} subtitle="静かな和の情景を巡る">
+      {!publishedPost ? (
+        <p className="mb-3 rounded-md border border-amber-700/35 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          このユーザーはまだ庭を投稿していないため、デフォルトの情景を表示しています。
+        </p>
+      ) : null}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <Link
           href="/garden"
