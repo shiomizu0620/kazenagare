@@ -80,6 +80,22 @@ const AUTO_PLAYBACK_DISTANCE_NEAR_PX = 130;
 const AUTO_PLAYBACK_DISTANCE_FAR_PX = 760;
 const AUTO_PLAYBACK_DISTANCE_MIN_GAIN = 0.04;
 
+type CompatibleAudioContextWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
+function getAudioContextConstructor() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return (
+    window.AudioContext ??
+    (window as CompatibleAudioContextWindow).webkitAudioContext ??
+    null
+  );
+}
+
 function getDistanceAttenuationGain(distancePx: number) {
   if (distancePx <= AUTO_PLAYBACK_DISTANCE_NEAR_PX) {
     return 1;
@@ -197,6 +213,11 @@ export function EmptyStageCharacter({
   const autoPlaybackSchedulerTimerRef = useRef<number | null>(null);
   const autoPlaybackNextAtByObjectIdRef = useRef<Record<string, number>>({});
   const autoPlaybackAudioByObjectIdRef = useRef<Record<string, HTMLAudioElement>>({});
+  const autoPlaybackAudioContextRef = useRef<AudioContext | null>(null);
+  const autoPlaybackSourceNodeByObjectIdRef = useRef<
+    Record<string, MediaElementAudioSourceNode>
+  >({});
+  const autoPlaybackGainNodeByObjectIdRef = useRef<Record<string, GainNode>>({});
   const autoPlaybackAudioUrlByObjectIdRef = useRef<Record<string, string>>({});
   const autoPlaybackInFlightObjectIdsRef = useRef<Set<string>>(new Set());
   const coinRewardPopupTimerIdsRef = useRef<number[]>([]);
@@ -245,6 +266,87 @@ export function EmptyStageCharacter({
     [getListenerWorldPosition],
   );
 
+  const resolveAutoPlaybackAudioContext = useCallback(() => {
+    const AudioContextConstructor = getAudioContextConstructor();
+
+    if (!AudioContextConstructor) {
+      return null;
+    }
+
+    if (!autoPlaybackAudioContextRef.current) {
+      autoPlaybackAudioContextRef.current = new AudioContextConstructor();
+    }
+
+    return autoPlaybackAudioContextRef.current;
+  }, []);
+
+  const resumeAutoPlaybackAudioContextIfNeeded = useCallback(async () => {
+    const audioContext = autoPlaybackAudioContextRef.current;
+
+    if (!audioContext || audioContext.state !== "suspended") {
+      return;
+    }
+
+    try {
+      await audioContext.resume();
+    } catch {
+      // Keep standard media element playback when resume fails.
+    }
+  }, []);
+
+  const ensureAutoPlaybackGainNode = useCallback(
+    (objectId: string, objectAudio: HTMLAudioElement) => {
+      const existingGainNode = autoPlaybackGainNodeByObjectIdRef.current[objectId];
+
+      if (existingGainNode) {
+        return existingGainNode;
+      }
+
+      const audioContext = resolveAutoPlaybackAudioContext();
+
+      if (!audioContext) {
+        return null;
+      }
+
+      try {
+        const sourceNode = audioContext.createMediaElementSource(objectAudio);
+        const gainNode = audioContext.createGain();
+
+        sourceNode.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        autoPlaybackSourceNodeByObjectIdRef.current[objectId] = sourceNode;
+        autoPlaybackGainNodeByObjectIdRef.current[objectId] = gainNode;
+        objectAudio.volume = 1;
+        return gainNode;
+      } catch {
+        return null;
+      }
+    },
+    [resolveAutoPlaybackAudioContext],
+  );
+
+  const setAutoPlaybackVolume = useCallback(
+    (objectId: string, objectAudio: HTMLAudioElement, nextVolume: number) => {
+      const normalizedVolume = clamp(nextVolume, 0, 1);
+      const gainNode =
+        autoPlaybackGainNodeByObjectIdRef.current[objectId] ??
+        ensureAutoPlaybackGainNode(objectId, objectAudio);
+
+      if (gainNode) {
+        gainNode.gain.setValueAtTime(
+          normalizedVolume,
+          gainNode.context.currentTime,
+        );
+        objectAudio.volume = 1;
+        return;
+      }
+
+      objectAudio.volume = normalizedVolume;
+    },
+    [ensureAutoPlaybackGainNode],
+  );
+
   const updateActiveAutoPlaybackVolumes = useCallback(
     (listenerWorldX?: number, listenerWorldY?: number) => {
       const listenerPosition =
@@ -262,13 +364,18 @@ export function EmptyStageCharacter({
           continue;
         }
 
-        objectAudio.volume = getAutoPlaybackVolumeForObject(
+        const nextVolume = getAutoPlaybackVolumeForObject(
           placedObject,
           listenerPosition,
         );
+        setAutoPlaybackVolume(objectId, objectAudio, nextVolume);
       }
     },
-    [getAutoPlaybackVolumeForObject, getListenerWorldPosition],
+    [
+      getAutoPlaybackVolumeForObject,
+      getListenerWorldPosition,
+      setAutoPlaybackVolume,
+    ],
   );
 
   const applyWorldTransform = useCallback(() => {
@@ -507,6 +614,20 @@ export function EmptyStageCharacter({
         delete autoPlaybackAudioByObjectIdRef.current[objectId];
       }
 
+      const sourceNode = autoPlaybackSourceNodeByObjectIdRef.current[objectId];
+
+      if (sourceNode) {
+        sourceNode.disconnect();
+        delete autoPlaybackSourceNodeByObjectIdRef.current[objectId];
+      }
+
+      const gainNode = autoPlaybackGainNodeByObjectIdRef.current[objectId];
+
+      if (gainNode) {
+        gainNode.disconnect();
+        delete autoPlaybackGainNodeByObjectIdRef.current[objectId];
+      }
+
       revokeAutoPlaybackAudioUrl(objectId);
     },
     [revokeAutoPlaybackAudioUrl],
@@ -646,6 +767,7 @@ export function EmptyStageCharacter({
 
       if (!objectAudio) {
         objectAudio = new Audio();
+        objectAudio.preload = "auto";
         autoPlaybackAudioByObjectIdRef.current[objectId] = objectAudio;
       }
 
@@ -662,7 +784,8 @@ export function EmptyStageCharacter({
       autoPlaybackAudioUrlByObjectIdRef.current[objectId] = nextAudioUrl;
       objectAudio.src = nextAudioUrl;
       objectAudio.currentTime = 0;
-      objectAudio.volume = getAutoPlaybackVolumeForObject(selectedObject);
+      const nextVolume = getAutoPlaybackVolumeForObject(selectedObject);
+      setAutoPlaybackVolume(objectId, objectAudio, nextVolume);
       applyVoiceZooPlaybackEffect(objectAudio, selectedObject.objectType);
 
       let hasFinalizedPlayback = false;
@@ -715,8 +838,8 @@ export function EmptyStageCharacter({
         rewardPlayback();
       };
 
-      void objectAudio
-        .play()
+      void resumeAutoPlaybackAudioContextIfNeeded()
+        .then(() => objectAudio.play())
         .then(() => {
           rewardPlayback();
         })
@@ -729,6 +852,8 @@ export function EmptyStageCharacter({
       getAutoPlaybackVolumeForObject,
       resolveRecordingBlobForObject,
       revokeAutoPlaybackAudioUrl,
+      resumeAutoPlaybackAudioContextIfNeeded,
+      setAutoPlaybackVolume,
       stopAutoPlaybackObject,
     ],
   );
@@ -1498,6 +1623,28 @@ export function EmptyStageCharacter({
       }
 
       coinRewardPopupTimerIdsRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      for (const sourceNode of Object.values(autoPlaybackSourceNodeByObjectIdRef.current)) {
+        sourceNode.disconnect();
+      }
+
+      for (const gainNode of Object.values(autoPlaybackGainNodeByObjectIdRef.current)) {
+        gainNode.disconnect();
+      }
+
+      autoPlaybackSourceNodeByObjectIdRef.current = {};
+      autoPlaybackGainNodeByObjectIdRef.current = {};
+
+      const audioContext = autoPlaybackAudioContextRef.current;
+      autoPlaybackAudioContextRef.current = null;
+
+      if (audioContext) {
+        void audioContext.close();
+      }
     };
   }, []);
 

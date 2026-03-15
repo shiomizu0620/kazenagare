@@ -3,6 +3,7 @@ import {
   GardenOptionsMenu,
   type GardenOptionAction,
 } from "@/components/garden/garden-options-menu";
+import { GardenLocalStateSync } from "@/components/garden/garden-local-state-sync";
 import {
   GARDEN_BACKGROUNDS,
   GARDEN_SEASONS,
@@ -66,6 +67,11 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
 
   const optionActions: GardenOptionAction[] = [
     {
+      href: `/garden/publish?background=${encodeURIComponent(selectedBackground.id)}&season=${encodeURIComponent(selectedSeason.id)}&time=${encodeURIComponent(selectedTimeSlot.id)}`,
+      label: "この庭を投稿する",
+      description: "他の人が /garden/[userId] で見られるようにする",
+    },
+    {
       href: "/garden/setup",
       label: "設定を変更する",
       description: "背景・季節・時間帯を選び直す",
@@ -80,15 +86,16 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
       label: "庭一覧へ",
       description: "他の人の庭を見に行く",
     },
-    {
-      href: "/test-ui",
-      label: "開発プレイグラウンドへ",
-      description: "UIテストページを開く",
-    },
   ];
 
   return (
     <main className="relative h-[100dvh] overflow-hidden bg-wa-white text-wa-black font-serif">
+      <GardenLocalStateSync
+        backgroundId={selectedBackground.id}
+        seasonId={selectedSeason.id}
+        timeSlotId={selectedTimeSlot.id}
+      />
+
       <GardenEmptyStage
         backgroundId={selectedBackground.id}
         backgroundName={selectedBackground.name}
