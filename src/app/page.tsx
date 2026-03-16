@@ -11,22 +11,30 @@ import { isAnonymousSupabaseUser } from "@/lib/auth/user";
 export default function Home() {
   const router = useRouter();
   const supabase = getSupabaseClient();
-  const [shouldStayOnTop, setShouldStayOnTop] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setShouldStayOnTop(new URLSearchParams(window.location.search).get("top") === "1");
-    }
-  }, []);
+    const shouldStayOnTop =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("top") === "1";
 
-  useEffect(() => {
     if (!supabase || shouldStayOnTop) {
-      setIsCheckingSession(false);
-      return;
+      const timerId = window.setTimeout(() => {
+        setIsCheckingSession(false);
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timerId);
+      };
     }
+
+    let isCancelled = false;
 
     void supabase.auth.getSession().then(({ data }) => {
+      if (isCancelled) {
+        return;
+      }
+
       const user = data.session?.user ?? null;
       if (user && !isAnonymousSupabaseUser(user)) {
         router.replace("/garden/me");
@@ -34,9 +42,13 @@ export default function Home() {
         setIsCheckingSession(false);
       }
     });
-  }, [router, shouldStayOnTop, supabase]);
 
-  if (isCheckingSession && !shouldStayOnTop) {
+    return () => {
+      isCancelled = true;
+    };
+  }, [router, supabase]);
+
+  if (isCheckingSession) {
     return null;
   }
 
