@@ -1803,16 +1803,16 @@ export function EmptyStageCharacter({
 
   const resetButtonClass = `pointer-events-auto rounded-md border px-3 py-2 text-xs font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
     darkMode
-      ? "border-wa-white/40 bg-wa-white/10 text-wa-white hover:bg-wa-white/20"
-      : "border-wa-black/20 bg-wa-white/90 text-wa-black hover:bg-wa-red/10"
+      ? "border-white/35 bg-neutral-900 text-white hover:bg-neutral-800"
+      : "border-black/20 bg-white text-neutral-900 hover:bg-neutral-100"
   }`;
 
   const helperTextClass = `text-[10px] ${darkMode ? "text-wa-white/80" : "text-wa-black/70"}`;
 
-  const resetPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+8.75rem)] left-3 right-3 z-30 grid gap-2 rounded-xl border p-2 backdrop-blur-sm sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[24rem] ${
+  const resetPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+8.75rem)] left-3 right-3 z-30 grid gap-2 rounded-xl border-2 p-2 shadow-xl sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[24rem] ${
     darkMode
-      ? "border-wa-white/30 bg-wa-black/40"
-      : "border-wa-black/20 bg-wa-white/70"
+      ? "border-white/30 bg-neutral-900"
+      : "border-black/20 bg-white"
   }`;
 
   const placementDividerClass = darkMode ? "border-wa-white/20" : "border-wa-black/15";

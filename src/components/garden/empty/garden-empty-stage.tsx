@@ -34,11 +34,16 @@ type GardenEmptyStageProps = {
   showDevelopmentPlaceholder?: boolean;
 };
 
+const DEFAULT_CHARACTER_START_POSITION = {
+  x: WORLD_WIDTH * 0.5,
+  y: WORLD_HEIGHT * 0.5,
+};
+
 const CHARACTER_START_POSITION_BY_BACKGROUND: Record<string, { x: number; y: number }> = {
-  "bamboo-forest": { x: 0, y: 740 },
-  "night-pond": { x: 3680, y: 1850 },
-  "misty-temple": { x: 3030, y: 750 },
-  "garden-all": { x: 2380, y: 1300 },
+  "bamboo-forest": { ...DEFAULT_CHARACTER_START_POSITION },
+  "night-pond": { ...DEFAULT_CHARACTER_START_POSITION },
+  "misty-temple": { ...DEFAULT_CHARACTER_START_POSITION },
+  "garden-all": { ...DEFAULT_CHARACTER_START_POSITION },
 };
 
 const GARDEN_ALL_SEASON_IMAGE: Record<string, string> = {
@@ -155,7 +160,7 @@ export function GardenEmptyStage({
   const seasonOverlayClass = getSeasonOverlayClass(seasonId);
   const timeOverlayClass = getTimeOverlayClass(timeSlotId);
   const initialCharacterWorldPosition =
-    CHARACTER_START_POSITION_BY_BACKGROUND[backgroundId] ?? { x: 1920, y: 1080 };
+    CHARACTER_START_POSITION_BY_BACKGROUND[backgroundId] ?? DEFAULT_CHARACTER_START_POSITION;
   const movementBounds = getMovementBoundsFromBackgroundScale(BACKGROUND_IMAGE_SCALE);
   const stageContainerClass = fullscreen
     ? `relative h-[100dvh] w-full overflow-hidden ${theme.stageClass}`
