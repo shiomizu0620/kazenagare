@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  GARDEN_BACKGROUNDS,
   GARDEN_SEASONS,
-  GARDEN_TIME_SLOTS,
   type GardenOption,
   type GardenSetupSelection,
 } from "@/lib/garden/setup/options";
+
+const FIXED_BACKGROUND_ID = "garden-all";
+const FIXED_TIME_SLOT_ID = "daytime";
 
 type GardenSetupFormProps = {
   nextPath?: string;
@@ -77,42 +78,32 @@ export function GardenSetupForm({
   onSubmit,
 }: GardenSetupFormProps) {
   const router = useRouter();
-  const [selectedBackgroundId, setSelectedBackgroundId] = useState(
-    GARDEN_BACKGROUNDS[0]?.id ?? "",
-  );
   const [selectedSeasonId, setSelectedSeasonId] = useState(
     GARDEN_SEASONS[0]?.id ?? "",
-  );
-  const [selectedTimeSlotId, setSelectedTimeSlotId] = useState(
-    GARDEN_TIME_SLOTS[0]?.id ?? "",
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const selectedBackgroundName =
-    GARDEN_BACKGROUNDS.find((option) => option.id === selectedBackgroundId)?.name ?? "";
   const selectedSeasonName =
     GARDEN_SEASONS.find((option) => option.id === selectedSeasonId)?.name ?? "";
-  const selectedTimeSlotName =
-    GARDEN_TIME_SLOTS.find((option) => option.id === selectedTimeSlotId)?.name ?? "";
 
   const nextHref = useMemo(() => {
     const params = new URLSearchParams({
-      background: selectedBackgroundId,
+      background: FIXED_BACKGROUND_ID,
       season: selectedSeasonId,
-      time: selectedTimeSlotId,
+      time: FIXED_TIME_SLOT_ID,
     });
 
     return `${nextPath}?${params.toString()}`;
-  }, [nextPath, selectedBackgroundId, selectedSeasonId, selectedTimeSlotId]);
+  }, [nextPath, selectedSeasonId]);
 
   const selectedSetting = useMemo<GardenSetupSelection>(
     () => ({
-      backgroundId: selectedBackgroundId,
+      backgroundId: FIXED_BACKGROUND_ID,
       seasonId: selectedSeasonId,
-      timeSlotId: selectedTimeSlotId,
+      timeSlotId: FIXED_TIME_SLOT_ID,
     }),
-    [selectedBackgroundId, selectedSeasonId, selectedTimeSlotId],
+    [selectedSeasonId],
   );
 
   const handleProceed = async () => {
@@ -136,16 +127,8 @@ export function GardenSetupForm({
   return (
     <div className="grid gap-6 rounded-2xl border border-wa-black/20 bg-white/80 p-6">
       <div className="rounded-xl border border-wa-gold/40 bg-wa-gold/10 px-4 py-3 text-sm">
-        お庭の空気感を、かわいく選んでいこう。
+        季節を選んで庭に入ろう。
       </div>
-
-      <OptionGroup
-        label="庭の種類"
-        icon="🎋"
-        options={GARDEN_BACKGROUNDS}
-        selectedId={selectedBackgroundId}
-        onSelect={setSelectedBackgroundId}
-      />
 
       <OptionGroup
         label="季節"
@@ -155,25 +138,11 @@ export function GardenSetupForm({
         onSelect={setSelectedSeasonId}
       />
 
-      <OptionGroup
-        label="時間帯"
-        icon="🕰️"
-        options={GARDEN_TIME_SLOTS}
-        selectedId={selectedTimeSlotId}
-        onSelect={setSelectedTimeSlotId}
-      />
-
       <div className="grid gap-3 rounded-xl border border-wa-black/20 bg-wa-white/90 p-4 text-sm">
         <p className="font-semibold">いまの選択</p>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="rounded-full border border-wa-black/20 px-3 py-1">
-            背景: {selectedBackgroundName}
-          </span>
-          <span className="rounded-full border border-wa-black/20 px-3 py-1">
             季節: {selectedSeasonName}
-          </span>
-          <span className="rounded-full border border-wa-black/20 px-3 py-1">
-            時間帯: {selectedTimeSlotName}
           </span>
         </div>
       </div>

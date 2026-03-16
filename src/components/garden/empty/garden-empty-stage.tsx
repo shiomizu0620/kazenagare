@@ -212,13 +212,7 @@ export function GardenEmptyStage({
 
       <div className="pointer-events-none absolute left-4 top-4 z-40 flex flex-wrap gap-2 text-xs">
         <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-          背景: {backgroundName}
-        </span>
-        <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-          季節: {seasonName}
-        </span>
-        <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-          時間帯: {timeSlotName}
+          {seasonName}
         </span>
       </div>
 
