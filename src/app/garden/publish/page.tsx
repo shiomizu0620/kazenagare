@@ -1,10 +1,14 @@
 "use client";
 
+import { get as getIdbValue } from "idb-keyval";
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { GARDEN_OBJECTS_STORAGE_KEY_ME } from "@/lib/garden/placed-objects-storage";
+import {
+  GARDEN_OBJECTS_STORAGE_KEY_ME,
+  getGardenObjectsStorageKeyForOwner,
+} from "@/lib/garden/placed-objects-storage";
 import { parseGardenPostPlacedObjects } from "@/lib/garden/posts";
 import { isAnonymousSupabaseUser } from "@/lib/auth/user";
 import {
@@ -14,6 +18,12 @@ import {
   type GardenLocalState,
 } from "@/lib/garden/local-state";
 import { GARDEN_BACKGROUNDS, GARDEN_SEASONS, GARDEN_TIME_SLOTS } from "@/lib/garden/setup/options";
+import {
+  getLatestRecordingIdByObjectType,
+  getVoiceZooRecordingBlobStorageKey,
+  getVoiceZooRecordingCatalogStorageKey,
+  parseVoiceZooRecordingCatalog,
+} from "@/lib/voice-zoo/recordings";
 
 type PublishStatus = "idle" | "publishing" | "success" | "error";
 
@@ -166,9 +176,76 @@ function GardenPublishContent() {
     setStatus("publishing");
     setErrorMessage(null);
 
+    const placedObjectsStorageKey = getGardenObjectsStorageKeyForOwner(currentUser.id);
     const placedObjects = parseGardenPostPlacedObjects(
+      window.localStorage.getItem(placedObjectsStorageKey) ??
       window.localStorage.getItem(GARDEN_OBJECTS_STORAGE_KEY_ME),
     );
+
+    const recordingCatalog = parseVoiceZooRecordingCatalog(
+      window.localStorage.getItem(getVoiceZooRecordingCatalogStorageKey(currentUser.id)),
+    );
+    const latestRecordingIdByObjectType = getLatestRecordingIdByObjectType(recordingCatalog);
+
+    const uploadTargets = new Map<string, Blob>();
+    const normalizedPlacedObjects = await Promise.all(
+      placedObjects.map(async (placedObject) => {
+        const resolvedRecordingId =
+          placedObject.recordingId ?? latestRecordingIdByObjectType[placedObject.objectType] ?? null;
+
+        if (!resolvedRecordingId) {
+          return {
+            ...placedObject,
+            recordingId: null,
+          };
+        }
+
+        const recordingBlob = await getIdbValue(
+          getVoiceZooRecordingBlobStorageKey(currentUser.id, resolvedRecordingId),
+        );
+        if (recordingBlob instanceof Blob) {
+          uploadTargets.set(resolvedRecordingId, recordingBlob);
+        }
+
+        return {
+          ...placedObject,
+          recordingId: resolvedRecordingId,
+        };
+      }),
+    );
+
+    const recordingUrlById = new Map<string, string>();
+    for (const [recordingId, blob] of uploadTargets.entries()) {
+      const objectPath = `${currentUser.id}/${recordingId}.webm`;
+      const uploadResult = await supabase.storage
+        .from("garden-voices")
+        .upload(objectPath, blob, {
+          contentType: blob.type || "audio/webm",
+          upsert: true,
+        });
+
+      if (uploadResult.error) {
+        setStatus("error");
+        setErrorMessage(
+          `録音音声の投稿に失敗しました: ${uploadResult.error.message}。\nSupabaseに public bucket "garden-voices" を作成してください。`,
+        );
+        return;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("garden-voices")
+        .getPublicUrl(objectPath);
+      if (publicUrlData.publicUrl) {
+        recordingUrlById.set(recordingId, publicUrlData.publicUrl);
+      }
+    }
+
+    const placedObjectsWithRecordingUrls = normalizedPlacedObjects.map((placedObject) => ({
+      ...placedObject,
+      recordingUrl: placedObject.recordingId
+        ? (recordingUrlById.get(placedObject.recordingId) ?? undefined)
+        : undefined,
+    }));
 
     const { error } = await supabase.from("garden_posts").upsert(
       {
@@ -176,7 +253,7 @@ function GardenPublishContent() {
         background_id: resolvedDraft.backgroundId,
         season_id: resolvedDraft.seasonId,
         time_slot_id: resolvedDraft.timeSlotId,
-        placed_objects: placedObjects,
+        placed_objects: placedObjectsWithRecordingUrls,
         published_at: new Date().toISOString(),
       },
       {

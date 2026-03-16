@@ -4,6 +4,7 @@ export type GardenPostPlacedObject = {
   id: string;
   objectType: ObjectType;
   recordingId: string | null;
+  recordingUrl?: string;
   x: number;
   y: number;
   createdAt: string;
@@ -47,6 +48,7 @@ function isGardenPostPlacedObject(value: unknown): value is GardenPostPlacedObje
     Number.isFinite(candidate.y) &&
     (typeof candidate.recordingId === "string" || candidate.recordingId === null ||
       candidate.recordingId === undefined) &&
+    (typeof candidate.recordingUrl === "string" || candidate.recordingUrl === undefined) &&
     typeof candidate.createdAt === "string"
   );
 }
@@ -71,6 +73,7 @@ export function parseGardenPostPlacedObjects(rawValue: unknown): GardenPostPlace
     .map((item) => ({
       ...item,
       recordingId: typeof item.recordingId === "string" ? item.recordingId : null,
+      recordingUrl: typeof item.recordingUrl === "string" ? item.recordingUrl : undefined,
     }));
 }
 
