@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { PageShell } from "@/components/ui/page-shell";
 import Link from "next/link";
 import { AuthSection } from "@/components/auth/auth-section"; // 作ったファイルを読み込む
@@ -10,25 +10,32 @@ import { isAnonymousSupabaseUser } from "@/lib/auth/user";
 
 export default function Home() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const supabase = getSupabaseClient();
   const [isCheckingSession, setIsCheckingSession] = useState(() => Boolean(supabase));
-  const shouldStayOnTop = searchParams.get("top") === "1";
 
   useEffect(() => {
     if (!supabase) {
       return;
     }
 
+    const shouldStayOnTop =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("top") === "1";
+
+    if (shouldStayOnTop) {
+      setIsCheckingSession(false);
+      return;
+    }
+
     void supabase.auth.getSession().then(({ data }) => {
       const user = data.session?.user ?? null;
-      if (user && !isAnonymousSupabaseUser(user) && !shouldStayOnTop) {
+      if (user && !isAnonymousSupabaseUser(user)) {
         router.replace("/garden/me");
       } else {
         setIsCheckingSession(false);
       }
     });
-  }, [router, shouldStayOnTop, supabase]);
+  }, [router, supabase]);
 
   if (isCheckingSession) {
     return null;
