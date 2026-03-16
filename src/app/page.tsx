@@ -11,10 +11,13 @@ import { isAnonymousSupabaseUser } from "@/lib/auth/user";
 export default function Home() {
   const router = useRouter();
   const supabase = getSupabaseClient();
+  const shouldStayOnTop =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("top") === "1";
   const [isCheckingSession, setIsCheckingSession] = useState(() => Boolean(supabase));
 
   useEffect(() => {
-    if (!supabase) {
+    if (!supabase || shouldStayOnTop) {
       return;
     }
 
@@ -26,9 +29,9 @@ export default function Home() {
         setIsCheckingSession(false);
       }
     });
-  }, [router, supabase]);
+  }, [router, shouldStayOnTop, supabase]);
 
-  if (isCheckingSession) {
+  if (isCheckingSession && !shouldStayOnTop) {
     return null;
   }
 

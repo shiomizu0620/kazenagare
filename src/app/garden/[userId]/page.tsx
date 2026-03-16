@@ -87,7 +87,7 @@ export default async function GardenUserPage({
         description: "背景・季節・時間帯を選び直す",
       },
       {
-        href: "/",
+        href: "/?top=1",
         label: "トップへ戻る",
         description: "最初のページへ戻る",
       },
@@ -140,7 +140,7 @@ export default async function GardenUserPage({
 
   const visitorActions: GardenOptionAction[] = [
     {
-      href: "/",
+      href: "/?top=1",
       label: "トップへ戻る",
       description: "最初のページへ戻る",
     },
