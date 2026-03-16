@@ -7,7 +7,7 @@ type EmptyStageTheme = {
 
 const DEFAULT_THEME: EmptyStageTheme = {
   stageClass: "border-wa-black/20 bg-wa-white text-wa-black",
-  chipClass: "border-wa-black/20 bg-wa-white/80",
+  chipClass: "border-black/25 bg-white text-neutral-900 shadow-sm",
   panelClass: "border-wa-black/25 bg-wa-white/40",
   noteClass: "text-wa-black/70",
 };
@@ -15,25 +15,25 @@ const DEFAULT_THEME: EmptyStageTheme = {
 const BACKGROUND_THEME: Record<string, EmptyStageTheme> = {
   "bamboo-forest": {
     stageClass: "border-wa-gold/35 bg-wa-white text-wa-black",
-    chipClass: "border-wa-gold/40 bg-wa-white/85",
+    chipClass: "border-black/25 bg-white text-neutral-900 shadow-sm",
     panelClass: "border-wa-gold/40 bg-wa-white/55",
     noteClass: "text-wa-black/80",
   },
   "night-pond": {
     stageClass: "border-wa-white/25 bg-wa-black text-wa-white",
-    chipClass: "border-wa-white/40 bg-wa-white/10",
+    chipClass: "border-white/40 bg-neutral-900 text-white shadow-sm",
     panelClass: "border-wa-white/30 bg-wa-white/5",
     noteClass: "text-wa-white/80",
   },
   "misty-temple": {
     stageClass: "border-wa-black/20 bg-wa-white text-wa-black",
-    chipClass: "border-wa-black/20 bg-wa-white/80",
+    chipClass: "border-black/25 bg-white text-neutral-900 shadow-sm",
     panelClass: "border-wa-black/25 bg-wa-white/40",
     noteClass: "text-wa-black/70",
   },
   "garden-all": {
     stageClass: "border-wa-black/20 bg-wa-white text-wa-black bg-cover bg-center",
-    chipClass: "border-wa-black/20 bg-wa-white/80",
+    chipClass: "border-black/25 bg-white text-neutral-900 shadow-sm",
     panelClass: "border-wa-black/25 bg-wa-white/40",
     noteClass: "text-wa-black/70",
   },

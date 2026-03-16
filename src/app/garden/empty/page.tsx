@@ -103,11 +103,9 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
 
       <GardenEmptyStage
         backgroundId={selectedBackground.id}
-        backgroundName={selectedBackground.name}
         seasonId={selectedSeason.id}
         seasonName={selectedSeason.name}
         timeSlotId={selectedTimeSlot.id}
-        timeSlotName={selectedTimeSlot.name}
         fullscreen
         allowObjectPlacement
         placementObjectType={selectedPlacementObjectType}
