@@ -660,9 +660,12 @@ export default function VoiceZooPage() {
   };
 
   const handleResetWalletForTesting = () => {
+    const resolvedObjectStorageKey = `${GARDEN_OBJECTS_STORAGE_KEY_ME}_${audioOwnerId}`;
+
     closeModal();
     closeRecordingModal();
     setWallet(createInitialVoiceZooWallet());
+    resetGardenPlacedObjects(resolvedObjectStorageKey);
     resetGardenPlacedObjects(GARDEN_OBJECTS_STORAGE_KEY_ME);
     setTestingNotice(
       `テスト用に購入状態を初期化しました（所持コイン: ${INITIAL_VOICE_ZOO_COINS}）。`,

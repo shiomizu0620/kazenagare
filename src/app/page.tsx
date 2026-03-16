@@ -11,13 +11,18 @@ import { isAnonymousSupabaseUser } from "@/lib/auth/user";
 export default function Home() {
   const router = useRouter();
   const supabase = getSupabaseClient();
-  const shouldStayOnTop =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("top") === "1";
-  const [isCheckingSession, setIsCheckingSession] = useState(() => Boolean(supabase));
+  const [shouldStayOnTop, setShouldStayOnTop] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setShouldStayOnTop(new URLSearchParams(window.location.search).get("top") === "1");
+    }
+  }, []);
 
   useEffect(() => {
     if (!supabase || shouldStayOnTop) {
+      setIsCheckingSession(false);
       return;
     }
 
