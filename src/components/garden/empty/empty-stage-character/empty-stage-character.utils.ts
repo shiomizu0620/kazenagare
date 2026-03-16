@@ -171,6 +171,7 @@ function isPlacedStageObject(value: unknown): value is PlacedStageObject {
     Number.isFinite(candidate.y) &&
     (typeof candidate.recordingId === "string" || candidate.recordingId === null ||
       candidate.recordingId === undefined) &&
+    (typeof candidate.recordingUrl === "string" || candidate.recordingUrl === undefined) &&
     typeof candidate.createdAt === "string"
   );
 }
@@ -192,6 +193,7 @@ export function parseStoredObjects(rawValue: string | null): PlacedStageObject[]
       .map((item) => ({
         ...item,
         recordingId: typeof item.recordingId === "string" ? item.recordingId : null,
+        recordingUrl: typeof item.recordingUrl === "string" ? item.recordingUrl : undefined,
       }));
   } catch {
     return [];

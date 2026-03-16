@@ -707,6 +707,10 @@ export function EmptyStageCharacter({
 
   const awardPlaybackReward = useCallback(
     (placedObject: PlacedStageObject) => {
+      if (audioOwnerIdOverride) {
+        return;
+      }
+
       const rewardCoins = calculatePlaybackRewardCoins(
         getVoiceZooObjectPrice(placedObject.objectType),
       );
@@ -747,7 +751,7 @@ export function EmptyStageCharacter({
 
       addCoinRewardPopup(placedObject, rewardCoins);
     },
-    [addCoinRewardPopup, audioOwnerId],
+    [addCoinRewardPopup, audioOwnerId, audioOwnerIdOverride],
   );
 
   const playAutoPlaybackForObject = useCallback(
@@ -1529,6 +1533,97 @@ export function EmptyStageCharacter({
   }, [effectiveAudioOwnerId, recordingReloadNonce]);
 
   useEffect(() => {
+    let cancelled = false;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const publicBucketBaseUrl = supabaseUrl
+      ? `${supabaseUrl}/storage/v1/object/public/garden-voices`
+      : null;
+
+    const resolveRemoteRecordingUrl = (placedObject: PlacedStageObject) => {
+      if (typeof placedObject.recordingUrl === "string" && placedObject.recordingUrl.length > 0) {
+        return placedObject.recordingUrl;
+      }
+
+      if (!publicBucketBaseUrl || typeof placedObject.recordingId !== "string") {
+        return null;
+      }
+
+      const ownerPathSegment = encodeURIComponent(effectiveAudioOwnerId);
+      const recordingPathSegment = encodeURIComponent(placedObject.recordingId);
+      return `${publicBucketBaseUrl}/${ownerPathSegment}/${recordingPathSegment}.webm`;
+    };
+
+    const preloadRemoteRecordingBlobs = async () => {
+      const targets = placedObjects.filter(
+        (placedObject) =>
+          typeof placedObject.recordingId === "string" &&
+          Boolean(resolveRemoteRecordingUrl(placedObject)) &&
+          !recordingBlobByRecordingIdRef.current[placedObject.recordingId],
+      );
+
+      if (targets.length === 0) {
+        return;
+      }
+
+      const loadedEntries = await Promise.all(
+        targets.map(async (placedObject) => {
+          const remoteRecordingUrl = resolveRemoteRecordingUrl(placedObject);
+          if (!remoteRecordingUrl) {
+            return null;
+          }
+
+          try {
+            const response = await fetch(remoteRecordingUrl, {
+              cache: "no-store",
+            });
+            if (!response.ok) {
+              return null;
+            }
+
+            const blob = await response.blob();
+            if (!blob.size || !placedObject.recordingId) {
+              return null;
+            }
+
+            return {
+              recordingId: placedObject.recordingId,
+              blob,
+            };
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      if (cancelled) {
+        return;
+      }
+
+      const nextEntries = loadedEntries.filter(
+        (entry): entry is { recordingId: string; blob: Blob } => entry !== null,
+      );
+
+      if (nextEntries.length === 0) {
+        return;
+      }
+
+      setRecordingBlobByRecordingId((current) => {
+        const nextState = { ...current };
+        for (const entry of nextEntries) {
+          nextState[entry.recordingId] = entry.blob;
+        }
+        return nextState;
+      });
+    };
+
+    void preloadRemoteRecordingBlobs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveAudioOwnerId, placedObjects]);
+
+  useEffect(() => {
     if (!pathname.startsWith("/garden")) {
       stopAutoPlayback();
     }
@@ -1557,11 +1652,6 @@ export function EmptyStageCharacter({
   }, [stopAutoPlayback]);
 
   useEffect(() => {
-    if (!allowObjectPlacement) {
-      stopAutoPlayback();
-      return;
-    }
-
     const syncObjectSchedules = () => {
       const activeObjectIds = new Set(
         placedObjectsRef.current.map((placedObject) => placedObject.id),
@@ -1615,7 +1705,6 @@ export function EmptyStageCharacter({
       stopAutoPlayback();
     };
   }, [
-    allowObjectPlacement,
     clearAutoPlaybackScheduler,
     playAutoPlaybackForObject,
     stopAutoPlaybackObject,
