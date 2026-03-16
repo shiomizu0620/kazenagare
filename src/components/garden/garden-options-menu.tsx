@@ -119,20 +119,20 @@ export function GardenOptionsMenu({
   const recordingCountdownTimerRef = useRef<number | null>(null);
   const recordingPreviewAudioUrlsRef = useRef<Partial<Record<ObjectType, string>>>({});
 
-  const iconButtonClass = `grid h-11 w-11 place-items-center rounded-full border transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+  const iconButtonClass = `grid h-11 w-11 place-items-center rounded-full border-2 shadow-lg transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
     darkMode
-      ? "border-wa-white/45 bg-wa-black/60 text-wa-white hover:bg-wa-black/80"
-      : "border-wa-black/25 bg-wa-white/85 text-wa-black hover:bg-wa-white"
+      ? "border-white/45 bg-neutral-900 text-white hover:bg-neutral-800"
+      : "border-black/25 bg-white text-neutral-900 hover:bg-neutral-100"
   }`;
 
-  const panelClass = `grid gap-3 rounded-2xl border p-3 shadow-xl backdrop-blur-sm transition-all duration-150 ${
+  const panelClass = `grid gap-3 rounded-2xl border-2 p-3 shadow-2xl transition-all duration-150 ${
     isOpen
       ? "pointer-events-auto translate-y-0 opacity-100"
       : "pointer-events-none -translate-y-1 opacity-0"
   } ${
     darkMode
-      ? "border-wa-white/30 bg-wa-black/70 text-wa-white"
-      : "border-wa-black/20 bg-wa-white/95 text-wa-black"
+      ? "border-white/30 bg-neutral-900 text-white"
+      : "border-black/20 bg-white text-neutral-900"
   }`;
 
   const itemClass = `grid gap-1 rounded-xl border px-3 py-2 text-left transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
@@ -610,7 +610,7 @@ export function GardenOptionsMenu({
         />
       ) : null}
 
-      <div className="pointer-events-none absolute right-4 top-4 z-[70]">
+      <div className="pointer-events-none absolute right-4 top-4 z-[120]">
         <div className="flex items-center justify-end gap-2">
           {showCatalogButton ? (
             <button
@@ -760,7 +760,7 @@ export function GardenOptionsMenu({
       </div>
 
       {isCatalogOpen ? (
-        <div className="fixed inset-0 z-[70] overflow-x-auto overflow-y-hidden p-3 sm:grid sm:place-items-center sm:p-6">
+        <div className="fixed inset-0 z-[130] overflow-x-auto overflow-y-hidden p-3 sm:grid sm:place-items-center sm:p-6">
           <section
             id={catalogPanelId}
             role="dialog"
@@ -786,8 +786,8 @@ export function GardenOptionsMenu({
                   onClick={() => setIsCatalogOpen(false)}
                   className={`rounded-full border px-4 py-2 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
                     darkMode
-                      ? "border-wa-white/35 bg-wa-black/40 hover:bg-wa-black/60"
-                      : "border-wa-black/30 bg-wa-white/80 hover:bg-wa-white"
+                      ? "border-white/35 bg-neutral-900 hover:bg-neutral-800"
+                      : "border-black/30 bg-white hover:bg-neutral-100"
                   }`}
                 >
                   閉じる
