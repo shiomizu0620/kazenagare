@@ -20,11 +20,9 @@ import { COLLISION_ZONES } from "@/components/garden/empty/empty-stage-character
 
 type GardenEmptyStageProps = {
   backgroundId: string;
-  backgroundName: string;
   seasonId: string;
   seasonName: string;
   timeSlotId: string;
-  timeSlotName: string;
   fullscreen?: boolean;
   allowObjectPlacement?: boolean;
   placementObjectType?: ObjectType | null;
@@ -142,11 +140,9 @@ function SeasonTimeBackgroundLayer({
 
 export function GardenEmptyStage({
   backgroundId,
-  backgroundName,
   seasonId,
   seasonName,
   timeSlotId,
-  timeSlotName,
   fullscreen = false,
   allowObjectPlacement = false,
   placementObjectType = null,
