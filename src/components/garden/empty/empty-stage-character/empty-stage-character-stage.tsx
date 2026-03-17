@@ -15,6 +15,12 @@ type EmptyStageCharacterStageProps = {
   children?: ReactNode;
   darkMode: boolean;
   isWalking: boolean;
+  isPlacementBlocked: boolean;
+  placementBlockedNotice: {
+    id: string;
+    message: string;
+    position: Vector2;
+  } | null;
   stageRef: RefObject<HTMLDivElement | null>;
   worldRef: RefObject<HTMLDivElement | null>;
   characterRef: RefObject<HTMLDivElement | null>;
@@ -56,6 +62,8 @@ export function EmptyStageCharacterStage({
   onStagePointerMove,
   onStagePointerDown,
   onStagePointerLeave,
+  isPlacementBlocked,
+  placementBlockedNotice,
   placedObjects,
   rewardVideoPlaybackByObjectId,
   coinRewardPopups,
@@ -208,6 +216,36 @@ export function EmptyStageCharacterStage({
               </g>
             ))}
 
+            {placementBlockedNotice ? (
+              <g
+                key={placementBlockedNotice.id}
+                transform={`translate(${placementBlockedNotice.position.x} ${placementBlockedNotice.position.y})`}
+              >
+                <g className="animate-[kazenagare-wallet-coin-pop_1.05s_ease-out_forwards]">
+                  <rect
+                    x="-64"
+                    y="-58"
+                    width="128"
+                    height="20"
+                    rx="10"
+                    fill="rgba(127, 29, 29, 0.92)"
+                    stroke="rgba(248, 113, 113, 0.95)"
+                  />
+                  <text
+                    x="0"
+                    y="-48"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fontSize="10"
+                    fontWeight="700"
+                    fill="#FEF2F2"
+                  >
+                    {placementBlockedNotice.message}
+                  </text>
+                </g>
+              </g>
+            ) : null}
+
             {shouldRenderPlacementPreview && pointerWorldPosition && activePlacementObject ? (
               <g
                 transform={`translate(${pointerWorldPosition.x} ${pointerWorldPosition.y})`}
@@ -227,9 +265,10 @@ export function EmptyStageCharacterStage({
                   cx="0"
                   cy="0"
                   r="28"
-                  fill={placementGuideFillColor}
-                  stroke={placementGuideStrokeColor}
+                  fill={isPlacementBlocked ? "rgba(255, 0, 0, 0.3)" : placementGuideFillColor}
+                  stroke={isPlacementBlocked ? "#ef4444" : placementGuideStrokeColor}
                   strokeDasharray="6 4"
+                  strokeWidth="2"
                 />
                 <image
                   href={activePlacementObject.imageSrc}
@@ -265,6 +304,7 @@ export function EmptyStageCharacterStage({
               </g>
             ) : null}
           </svg>
+
         </div>
 
         {shouldRenderObjectLocator && objectLocatorIndicator ? (

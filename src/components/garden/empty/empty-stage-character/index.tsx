@@ -47,6 +47,7 @@ import {
   JOYSTICK_DEAD_ZONE,
   MAX_DELTA_SECONDS,
   MAX_PLACED_OBJECTS,
+  OBJECT_PLACEMENT_HIT_RADIUS,
   MOVE_MAX_SPEED,
   MOVEMENT_KEYS,
   OBJECT_VISUALS,
@@ -67,6 +68,8 @@ import {
   clamp,
   getInputAxis,
   isNearPlacedObject,
+  isBlockedByCollisionZones,
+  isBlockedByHitmap,
   limitVectorMagnitude,
   resolveMovement,
   toUnitDirection,
@@ -75,6 +78,8 @@ import { EmptyStageCharacterStage } from "./empty-stage-character-stage";
 import { EmptyStageCharacterControls } from "./empty-stage-character-controls";
 import { useEmptyStageObjectLocator } from "./use-empty-stage-object-locator";
 import { useEmptyStageStoredObjects } from "./use-empty-stage-stored-objects";
+import { useHitmap } from "./use-hitmap";
+import type { HitmapData } from "./empty-stage-character.types";
 
 export { WORLD_HEIGHT, WORLD_WIDTH };
 
@@ -83,6 +88,7 @@ const AUTO_PLAYBACK_MAX_DELAY_MS = 4800;
 const AUTO_PLAYBACK_SCHEDULER_TICK_MS = 220;
 const COIN_POPUP_DURATION_MS = 1200;
 const WALLET_GAIN_POPUP_DURATION_MS = 1050;
+const PLACEMENT_BLOCKED_NOTICE_DURATION_MS = 1400;
 const AUTO_PLAYBACK_DISTANCE_NEAR_PX = 130;
 const AUTO_PLAYBACK_DISTANCE_FAR_PX = 760;
 const AUTO_PLAYBACK_DISTANCE_MIN_GAIN = 0.04;
@@ -90,6 +96,14 @@ const CHARACTER_POSITION_SAVE_INTERVAL_MS = 900;
 
 type CompatibleAudioContextWindow = Window & typeof globalThis & {
   webkitAudioContext?: typeof AudioContext;
+};
+
+type PlacementAttemptResult = "placed" | "blocked" | "skipped";
+
+type PlacementBlockedNotice = {
+  id: string;
+  message: string;
+  position: Vector2;
 };
 
 function getAudioContextConstructor() {
@@ -192,12 +206,15 @@ export function EmptyStageCharacter({
   initialCharacterWorldPosition,
   movementBounds = DEFAULT_WORLD_BOUNDS,
   collisionZones = [],
+  hitmapUrl,
 }: EmptyStageCharacterProps) {
   const initialCharacterOffset = useMemo(
     () => toCharacterOffset(initialCharacterWorldPosition, movementBounds),
     [initialCharacterWorldPosition, movementBounds],
   );
   const pathname = usePathname();
+  const hitmapData = useHitmap(hitmapUrl, WORLD_WIDTH, WORLD_HEIGHT);
+  const hitmapRef = useRef<HitmapData | null>(null);
   const [audioOwnerId, setAudioOwnerId] = useState<string>("local_guest");
   const resolvedStorageKey = objectStorageKey
     ? `${objectStorageKey}_${audioOwnerId}`
@@ -218,6 +235,8 @@ export function EmptyStageCharacter({
   const [walletGainPopup, setWalletGainPopup] = useState<{ id: string; coins: number } | null>(
     null,
   );
+  const [placementBlockedNotice, setPlacementBlockedNotice] =
+    useState<PlacementBlockedNotice | null>(null);
   const [rewardVideoPlaybackByObjectId, setRewardVideoPlaybackByObjectId] = useState<
     Record<string, number>
   >({});
@@ -262,6 +281,7 @@ export function EmptyStageCharacter({
   const autoPlaybackInFlightObjectIdsRef = useRef<Set<string>>(new Set());
   const coinRewardPopupTimerIdsRef = useRef<number[]>([]);
   const walletGainPopupTimerIdRef = useRef<number | null>(null);
+  const placementBlockedNoticeTimerIdRef = useRef<number | null>(null);
   const rewardVideoTimerByObjectIdRef = useRef<Record<string, number>>({});
   const lastSavedCharacterPositionRef = useRef<string | null>(null);
   const activePlacementObjectType = grabbedObjectType ?? placementObjectType;
@@ -286,6 +306,10 @@ export function EmptyStageCharacter({
         .find((object) => object.objectType === placementObjectType) ?? null
     : null;
   const hasPlacedSelectedObject = Boolean(canPlaceObject && selectedPlacementObject);
+
+  useEffect(() => {
+    hitmapRef.current = hitmapData;
+  }, [hitmapData]);
 
   const getListenerWorldPosition = useCallback(() => {
     return {
@@ -622,6 +646,23 @@ export function EmptyStageCharacter({
     setPointerWorldPosition(null);
     setGrabbedObjectId(null);
     setGrabbedObjectType(null);
+  }, []);
+
+  const showPlacementBlockedMessage = useCallback((position: Vector2) => {
+    setPlacementBlockedNotice({
+      id: `placement-blocked-${Date.now()}`,
+      message: "ここには配置できません",
+      position,
+    });
+
+    if (placementBlockedNoticeTimerIdRef.current !== null) {
+      window.clearTimeout(placementBlockedNoticeTimerIdRef.current);
+    }
+
+    placementBlockedNoticeTimerIdRef.current = window.setTimeout(() => {
+      setPlacementBlockedNotice(null);
+      placementBlockedNoticeTimerIdRef.current = null;
+    }, PLACEMENT_BLOCKED_NOTICE_DURATION_MS);
   }, []);
 
   const clearAutoPlaybackScheduler = useCallback(() => {
@@ -1009,14 +1050,52 @@ export function EmptyStageCharacter({
     };
   }, []);
 
+  const isPlacementBlocked = useMemo(() => {
+    if (!pointerWorldPosition) return false;
+
+    return (
+      isBlockedByHitmap(
+        pointerWorldPosition.x,
+        pointerWorldPosition.y,
+        OBJECT_PLACEMENT_HIT_RADIUS,
+        hitmapData,
+      ) ||
+      (!hitmapData &&
+        isBlockedByCollisionZones(
+          pointerWorldPosition.x,
+          pointerWorldPosition.y,
+          OBJECT_PLACEMENT_HIT_RADIUS,
+          collisionZones,
+        ))
+    );
+  }, [pointerWorldPosition, collisionZones, hitmapData]);
+
   const placeObjectAtWorldPosition = useCallback(
     (
       targetPosition: Vector2 | null,
       targetObjectType: ObjectType | null,
       targetObjectId: string | null = null,
-    ) => {
+    ): PlacementAttemptResult => {
       if (!allowObjectPlacement || !targetPosition || !targetObjectType) {
-        return false;
+        return "skipped";
+      }
+
+      if (
+        isBlockedByHitmap(
+          targetPosition.x,
+          targetPosition.y,
+          OBJECT_PLACEMENT_HIT_RADIUS,
+          hitmapRef.current,
+        ) ||
+        (!hitmapRef.current &&
+        isBlockedByCollisionZones(
+          targetPosition.x,
+          targetPosition.y,
+          OBJECT_PLACEMENT_HIT_RADIUS,
+          collisionZones,
+        ))
+      ) {
+        return "blocked";
       }
 
       setPlacedObjects((current) => {
@@ -1083,9 +1162,9 @@ export function EmptyStageCharacter({
         return [...current, nextObject].slice(-MAX_PLACED_OBJECTS);
       });
 
-      return true;
+      return "placed";
     },
-    [allowObjectPlacement],
+    [allowObjectPlacement, collisionZones],
   );
 
   const isNearSelectedObject = useCallback(
@@ -1204,16 +1283,18 @@ export function EmptyStageCharacter({
             return;
           }
 
-          const didPlace = placeObjectAtWorldPosition(
+          const placeResult = placeObjectAtWorldPosition(
             targetPosition,
             activePlacementObjectType,
             grabbedObjectId,
           );
-          if (didPlace) {
+          if (placeResult === "placed") {
             setIsTouchPlacementArmed(false);
             setPointerWorldPosition(null);
             setGrabbedObjectId(null);
             setGrabbedObjectType(null);
+          } else if (placeResult === "blocked") {
+            showPlacementBlockedMessage(targetPosition);
           }
 
           return;
@@ -1229,16 +1310,18 @@ export function EmptyStageCharacter({
           return;
         }
 
-        const didPlace = placeObjectAtWorldPosition(
+        const placeResult = placeObjectAtWorldPosition(
           targetPosition,
           activePlacementObjectType,
           grabbedObjectId,
         );
-        if (didPlace) {
+        if (placeResult === "placed") {
           setIsMousePlacementArmed(false);
           setPointerWorldPosition(null);
           setGrabbedObjectId(null);
           setGrabbedObjectType(null);
+        } else if (placeResult === "blocked") {
+          showPlacementBlockedMessage(targetPosition);
         }
 
         return;
@@ -1250,7 +1333,13 @@ export function EmptyStageCharacter({
       }
 
       if (!isCoarsePointer && event.pointerType === "mouse") {
-        placeObjectAtWorldPosition(targetPosition, activePlacementObjectType);
+        const placeResult = placeObjectAtWorldPosition(
+          targetPosition,
+          activePlacementObjectType,
+        );
+        if (placeResult === "blocked") {
+          showPlacementBlockedMessage(targetPosition);
+        }
         setPointerWorldPosition(null);
         return;
       }
@@ -1261,15 +1350,17 @@ export function EmptyStageCharacter({
         return;
       }
 
-      const didPlace = placeObjectAtWorldPosition(
+      const placeResult = placeObjectAtWorldPosition(
         targetPosition,
         activePlacementObjectType,
       );
-      if (didPlace) {
+      if (placeResult === "placed") {
         setIsTouchPlacementArmed(false);
         setPointerWorldPosition(null);
         setGrabbedObjectId(null);
         setGrabbedObjectType(null);
+      } else if (placeResult === "blocked") {
+        showPlacementBlockedMessage(targetPosition);
       }
     },
     [
@@ -1286,6 +1377,7 @@ export function EmptyStageCharacter({
       isNearSelectedObject,
       isTouchPlacementArmed,
       placeObjectAtWorldPosition,
+      showPlacementBlockedMessage,
     ],
   );
 
@@ -1882,6 +1974,11 @@ export function EmptyStageCharacter({
         walletGainPopupTimerIdRef.current = null;
       }
 
+      if (placementBlockedNoticeTimerIdRef.current !== null) {
+        window.clearTimeout(placementBlockedNoticeTimerIdRef.current);
+        placementBlockedNoticeTimerIdRef.current = null;
+      }
+
       for (const timerId of Object.values(rewardVideoTimerByObjectIdRef.current)) {
         window.clearTimeout(timerId);
       }
@@ -2022,8 +2119,9 @@ export function EmptyStageCharacter({
         desiredOffsetRef.current = resolveMovement(
           desiredOffsetRef.current,
           rawNextOffset,
-          collisionZones,
+          hitmapRef.current ? [] : collisionZones,
           CHARACTER_HITBOX_RADIUS,
+          hitmapRef.current,
         );
 
         cameraOffsetRef.current = clampCameraBounds({
@@ -2163,6 +2261,8 @@ export function EmptyStageCharacter({
       <EmptyStageCharacterStage
         darkMode={darkMode}
         isWalking={isWalking}
+        isPlacementBlocked={isPlacementBlocked}
+        placementBlockedNotice={placementBlockedNotice}
         stageRef={stageRef}
         worldRef={worldRef}
         characterRef={characterRef}

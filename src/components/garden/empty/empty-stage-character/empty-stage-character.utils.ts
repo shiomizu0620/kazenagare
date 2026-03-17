@@ -1,4 +1,5 @@
 import type { ObjectType } from "@/types/garden";
+import type { HitmapData } from "./empty-stage-character.types";
 import {
   MAX_PLACED_OBJECTS,
   OBJECT_PICKUP_HIT_RADIUS,
@@ -36,6 +37,63 @@ export function collidesWithZone(
   return dx * dx + dy * dy < minDist * minDist;
 }
 
+export function isBlockedByCollisionZones(
+  worldX: number,
+  worldY: number,
+  hitRadius: number,
+  zones: CollisionZone[],
+): boolean {
+  return zones.some((zone) => collidesWithZone(worldX, worldY, hitRadius, zone));
+}
+
+export function isBlockedByHitmap(
+  worldX: number,
+  worldY: number,
+  hitRadius: number,
+  hitmap: HitmapData | null,
+): boolean {
+  if (!hitmap) {
+    return false;
+  }
+
+  // 中心と周囲8方向をチェックし、1つでもブロックされていたら壁と判定
+  const checkOffsets = [
+    { x: 0, y: 0 },
+    { x: -hitRadius, y: 0 },
+    { x: hitRadius, y: 0 },
+    { x: 0, y: -hitRadius },
+    { x: 0, y: hitRadius },
+    { x: -hitRadius * 0.7, y: -hitRadius * 0.7 },
+    { x: hitRadius * 0.7, y: -hitRadius * 0.7 },
+    { x: -hitRadius * 0.7, y: hitRadius * 0.7 },
+    { x: hitRadius * 0.7, y: hitRadius * 0.7 },
+  ];
+
+  for (const offset of checkOffsets) {
+    const cx = worldX + offset.x;
+    const cy = worldY + offset.y;
+
+    const mapX = Math.floor((cx / hitmap.worldWidth) * hitmap.width);
+    const mapY = Math.floor((cy / hitmap.worldHeight) * hitmap.height);
+
+    // 画面外はブロック扱い
+    if (mapX < 0 || mapX >= hitmap.width || mapY < 0 || mapY >= hitmap.height) {
+      return true;
+    }
+
+    const idx = (mapY * hitmap.width + mapX) * 4;
+    const alpha = hitmap.data[idx + 3];
+
+    // 何か描画されている（不透明度が1以上）なら壁とみなす
+    // ※ 透過 PNG に黒などで境界を描く想定
+    if (alpha > 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * 移動後の位置にコリジョンがある場合、軸ごとにスライドを試みて
  * 通れる方向の最終オフセットを返す（壁ずりあり）
@@ -46,16 +104,23 @@ export function resolveMovement(
   nextDesiredOffset: Vector2,
   zones: CollisionZone[],
   characterRadius: number,
+  hitmap: HitmapData | null = null,
 ): Vector2 {
-  if (zones.length === 0) {
+  if (zones.length === 0 && !hitmap) {
     return nextDesiredOffset;
   }
 
   const cx = WORLD_WIDTH / 2;
   const cy = WORLD_HEIGHT / 2;
 
-  const isBlocked = (ox: number, oy: number) =>
-    zones.some((z) => collidesWithZone(cx + ox, cy + oy, characterRadius, z));
+  const isBlocked = (ox: number, oy: number) => {
+    const worldX = cx + ox;
+    const worldY = cy + oy;
+    if (isBlockedByHitmap(worldX, worldY, characterRadius, hitmap)) {
+      return true;
+    }
+    return isBlockedByCollisionZones(worldX, worldY, characterRadius, zones);
+  };
 
   // そもそも現在地が衝突中なら制限しない（はまり防止）
   if (isBlocked(currentDesiredOffset.x, currentDesiredOffset.y)) {

@@ -2,15 +2,25 @@ import type { ReactNode } from "react";
 import type { ObjectType } from "@/types/garden";
 import type { CollisionZone } from "./collision-zones";
 
+export type HitmapData = {
+  data: Uint8ClampedArray;
+  width: number;
+  height: number;
+  worldWidth: number;
+  worldHeight: number;
+};
+
 export type EmptyStageCharacterProps = {
   children?: ReactNode;
   darkMode?: boolean;
+  showCollisionDebug?: boolean;
   allowObjectPlacement?: boolean;
   placementObjectType?: ObjectType | null;
   objectStorageKey?: string;
   initialPlacedObjects?: PlacedStageObject[];
   audioOwnerIdOverride?: string | null;
   collisionZones?: CollisionZone[];
+  hitmapUrl?: string; // ヒットマップ画像URL
   initialCharacterWorldPosition?: Vector2;
   movementBounds?: WorldBounds;
 };
