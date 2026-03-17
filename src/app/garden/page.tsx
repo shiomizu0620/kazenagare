@@ -79,8 +79,9 @@ function resolveCorridorThumbnailSrc(
 }
 
 export default async function GardenIndexPage({ searchParams }: GardenIndexPageProps) {
+  const publishedPostsPromise = fetchPublishedGardenPosts();
   const query = await searchParams;
-  const publishedPosts = await fetchPublishedGardenPosts();
+  const publishedPosts = await publishedPostsPromise;
   const selectedBackgroundId = normalizeQueryValue(query.background);
   const selectedSeasonId = normalizeQueryValue(query.season);
   const selectedTimeSlotId = normalizeQueryValue(query.time);

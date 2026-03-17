@@ -136,7 +136,7 @@ export async function fetchPublishedGardenPosts(limit = 24) {
         Authorization: `Bearer ${supabaseAnonKey}`,
       },
       next: {
-        revalidate: 0,
+        revalidate: 30,
       },
     });
 
