@@ -18,6 +18,19 @@ const LEGACY_LOCAL_GUEST_USER_ID = "local_guest";
 const AUDIO_CATALOG_STORAGE_PREFIX = "kazenagare_audio_catalog_";
 const AUDIO_BLOB_STORAGE_PREFIX = "kazenagare_audio_blob_";
 
+type AuthCompletedPayload = {
+  userId: string | null;
+  isAnonymous: boolean;
+};
+
+type AuthSectionProps = {
+  disableAutoNavigation?: boolean;
+  onAuthCompleted?: (payload: AuthCompletedPayload) => void | Promise<void>;
+  variant?: "default" | "mist";
+  showGuestLogin?: boolean;
+  autoFocusEmail?: boolean;
+};
+
 function replaceOwnerInStorageKey(storageKey: string, previousOwnerId: string, nextOwnerId: string) {
   if (!storageKey.includes(previousOwnerId)) {
     return null;
@@ -83,12 +96,61 @@ async function migrateGuestDataToUser(previousOwnerId: string, nextOwnerId: stri
   }
 }
 
-export function AuthSection() {
+function resolveAuthErrorMessage(rawMessage: string, isSignUp: boolean) {
+  const normalized = rawMessage.toLowerCase();
+
+  if (normalized.includes("invalid login credentials")) {
+    return "メールアドレスまたはパスワードが正しくありません。Google / X で登録したアカウントはSNSログインを利用してください。";
+  }
+
+  if (normalized.includes("email not confirmed")) {
+    return "メール認証が完了していません。確認メール内のリンクを開いてからログインしてください。";
+  }
+
+  if (normalized.includes("user already registered")) {
+    return "このメールアドレスはすでに登録されています。ログインをお試しください。";
+  }
+
+  if (normalized.includes("password should be at least")) {
+    return "パスワードは6文字以上で入力してください。";
+  }
+
+  if (isSignUp && normalized.includes("signup is disabled")) {
+    return "現在、新規登録を受け付けていません。";
+  }
+
+  return rawMessage;
+}
+
+export function AuthSection({
+  disableAutoNavigation = false,
+  onAuthCompleted,
+  variant = "default",
+  showGuestLogin = true,
+  autoFocusEmail = false,
+}: AuthSectionProps) {
   const router = useRouter();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const hasNavigatedRef = useRef(false);
+  const emailInputRef = useRef<HTMLInputElement | null>(null);
+  const isMistVariant = variant === "mist";
+
+  useEffect(() => {
+    if (!autoFocusEmail) {
+      return;
+    }
+
+    const focusTimerId = window.setTimeout(() => {
+      emailInputRef.current?.focus();
+      emailInputRef.current?.select();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(focusTimerId);
+    };
+  }, [autoFocusEmail]);
 
   const migratePendingGuestData = useCallback(async (nextUserId?: string | null) => {
     if (!nextUserId) {
@@ -181,6 +243,20 @@ export function AuthSection() {
     router.push(GARDEN_SETUP_PATH);
   }, [router]);
 
+  const handleAuthCompleted = useCallback(
+    async ({
+      userId,
+      isAnonymous,
+    }: AuthCompletedPayload) => {
+      await onAuthCompleted?.({ userId, isAnonymous });
+
+      if (!disableAutoNavigation || isAnonymous) {
+        await navigateAfterAuth(userId);
+      }
+    },
+    [disableAutoNavigation, navigateAfterAuth, onAuthCompleted],
+  );
+
   useEffect(() => {
     const supabase = getSupabaseClient();
 
@@ -203,7 +279,10 @@ export function AuthSection() {
       if (session) {
         void migratePendingGuestData(session.user.id).finally(() => {
           clearPendingOAuthRedirect();
-          void navigateAfterAuth(session.user.id);
+          void handleAuthCompleted({
+            userId: session.user.id,
+            isAnonymous: isAnonymousSupabaseUser(session.user),
+          });
         });
       }
     });
@@ -214,7 +293,10 @@ export function AuthSection() {
       if (event === "SIGNED_IN" && session && hasPendingOAuthRedirect()) {
         void migratePendingGuestData(session.user.id).finally(() => {
           clearPendingOAuthRedirect();
-          void navigateAfterAuth(session.user.id);
+          void handleAuthCompleted({
+            userId: session.user.id,
+            isAnonymous: isAnonymousSupabaseUser(session.user),
+          });
         });
       }
     });
@@ -222,7 +304,7 @@ export function AuthSection() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [migratePendingGuestData, navigateAfterAuth]);
+  }, [handleAuthCompleted, migratePendingGuestData]);
 
   // ゲストログイン
   const handleGuestLogin = async () => {
@@ -252,7 +334,10 @@ export function AuthSection() {
         return;
       }
 
-      void navigateAfterAuth(data.user?.id);
+      void handleAuthCompleted({
+        userId: data.user?.id ?? null,
+        isAnonymous: true,
+      });
     } finally {
       setIsLoggingIn(false);
     }
@@ -292,7 +377,9 @@ export function AuthSection() {
       return;
     }
 
-    if (!email || !password) {
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail || !password) {
       alert("メールアドレスとパスワードを入力してください");
       return;
     }
@@ -307,25 +394,33 @@ export function AuthSection() {
       let nextUserId: string | null = null;
 
       if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password });
         authError = error;
         shouldNavigate = Boolean(data.session);
         nextUserId = data.user?.id ?? data.session?.user.id ?? null;
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
         authError = error;
         shouldNavigate = !error;
         nextUserId = data.user?.id ?? data.session?.user.id ?? null;
       }
 
       if (authError) {
-        alert("エラー: " + authError.message);
+        const actionLabel = isSignUp ? "新規登録" : "ログイン";
+        const resolvedMessage = resolveAuthErrorMessage(authError.message, isSignUp);
+        alert(`${actionLabel}に失敗しました。\n${resolvedMessage}`);
         return;
       }
 
       if (shouldNavigate) {
         await migratePendingGuestData(nextUserId);
-        await navigateAfterAuth(nextUserId);
+        await handleAuthCompleted({
+          userId: nextUserId,
+          isAnonymous: false,
+        });
         return;
       }
 
@@ -340,34 +435,60 @@ export function AuthSection() {
   return (
     <div className="flex flex-col gap-4">
       {/* メアドログインフォーム */}
-      <div className="flex flex-col gap-2 p-4 border border-gray-300 rounded-md bg-gray-50">
-        <p className="text-sm font-bold">メールアドレスでログイン / 登録</p>
+      <div
+        className={
+          isMistVariant
+            ? "flex flex-col gap-2 rounded-2xl border border-white/30 bg-white/15 p-4 shadow-[0_18px_46px_rgba(0,0,0,0.24)] backdrop-blur-xl"
+            : "flex flex-col gap-2 rounded-md border border-gray-300 bg-gray-50 p-4"
+        }
+      >
+        <p className={`text-sm font-bold ${isMistVariant ? "text-white" : ""}`}>
+          メールアドレスでログイン / 登録
+        </p>
         <input
+          ref={emailInputRef}
           type="email"
           placeholder="メールアドレス"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="border p-2 rounded-md text-sm"
+          autoFocus={autoFocusEmail}
+          className={
+            isMistVariant
+              ? "rounded-md border border-white/55 bg-white/90 p-2 text-sm text-wa-black placeholder:text-wa-black/50"
+              : "rounded-md border p-2 text-sm"
+          }
         />
         <input
           type="password"
           placeholder="パスワード (6文字以上)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="border p-2 rounded-md text-sm"
+          className={
+            isMistVariant
+              ? "rounded-md border border-white/55 bg-white/90 p-2 text-sm text-wa-black placeholder:text-wa-black/50"
+              : "rounded-md border p-2 text-sm"
+          }
         />
         <div className="flex gap-2">
           <button
             onClick={() => handleEmailAuth(false)}
             disabled={isLoggingIn}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm flex-1 hover:bg-blue-700 disabled:opacity-50"
+            className={
+              isMistVariant
+                ? "flex-1 rounded-md border border-sky-200/40 bg-sky-700 px-4 py-2 text-sm text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-50"
+                : "flex-1 rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            }
           >
             ログイン
           </button>
           <button
             onClick={() => handleEmailAuth(true)}
             disabled={isLoggingIn}
-            className="bg-green-600 text-white px-4 py-2 rounded-md text-sm flex-1 hover:bg-green-700 disabled:opacity-50"
+            className={
+              isMistVariant
+                ? "flex-1 rounded-md border border-emerald-200/40 bg-emerald-700 px-4 py-2 text-sm text-white shadow-sm transition-colors hover:bg-emerald-800 disabled:opacity-50"
+                : "flex-1 rounded-md bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+            }
           >
             新規登録
           </button>
@@ -376,24 +497,38 @@ export function AuthSection() {
 
       {/* SNS & ゲストボタングループ */}
       <div className="flex flex-wrap w-full gap-3">
-        <button
-          onClick={handleGuestLogin}
-          disabled={isLoggingIn}
-          className="rounded-md bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 text-sm disabled:opacity-50 flex-1"
-        >
-          ゲスト体験
-        </button>
+        {showGuestLogin ? (
+          <button
+            onClick={handleGuestLogin}
+            disabled={isLoggingIn}
+            className={
+              isMistVariant
+                ? "flex-1 rounded-md border border-white/40 bg-white/15 px-4 py-2 text-sm text-white transition-colors hover:bg-white/25 disabled:opacity-50"
+                : "flex-1 rounded-md bg-gray-500 px-4 py-2 text-sm text-white hover:bg-gray-600 disabled:opacity-50"
+            }
+          >
+            ゲスト体験
+          </button>
+        ) : null}
         <button
           onClick={() => handleOAuthLogin('google')}
           disabled={isLoggingIn}
-          className="rounded-md border border-gray-400 bg-white px-4 py-2 text-sm disabled:opacity-50 flex-1"
+          className={
+            isMistVariant
+              ? "flex-1 rounded-md border border-white/45 bg-white/90 px-4 py-2 text-sm text-wa-black transition-colors hover:bg-white disabled:opacity-50"
+              : "flex-1 rounded-md border border-gray-400 bg-white px-4 py-2 text-sm disabled:opacity-50"
+          }
         >
           Google
         </button>
         <button
           onClick={() => handleOAuthLogin('twitter')}
           disabled={isLoggingIn}
-          className="rounded-md bg-black text-white px-4 py-2 text-sm disabled:opacity-50 flex-1"
+          className={
+            isMistVariant
+              ? "flex-1 rounded-md border border-white/40 bg-black/85 px-4 py-2 text-sm text-white transition-colors hover:bg-black disabled:opacity-50"
+              : "flex-1 rounded-md bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+          }
         >
           X (Twitter)
         </button>

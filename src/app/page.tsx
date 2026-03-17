@@ -3,10 +3,11 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as Tone from "tone";
+import { AuthSection } from "@/components/auth/auth-section";
 import {
   OBJECT_VISUALS,
   WORLD_HEIGHT,
@@ -58,6 +59,8 @@ const DEFAULT_GARDEN_SCENE: TitleGardenScene = {
   },
 };
 const PREVIEW_OBJECT_LIMIT = 24;
+const GUEST_ACTION_TEXTS = ["庭の門を叩く", "風の便りを聞く"] as const;
+const DEFAULT_GUEST_ACTION_TEXT = GUEST_ACTION_TEXTS[0];
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -218,8 +221,10 @@ function GardenSceneVisual({
   );
 }
 
-export default function TitlePage() {
+function TitlePageContent() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [memberUserId, setMemberUserId] = useState<string | null>(null);
   const [scene, setScene] = useState<TitleGardenScene>(DEFAULT_GARDEN_SCENE);
@@ -229,9 +234,54 @@ export default function TitlePage() {
   }>({ sceneKey: "", index: 0 });
   const [tapPoint, setTapPoint] = useState<{ x: number; y: number } | null>(null);
   const [showTitleText, setShowTitleText] = useState(true);
+  const [guestIntroActivated, setGuestIntroActivated] = useState(false);
   const [loadedBackgroundSrc, setLoadedBackgroundSrc] = useState<string | null>(null);
   const isTransitioningRef = useRef(false);
   const transitionTimerRef = useRef<number | null>(null);
+  const shouldOpenLoginPanel = searchParams.get("login") === "1";
+  const isLoginPanelVisible = shouldOpenLoginPanel || (authState === "guest" && guestIntroActivated);
+  const shouldSkipGuestLoginAnimation = shouldOpenLoginPanel;
+
+  const playRippleTransitionSound = async () => {
+    await Tone.start();
+    const reverb = new Tone.Reverb({ decay: 5.2, wet: 0.62 }).toDestination();
+    const synth = new Tone.MembraneSynth({
+      pitchDecay: 0.08,
+      octaves: 4,
+      envelope: { attack: 0.001, decay: 1.2, sustain: 0, release: 2.1 },
+    }).connect(reverb);
+
+    synth.triggerAttackRelease("C2", "8n", undefined, 0.9);
+
+    window.setTimeout(() => {
+      synth.dispose();
+      reverb.dispose();
+    }, 1800);
+  };
+
+  const playGateChimeSound = async () => {
+    await Tone.start();
+
+    const reverb = new Tone.Reverb({ decay: 3.4, wet: 0.35 }).toDestination();
+    const synth = new Tone.FMSynth({
+      harmonicity: 3.01,
+      modulationIndex: 10,
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.002, decay: 0.9, sustain: 0, release: 1.8 },
+      modulation: { type: "square" },
+      modulationEnvelope: { attack: 0.002, decay: 0.4, sustain: 0, release: 0.6 },
+    }).connect(reverb);
+
+    synth.triggerAttackRelease("G5", "16n", undefined, 0.45);
+    window.setTimeout(() => {
+      synth.triggerAttackRelease("D6", "16n", undefined, 0.36);
+    }, 130);
+
+    window.setTimeout(() => {
+      synth.dispose();
+      reverb.dispose();
+    }, 1900);
+  };
 
   useEffect(() => {
     let isCancelled = false;
@@ -321,6 +371,23 @@ export default function TitlePage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isLoginPanelVisible || tapPoint) {
+      return;
+    }
+
+    const openLoginTimerId = window.setTimeout(() => {
+      setTapPoint({
+        x: window.innerWidth * 0.5,
+        y: window.innerHeight * 0.72,
+      });
+    }, 0);
+
+    return () => {
+      window.clearTimeout(openLoginTimerId);
+    };
+  }, [isLoginPanelVisible, tapPoint]);
+
   const handlePointerDown = async (event: ReactPointerEvent<HTMLElement>) => {
     if (authState !== "member" || isTransitioningRef.current) {
       return;
@@ -333,21 +400,7 @@ export default function TitlePage() {
     setShowTitleText(false);
 
     try {
-      // Start and play one-shot ripple sound inside this gesture handler.
-      await Tone.start();
-      const reverb = new Tone.Reverb({ decay: 5.2, wet: 0.62 }).toDestination();
-      const synth = new Tone.MembraneSynth({
-        pitchDecay: 0.08,
-        octaves: 4,
-        envelope: { attack: 0.001, decay: 1.2, sustain: 0, release: 2.1 },
-      }).connect(reverb);
-
-      synth.triggerAttackRelease("C2", "8n", undefined, 0.9);
-
-      window.setTimeout(() => {
-        synth.dispose();
-        reverb.dispose();
-      }, 1800);
+      await playRippleTransitionSound();
     } catch {
       // Continue visual transition even if audio setup fails.
     }
@@ -392,11 +445,75 @@ export default function TitlePage() {
     setLoadedBackgroundSrc(backgroundSrc);
   };
 
+  const handleGuestIntroTap = async (event: ReactPointerEvent<HTMLElement>) => {
+    if (authState !== "guest" || isTransitioningRef.current || isLoginPanelVisible) {
+      return;
+    }
+
+    setTapPoint({ x: event.clientX, y: event.clientY });
+    setGuestIntroActivated(true);
+
+    try {
+      await playGateChimeSound();
+    } catch {
+      // Keep intro transition even if audio setup fails.
+    }
+  };
+
+  const handleAuthCompletedOnTitle = async ({
+    userId,
+    isAnonymous,
+  }: {
+    userId: string | null;
+    isAnonymous: boolean;
+  }) => {
+    if (!userId || isAnonymous || isTransitioningRef.current) {
+      return;
+    }
+
+    isTransitioningRef.current = true;
+    setMemberUserId(userId);
+    setAuthState("member");
+    setShowTitleText(false);
+
+    if (!tapPoint) {
+      setTapPoint({
+        x: window.innerWidth * 0.5,
+        y: window.innerHeight * 0.62,
+      });
+    }
+
+    try {
+      await playRippleTransitionSound();
+    } catch {
+      // Continue visual transition even if audio setup fails.
+    }
+
+    transitionTimerRef.current = window.setTimeout(() => {
+      router.push("/garden/me");
+    }, 2000);
+  };
+
+  const handleCloseLoginPanel = () => {
+    setGuestIntroActivated(false);
+    setTapPoint(null);
+
+    if (!shouldOpenLoginPanel) {
+      return;
+    }
+
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    nextSearchParams.delete("login");
+    const nextSearch = nextSearchParams.toString();
+    const nextHref = nextSearch.length > 0 ? `${pathname}?${nextSearch}` : pathname;
+    router.replace(nextHref, { scroll: false });
+  };
+
   const seasonOverlayClass = getSeasonOverlayClass(scene.seasonId);
   const timeOverlayClass = getTimeOverlayClass(scene.timeSlotId);
   const isNightScene = scene.timeSlotId === "night";
 
-  if (authState === "member") {
+  if (authState === "member" && !shouldOpenLoginPanel) {
     return (
       <main
         className="relative h-screen w-full cursor-pointer overflow-hidden bg-wa-black [touch-action:manipulation]"
@@ -468,49 +585,162 @@ export default function TitlePage() {
             </motion.div>
           ) : null}
         </AnimatePresence>
+
+        <button
+          type="button"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            router.push("/?login=1", { scroll: false });
+          }}
+          className="absolute bottom-5 right-5 z-40 inline-flex items-center rounded-full border border-white/45 bg-black/55 px-4 py-2 text-xs font-semibold tracking-[0.08em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.35)] backdrop-blur-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-black/70 active:translate-y-[1px] active:scale-[0.98]"
+        >
+          ログイン画面を開く
+        </button>
       </main>
     );
   }
 
   return (
-    <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[radial-gradient(circle_at_12%_18%,rgba(217,156,88,0.22),transparent_34%),radial-gradient(circle_at_88%_82%,rgba(165,33,117,0.16),transparent_36%),linear-gradient(160deg,#f9f4ea_0%,#fbf8f2_55%,#f0e6d7_100%)] px-6 py-12 text-wa-black font-serif">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(43,43,43,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(43,43,43,0.04)_1px,transparent_1px)] bg-[size:28px_28px]" />
+    <main
+      className="relative h-screen w-full overflow-hidden bg-wa-black text-wa-white font-serif [touch-action:manipulation]"
+      onPointerDown={(event) => {
+        void handleGuestIntroTap(event);
+      }}
+    >
+      <div className="pointer-events-none absolute inset-0 scale-[1.05] [filter:blur(20px)_brightness(0.7)]">
+        <GardenSceneVisual
+          backgroundSrc={backgroundSrc}
+          seasonOverlayClass={seasonOverlayClass}
+          timeOverlayClass={timeOverlayClass}
+          placedObjects={scene.placedObjects}
+          characterWorldPosition={scene.characterWorldPosition}
+          isNightScene={isNightScene}
+          onBackgroundLoad={handleBackgroundLoad}
+          onBackgroundError={handleBackgroundError}
+        />
+      </div>
 
-      <section className="relative w-full max-w-2xl rounded-3xl border border-wa-black/20 bg-white/90 p-8 shadow-[0_24px_64px_rgba(43,43,43,0.14)] sm:p-10">
-        <div className="grid gap-6">
-          <p className="w-fit rounded-full border border-wa-black/20 bg-white px-3 py-1 text-[11px] font-semibold tracking-[0.12em] text-wa-black/70">
-            TITLE SCREEN
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(255,255,255,0.2),transparent_42%),linear-gradient(to_bottom,rgba(5,8,12,0.3),rgba(5,8,12,0.55))]" />
+
+      {tapPoint ? (
+        <motion.div
+          className="pointer-events-none absolute inset-0 [will-change:clip-path]"
+          initial={{ clipPath: `circle(0% at ${tapPoint.x}px ${tapPoint.y}px)` }}
+          animate={{ clipPath: `circle(150% at ${tapPoint.x}px ${tapPoint.y}px)` }}
+          transition={{
+            duration: 1.5,
+            ease: [0.4, 0, 0.2, 1],
+          }}
+        >
+          <GardenSceneVisual
+            backgroundSrc={backgroundSrc}
+            seasonOverlayClass={seasonOverlayClass}
+            timeOverlayClass={timeOverlayClass}
+            placedObjects={scene.placedObjects}
+            characterWorldPosition={scene.characterWorldPosition}
+            isNightScene={isNightScene}
+            onBackgroundLoad={handleBackgroundLoad}
+            onBackgroundError={handleBackgroundError}
+          />
+        </motion.div>
+      ) : null}
+
+      {isBackgroundLoading ? (
+        <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center bg-wa-black/25 backdrop-blur-[2px]">
+          <p className="rounded-full border border-white/40 bg-wa-black/55 px-3 py-1 text-xs tracking-[0.08em] text-white/95 animate-pulse">
+            情景を読み込み中...
           </p>
-
-          <div className="grid gap-3">
-            <h1 className="text-4xl font-bold leading-tight sm:text-5xl">風流 - Kazenagare</h1>
-            <p className="text-sm leading-relaxed text-wa-black/75 sm:text-base">
-              声を和の情景へ溶け込ませる、ささやかな庭あそび。
-            </p>
-          </div>
-
-          {authState === "loading" ? (
-            <p className="text-sm text-wa-black/70">庭を準備しています...</p>
-          ) : null}
-
-          {authState === "guest" ? (
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href="/top"
-                className="inline-flex items-center rounded-full border-2 border-wa-black bg-wa-black px-6 py-2.5 text-sm font-semibold text-wa-white transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red active:translate-y-[1px] active:scale-[0.98]"
-              >
-                タイトルからはじめる
-              </Link>
-              <Link
-                href="/garden"
-                className="inline-flex items-center rounded-full border border-wa-black/25 bg-white px-6 py-2.5 text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
-              >
-                庭一覧へ
-              </Link>
-            </div>
-          ) : null}
         </div>
-      </section>
+      ) : null}
+
+      <motion.div
+        className="pointer-events-none absolute inset-x-0 top-[42%] z-20 flex -translate-y-1/2 flex-col items-center gap-3 px-6 text-center"
+        initial={false}
+        animate={
+          isLoginPanelVisible
+            ? {
+                top: "20%",
+              }
+            : {
+                top: "42%",
+              }
+        }
+        transition={{ duration: shouldSkipGuestLoginAnimation ? 0 : 0.8, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <h1 className="font-serif text-6xl font-bold tracking-[0.22em] text-wa-white drop-shadow-[0_8px_30px_rgba(0,0,0,0.55)] sm:text-7xl">
+          風流
+        </h1>
+        <p className="text-xs tracking-[0.3em] text-wa-white/80 sm:text-sm">
+          {isLoginPanelVisible ? "風の便りに耳を澄ます" : DEFAULT_GUEST_ACTION_TEXT}
+        </p>
+      </motion.div>
+
+      <AnimatePresence>
+        {!isLoginPanelVisible && authState === "guest" ? (
+          <motion.p
+            className="pointer-events-none absolute bottom-[16%] left-1/2 z-20 -translate-x-1/2 rounded-full border border-white/35 bg-white/10 px-4 py-2 text-xs tracking-[0.16em] text-white/90 backdrop-blur-sm"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+          >
+            画面をタップ
+          </motion.p>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isLoginPanelVisible ? (
+          <motion.section
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-4 pb-6 sm:px-6 sm:pb-8"
+            initial={shouldSkipGuestLoginAnimation ? false : { opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: shouldSkipGuestLoginAnimation ? 0 : 0.65, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="pointer-events-auto relative mx-auto w-full max-w-2xl rounded-3xl border border-white/25 bg-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-6">
+              <button
+                type="button"
+                aria-label="ログイン画面を閉じる"
+                onClick={handleCloseLoginPanel}
+                className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-black/40 text-base font-semibold text-white transition-colors hover:bg-black/65"
+              >
+                ×
+              </button>
+              <p className="mb-3 text-[11px] font-semibold tracking-[0.18em] text-white/80">
+                GATE LOGIN
+              </p>
+              <AuthSection
+                variant="mist"
+                disableAutoNavigation
+                onAuthCompleted={handleAuthCompletedOnTitle}
+                showGuestLogin
+                autoFocusEmail={shouldOpenLoginPanel}
+              />
+
+              <div className="mt-4 border-t border-white/15 pt-4">
+                <Link
+                  href="/garden"
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-white/30 bg-white/12 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20"
+                >
+                  庭一覧へ
+                </Link>
+              </div>
+            </div>
+          </motion.section>
+        ) : null}
+      </AnimatePresence>
     </main>
+  );
+}
+
+export default function TitlePage() {
+  return (
+    <Suspense fallback={null}>
+      <TitlePageContent />
+    </Suspense>
   );
 }
