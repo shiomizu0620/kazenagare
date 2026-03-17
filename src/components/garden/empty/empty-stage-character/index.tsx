@@ -198,7 +198,6 @@ function toCharacterWorldPosition(
 export function EmptyStageCharacter({
   children,
   darkMode = false,
-  showCollisionDebug = false,
   allowObjectPlacement = false,
   placementObjectType = null,
   objectStorageKey,
@@ -1053,15 +1052,15 @@ export function EmptyStageCharacter({
 
   const isPlacementBlocked = useMemo(() => {
     if (!pointerWorldPosition) return false;
-    
+
     return (
       isBlockedByHitmap(
         pointerWorldPosition.x,
         pointerWorldPosition.y,
         OBJECT_PLACEMENT_HIT_RADIUS,
-        hitmapRef.current,
+        hitmapData,
       ) ||
-      (!hitmapRef.current &&
+      (!hitmapData &&
         isBlockedByCollisionZones(
           pointerWorldPosition.x,
           pointerWorldPosition.y,
@@ -1069,7 +1068,7 @@ export function EmptyStageCharacter({
           collisionZones,
         ))
     );
-  }, [pointerWorldPosition, collisionZones]);
+  }, [pointerWorldPosition, collisionZones, hitmapData]);
 
   const placeObjectAtWorldPosition = useCallback(
     (

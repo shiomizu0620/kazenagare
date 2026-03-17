@@ -10,7 +10,6 @@ export function useHitmap(
 
   useEffect(() => {
     if (!hitmapUrl) {
-      setHitmapData(null);
       return;
     }
 
@@ -50,5 +49,5 @@ export function useHitmap(
     };
   }, [hitmapUrl, worldWidth, worldHeight]);
 
-  return hitmapData;
+  return hitmapUrl ? hitmapData : null;
 }
