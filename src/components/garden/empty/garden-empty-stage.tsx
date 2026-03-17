@@ -17,6 +17,10 @@ import {
 } from "@/components/garden/empty/empty-stage-theme";
 import { buildGardenBackgroundCandidates } from "@/lib/garden/background-images";
 import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
+import {
+  buildGardenBackgroundCandidates,
+  preloadGardenBackgroundCandidates,
+} from "@/lib/garden/background-images";
 import type { PlacedStageObject } from "@/components/garden/empty/empty-stage-character/empty-stage-character.types";
 import type { ObjectType } from "@/types/garden";
 import { COLLISION_ZONES } from "@/components/garden/empty/empty-stage-character/collision-zones";
@@ -125,10 +129,15 @@ function SeasonTimeBackgroundLayer({
     [backgroundId, seasonId, timeSlotId],
   );
   const [candidateIndex, setCandidateIndex] = useState(0);
-  const [loadedImageSrc, setLoadedImageSrc] = useState<string | null>(null);
+  const [hasResolvedBackgroundImage, setHasResolvedBackgroundImage] = useState(false);
+
+  // 背景画像をマウント時にプリロード
+  useEffect(() => {
+    void preloadGardenBackgroundCandidates(backgroundId, seasonId, timeSlotId);
+  }, [backgroundId, seasonId, timeSlotId]);
 
   const activeImage = candidates[Math.min(candidateIndex, Math.max(0, candidates.length - 1))];
-  const isLoading = loadedImageSrc !== activeImage;
+  const isLoading = !hasResolvedBackgroundImage;
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -137,18 +146,20 @@ function SeasonTimeBackgroundLayer({
         alt=""
         aria-hidden
         fill
-        unoptimized
         priority
         sizes="100vw"
+        quality={85}
+        loading="eager"
         className="select-none object-cover"
         onLoad={() => {
-          setLoadedImageSrc(activeImage);
+          setHasResolvedBackgroundImage(true);
         }}
         onError={() => {
           setCandidateIndex((current) => {
             const lastIndex = candidates.length - 1;
             if (current >= lastIndex) {
-              setLoadedImageSrc(activeImage);
+              // Stop showing the loading indicator once all candidates are exhausted.
+              setHasResolvedBackgroundImage(true);
               return current;
             }
 

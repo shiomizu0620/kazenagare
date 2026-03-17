@@ -1,5 +1,8 @@
-import Link from "next/link";
-import { PageShell } from "@/components/ui/page-shell";
+import {
+  GardenCorridor,
+  type GardenCorridorPost,
+} from "@/components/garden/garden-corridor";
+import { buildGardenBackgroundCandidates } from "@/lib/garden/background-images";
 import { fetchPublishedGardenPosts } from "@/lib/garden/posts";
 import {
   GARDEN_BACKGROUNDS,
@@ -21,42 +24,43 @@ function formatGardenOwnerLabel(ownerDisplayName: string | null | undefined, use
 
   return `${displayValue.slice(0, 8)}...`;
 }
+type QueryValue = string | string[] | undefined;
 
-function formatPublishedAt(publishedAt: string | null) {
-  if (!publishedAt) {
-    return "公開日時不明";
+type GardenIndexPageProps = {
+  searchParams: Promise<{
+    background?: QueryValue;
+    season?: QueryValue;
+    time?: QueryValue;
+  }>;
+};
+
+function normalizeQueryValue(value: QueryValue) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
   }
 
-  const date = new Date(publishedAt);
+  return value ?? null;
+}
 
-  if (Number.isNaN(date.getTime())) {
-    return "公開日時不明";
-  }
-
-  return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+function resolveOptionName(options: { id: string; name: string }[], id: string) {
+  return options.find((option) => option.id === id)?.name ?? id;
 }
 
 function formatRemainingAutoDeleteTime(updatedAt: string | null) {
   if (!updatedAt) {
-    return "残り時間不明";
+    return "不明";
   }
 
   const updatedAtDate = new Date(updatedAt);
   if (Number.isNaN(updatedAtDate.getTime())) {
-    return "残り時間不明";
+    return "不明";
   }
 
   const expireAtMs = updatedAtDate.getTime() + 3 * 24 * 60 * 60 * 1000;
   const remainingMs = expireAtMs - Date.now();
 
   if (remainingMs <= 0) {
-    return "まもなく削除";
+    return "まもなく消去";
   }
 
   const totalMinutes = Math.floor(remainingMs / (60 * 1000));
@@ -75,8 +79,36 @@ function formatRemainingAutoDeleteTime(updatedAt: string | null) {
   return `${Math.max(minutes, 1)}分`;
 }
 
-export default async function GardenIndexPage() {
+function resolveCorridorThumbnailSrc(
+  backgroundId: string,
+  seasonId: string,
+  timeSlotId: string,
+) {
+  const candidates = buildGardenBackgroundCandidates(backgroundId, seasonId, timeSlotId);
+
+  // PNG fallback is expected to exist and avoids broken thumbnails when scene-specific webp is missing.
+  const preferredSrc = candidates.find((candidate) => candidate.endsWith(".png"));
+
+  return preferredSrc ?? candidates[0] ?? "/images/garden/backgrounds/garden-all/庭.png";
+}
+
+export default async function GardenIndexPage({ searchParams }: GardenIndexPageProps) {
+  const query = await searchParams;
   const publishedPosts = await fetchPublishedGardenPosts();
+  const selectedBackgroundId = normalizeQueryValue(query.background);
+  const selectedSeasonId = normalizeQueryValue(query.season);
+  const selectedTimeSlotId = normalizeQueryValue(query.time);
+
+  const nextMyGardenSearchParams = new URLSearchParams();
+  if (selectedBackgroundId) {
+    nextMyGardenSearchParams.set("background", selectedBackgroundId);
+  }
+  if (selectedSeasonId) {
+    nextMyGardenSearchParams.set("season", selectedSeasonId);
+  }
+  if (selectedTimeSlotId) {
+    nextMyGardenSearchParams.set("time", selectedTimeSlotId);
+  }
 
   return (
     <PageShell
@@ -164,4 +196,24 @@ export default async function GardenIndexPage() {
       </section>
     </PageShell>
   );
+  const nextMyGardenHref = nextMyGardenSearchParams.size
+    ? `/garden/me?${nextMyGardenSearchParams.toString()}`
+    : "/garden/me";
+
+  const corridorPosts: GardenCorridorPost[] = publishedPosts.map((post) => ({
+    userId: post.userId,
+    backgroundName: resolveOptionName(GARDEN_BACKGROUNDS, post.backgroundId),
+    seasonName: resolveOptionName(GARDEN_SEASONS, post.seasonId),
+    timeSlotName: resolveOptionName(GARDEN_TIME_SLOTS, post.timeSlotId),
+    seasonId: post.seasonId,
+    timeSlotId: post.timeSlotId,
+    thumbnailSrc: resolveCorridorThumbnailSrc(
+      post.backgroundId,
+      post.seasonId,
+      post.timeSlotId,
+    ),
+    remainingTimeLabel: formatRemainingAutoDeleteTime(post.updatedAt),
+  }));
+
+  return <GardenCorridor posts={corridorPosts} nextMyGardenHref={nextMyGardenHref} />;
 }

@@ -47,7 +47,7 @@ export function EmptyStageCharacterControls({
       </div>
 
       {allowObjectPlacement ? (
-        <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-3 z-50 w-[min(42vw,10rem)] sm:bottom-3 sm:left-1/2 sm:w-[min(86vw,19rem)] sm:-translate-x-1/2">
+        <div className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+3.6rem)] left-3 z-50 w-[min(42vw,10rem)] sm:bottom-3 sm:left-1/2 sm:w-[min(86vw,19rem)] sm:-translate-x-1/2">
           <div
             className={`relative overflow-hidden rounded-xl border px-2.5 py-2 shadow-[0_10px_24px_rgba(0,0,0,0.24)] sm:px-3 ${
               darkMode

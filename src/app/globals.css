@@ -85,6 +85,188 @@
 	}
 }
 
+.kazenagare-washitsu-scene {
+	--kz-scene-season-glow: rgba(143, 105, 78, 0.24);
+	--kz-scene-time-glow: rgba(102, 90, 121, 0.2);
+	--kz-scene-haze: rgba(38, 28, 20, 0.66);
+	--kz-scene-depth: #140f0d;
+	background:
+		radial-gradient(
+			104% 118% at 12% 10%,
+			var(--kz-scene-season-glow) 0%,
+			transparent 58%
+		),
+		radial-gradient(
+			92% 125% at 86% 80%,
+			var(--kz-scene-time-glow) 0%,
+			transparent 62%
+		),
+		linear-gradient(
+			155deg,
+			var(--kz-scene-haze) 0%,
+			var(--kz-scene-depth) 60%,
+			#0f0b0a 100%
+		);
+	transition: background 520ms ease;
+}
+
+.kazenagare-hide-scrollbar {
+	-ms-overflow-style: none;
+}
+
+.kazenagare-hide-scrollbar::-webkit-scrollbar {
+	display: none;
+}
+
+.kazenagare-kakejiku-shell {
+	contain: layout paint;
+	transform: translateZ(0);
+}
+
+.kazenagare-tatami-floor {
+	background:
+		linear-gradient(
+			to top,
+			rgba(39, 30, 22, 0.9) 0%,
+			rgba(39, 30, 22, 0.68) 24%,
+			transparent 100%
+		),
+		repeating-linear-gradient(
+			90deg,
+			rgba(146, 126, 95, 0.92) 0 56px,
+			rgba(131, 111, 84, 0.92) 56px 112px
+		),
+		repeating-linear-gradient(
+			0deg,
+			rgba(82, 68, 50, 0.26) 0 2px,
+			transparent 2px 18px
+		);
+	border-top: 1px solid rgba(226, 198, 160, 0.3);
+	box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.32);
+}
+
+.kazenagare-tanzaku-static {
+	transform: translate3d(0, var(--kz-base-y), 0) rotateZ(var(--kz-tilt));
+}
+
+@keyframes kazenagare-tanzaku-drift {
+	0% {
+		transform: translate3d(0, var(--kz-base-y), 0) rotateZ(var(--kz-tilt));
+	}
+	35% {
+		transform: translate3d(0, calc(var(--kz-base-y) - 6px), 0)
+			rotateZ(calc(var(--kz-tilt) * -0.52));
+	}
+	70% {
+		transform: translate3d(0, calc(var(--kz-base-y) + 4px), 0)
+			rotateZ(calc(var(--kz-tilt) * 0.38));
+	}
+	100% {
+		transform: translate3d(0, var(--kz-base-y), 0) rotateZ(var(--kz-tilt));
+	}
+}
+
+.kazenagare-tanzaku-drift {
+	--kz-base-y: 0px;
+	--kz-tilt: 0deg;
+	animation-name: kazenagare-tanzaku-drift;
+	animation-duration: 11s;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+	will-change: transform;
+}
+
+.kazenagare-tanzaku-drift-paused {
+	animation-play-state: paused;
+}
+
+.kazenagare-tanzaku-motion-0 {
+	--kz-base-y: -18px;
+	--kz-tilt: -1.2deg;
+	animation-duration: 12.4s;
+	animation-delay: -1.8s;
+}
+
+.kazenagare-tanzaku-motion-1 {
+	--kz-base-y: 8px;
+	--kz-tilt: 1deg;
+	animation-duration: 9.6s;
+	animation-delay: -4.3s;
+}
+
+.kazenagare-tanzaku-motion-2 {
+	--kz-base-y: -6px;
+	--kz-tilt: -0.7deg;
+	animation-duration: 10.8s;
+	animation-delay: -2.5s;
+}
+
+.kazenagare-tanzaku-motion-3 {
+	--kz-base-y: 20px;
+	--kz-tilt: 1.28deg;
+	animation-duration: 11.9s;
+	animation-delay: -6.1s;
+}
+
+.kazenagare-tanzaku-motion-4 {
+	--kz-base-y: -24px;
+	--kz-tilt: -1.35deg;
+	animation-duration: 13.1s;
+	animation-delay: -5.4s;
+}
+
+.kazenagare-tanzaku-motion-5 {
+	--kz-base-y: 14px;
+	--kz-tilt: 0.86deg;
+	animation-duration: 10.1s;
+	animation-delay: -3.2s;
+}
+
+.kazenagare-tanzaku-motion-6 {
+	--kz-base-y: -12px;
+	--kz-tilt: -0.92deg;
+	animation-duration: 9.1s;
+	animation-delay: -7.2s;
+}
+
+.kazenagare-tanzaku-motion-7 {
+	--kz-base-y: 2px;
+	--kz-tilt: 0.58deg;
+	animation-duration: 11.2s;
+	animation-delay: -0.9s;
+}
+
+@keyframes kazenagare-ink-ripple-expand {
+	0% {
+		transform: translate(-50%, -50%) scale(0.02);
+		opacity: 0.75;
+	}
+	100% {
+		transform: translate(-50%, -50%) scale(1);
+		opacity: 1;
+	}
+}
+
+.kazenagare-ink-ripple {
+	--kz-ripple-x: 50%;
+	--kz-ripple-y: 50%;
+	--kz-ripple-size: 180vmax;
+	--kz-ripple-duration: 880ms;
+	position: absolute;
+	left: var(--kz-ripple-x);
+	top: var(--kz-ripple-y);
+	width: var(--kz-ripple-size);
+	height: var(--kz-ripple-size);
+	border-radius: 9999px;
+	pointer-events: none;
+	background: radial-gradient(circle, #0a1220 0%, #050a15 58%, #03060d 100%);
+	transform: translate(-50%, -50%) scale(0.02);
+	animation-name: kazenagare-ink-ripple-expand;
+	animation-duration: var(--kz-ripple-duration);
+	animation-timing-function: cubic-bezier(0.17, 0.8, 0.2, 1);
+	animation-fill-mode: forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	@keyframes kazenagare-catalog-burst {
 		0% {
@@ -117,5 +299,14 @@
 			opacity: 1;
 			transform: translateY(0);
 		}
+	}
+
+	.kazenagare-tanzaku-drift {
+		animation: none;
+		transform: translate3d(0, var(--kz-base-y), 0) rotateZ(var(--kz-tilt));
+	}
+
+	.kazenagare-ink-ripple {
+		animation-duration: 180ms !important;
 	}
 }
