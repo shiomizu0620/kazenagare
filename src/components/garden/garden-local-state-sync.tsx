@@ -7,7 +7,7 @@ import {
   createGardenLocalStateStorageKey,
   type GardenLocalState,
 } from "@/lib/garden/local-state";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 
 type GardenLocalStateSyncProps = GardenLocalState;
 
@@ -60,12 +60,12 @@ export function GardenLocalStateSync({
 
     let isCancelled = false;
 
-    void supabase.auth.getSession().then(({ data }) => {
+    void getSupabaseSessionOrNull(supabase).then((session) => {
       if (isCancelled) {
         return;
       }
 
-      saveState(data.session?.user ?? null);
+      saveState(session?.user ?? null);
     });
 
     const {

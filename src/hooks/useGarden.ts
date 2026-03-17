@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GARDEN_BACKGROUNDS } from "@/lib/garden/setup/options";
 import type { GardenBackground, GardenProfile } from "@/types/garden";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import {
   createGardenLocalStateStorageKey,
   parseGardenLocalState,
@@ -26,7 +26,7 @@ export function useGarden() {
     if (!supabase) return;
 
     // 現在のセッションを確認
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    void getSupabaseSessionOrNull(supabase).then((session) => {
       if (session?.user) {
         setUserId(session.user.id);
       } else {

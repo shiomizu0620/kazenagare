@@ -12,7 +12,7 @@ import {
   loadKazenagareAudioSettings,
   parseKazenagareAudioSettings,
 } from "@/lib/audio/settings";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import { getVoiceZooObjectPrice } from "@/lib/voice-zoo/catalog";
 import { applyVoiceZooPlaybackEffect } from "@/lib/voice-zoo/playback-effects";
 import {
@@ -1402,7 +1402,7 @@ export function EmptyStageCharacter({
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    void getSupabaseSessionOrNull(supabase).then((session) => {
       setAudioOwnerId(session?.user?.id || "local_guest");
     });
 
