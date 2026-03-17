@@ -15,7 +15,6 @@ import {
   getSeasonOverlayClass,
   getTimeOverlayClass,
 } from "@/components/garden/empty/empty-stage-theme";
-import { buildGardenBackgroundCandidates } from "@/lib/garden/background-images";
 import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import {
   buildGardenBackgroundCandidates,
