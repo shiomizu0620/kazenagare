@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Tone from "tone";
 import { AuthSection } from "@/components/auth/auth-section";
 import {
@@ -61,6 +61,8 @@ const DEFAULT_GARDEN_SCENE: TitleGardenScene = {
 const PREVIEW_OBJECT_LIMIT = 24;
 const GUEST_ACTION_TEXTS = ["庭の門を叩く", "風の便りを聞く"] as const;
 const DEFAULT_GUEST_ACTION_TEXT = GUEST_ACTION_TEXTS[0];
+const GARDEN_ENTRY_DELAY_MS = 1300;
+const OAUTH_REDIRECT_PENDING_KEY = "kazenagare.oauthRedirectPending";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -221,6 +223,31 @@ function GardenSceneVisual({
   );
 }
 
+type EntryLoadingOverlayProps = {
+  durationMs: number;
+};
+
+function EntryLoadingOverlay({ durationMs }: EntryLoadingOverlayProps) {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center bg-wa-black/28 backdrop-blur-[1px]">
+      <div className="w-[min(88vw,320px)] rounded-2xl border border-white/30 bg-wa-black/60 px-4 py-3 text-white shadow-[0_16px_36px_rgba(0,0,0,0.35)]">
+        <div className="mb-2 flex items-center justify-between text-xs tracking-[0.08em] text-white/90">
+          <span>庭へ移動中...</span>
+          <span>LOADING</span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-white/20">
+          <motion.div
+            className="h-full origin-left bg-white/90"
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: durationMs / 1000, ease: "linear" }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TitlePageContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -235,6 +262,7 @@ function TitlePageContent() {
   const [tapPoint, setTapPoint] = useState<{ x: number; y: number } | null>(null);
   const [showTitleText, setShowTitleText] = useState(true);
   const [guestIntroActivated, setGuestIntroActivated] = useState(false);
+  const [isEnteringGarden, setIsEnteringGarden] = useState(false);
   const [loadedBackgroundSrc, setLoadedBackgroundSrc] = useState<string | null>(null);
   const isTransitioningRef = useRef(false);
   const transitionTimerRef = useRef<number | null>(null);
@@ -371,6 +399,16 @@ function TitlePageContent() {
     };
   }, []);
 
+  const scheduleGardenEntry = useCallback(() => {
+    if (transitionTimerRef.current !== null) {
+      window.clearTimeout(transitionTimerRef.current);
+    }
+
+    transitionTimerRef.current = window.setTimeout(() => {
+      router.push("/garden/me");
+    }, GARDEN_ENTRY_DELAY_MS);
+  }, [router]);
+
   useEffect(() => {
     if (!isLoginPanelVisible || tapPoint) {
       return;
@@ -394,20 +432,16 @@ function TitlePageContent() {
     }
 
     isTransitioningRef.current = true;
+    setIsEnteringGarden(true);
 
     const nextPoint = { x: event.clientX, y: event.clientY };
     setTapPoint(nextPoint);
     setShowTitleText(false);
 
-    try {
-      await playRippleTransitionSound();
-    } catch {
+    void playRippleTransitionSound().catch(() => {
       // Continue visual transition even if audio setup fails.
-    }
-
-    transitionTimerRef.current = window.setTimeout(() => {
-      router.push("/garden/me");
-    }, 2000);
+    });
+    scheduleGardenEntry();
   };
 
   const backgroundCandidates = useMemo(
@@ -445,6 +479,62 @@ function TitlePageContent() {
     setLoadedBackgroundSrc(backgroundSrc);
   };
 
+  function startGardenEntryTransition(nextUserId: string) {
+    if (!nextUserId || isTransitioningRef.current) {
+      return;
+    }
+
+    isTransitioningRef.current = true;
+    setMemberUserId(nextUserId);
+    setAuthState("member");
+    setShowTitleText(false);
+    setIsEnteringGarden(true);
+    setTapPoint((currentTapPoint) =>
+      currentTapPoint ?? {
+        x: window.innerWidth * 0.5,
+        y: window.innerHeight * 0.62,
+      },
+    );
+
+    void playRippleTransitionSound().catch(() => {
+      // Continue visual transition even if audio setup fails.
+    });
+    scheduleGardenEntry();
+  }
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      return;
+    }
+
+    const hasPendingOAuthRedirect = () =>
+      window.sessionStorage.getItem(OAUTH_REDIRECT_PENDING_KEY) === "1";
+
+    const clearPendingOAuthRedirect = () => {
+      window.sessionStorage.removeItem(OAUTH_REDIRECT_PENDING_KEY);
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (
+        (event === "INITIAL_SESSION" || event === "SIGNED_IN") &&
+        session &&
+        hasPendingOAuthRedirect() &&
+        !isAnonymousSupabaseUser(session.user)
+      ) {
+        clearPendingOAuthRedirect();
+        startGardenEntryTransition(session.user.id);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [scheduleGardenEntry]);
+
   const handleGuestIntroTap = async (event: ReactPointerEvent<HTMLElement>) => {
     if (authState !== "guest" || isTransitioningRef.current || isLoginPanelVisible) {
       return;
@@ -467,31 +557,11 @@ function TitlePageContent() {
     userId: string | null;
     isAnonymous: boolean;
   }) => {
-    if (!userId || isAnonymous || isTransitioningRef.current) {
+    if (!userId || isAnonymous) {
       return;
     }
 
-    isTransitioningRef.current = true;
-    setMemberUserId(userId);
-    setAuthState("member");
-    setShowTitleText(false);
-
-    if (!tapPoint) {
-      setTapPoint({
-        x: window.innerWidth * 0.5,
-        y: window.innerHeight * 0.62,
-      });
-    }
-
-    try {
-      await playRippleTransitionSound();
-    } catch {
-      // Continue visual transition even if audio setup fails.
-    }
-
-    transitionTimerRef.current = window.setTimeout(() => {
-      router.push("/garden/me");
-    }, 2000);
+    startGardenEntryTransition(userId);
   };
 
   const handleCloseLoginPanel = () => {
@@ -564,6 +634,8 @@ function TitlePageContent() {
             </p>
           </div>
         ) : null}
+
+        {isEnteringGarden ? <EntryLoadingOverlay durationMs={GARDEN_ENTRY_DELAY_MS} /> : null}
 
         <AnimatePresence>
           {showTitleText ? (
@@ -655,6 +727,8 @@ function TitlePageContent() {
           </p>
         </div>
       ) : null}
+
+      {isEnteringGarden ? <EntryLoadingOverlay durationMs={GARDEN_ENTRY_DELAY_MS} /> : null}
 
       <motion.div
         className="pointer-events-none absolute inset-x-0 top-[42%] z-20 flex -translate-y-1/2 flex-col items-center gap-3 px-6 text-center"
