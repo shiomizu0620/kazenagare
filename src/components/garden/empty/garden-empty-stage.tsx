@@ -14,17 +14,16 @@ import {
   getSeasonOverlayClass,
   getTimeOverlayClass,
 } from "@/components/garden/empty/empty-stage-theme";
+import { buildGardenBackgroundCandidates } from "@/lib/garden/background-images";
 import type { PlacedStageObject } from "@/components/garden/empty/empty-stage-character/empty-stage-character.types";
 import type { ObjectType } from "@/types/garden";
 import { COLLISION_ZONES } from "@/components/garden/empty/empty-stage-character/collision-zones";
 
 type GardenEmptyStageProps = {
   backgroundId: string;
-  backgroundName: string;
   seasonId: string;
   seasonName: string;
   timeSlotId: string;
-  timeSlotName: string;
   fullscreen?: boolean;
   allowObjectPlacement?: boolean;
   placementObjectType?: ObjectType | null;
@@ -45,15 +44,6 @@ const CHARACTER_START_POSITION_BY_BACKGROUND: Record<string, { x: number; y: num
   "misty-temple": { ...DEFAULT_CHARACTER_START_POSITION },
   "garden-all": { ...DEFAULT_CHARACTER_START_POSITION },
 };
-
-const GARDEN_ALL_SEASON_IMAGE: Record<string, string> = {
-  spring: "/images/garden/backgrounds/garden-all/spring/庭-春.png",
-  summer: "/images/garden/backgrounds/garden-all/summer/庭-夏.png",
-  autumn: "/images/garden/backgrounds/garden-all/autumn/庭-秋.png",
-  winter: "/images/garden/backgrounds/garden-all/winter/庭-冬.png",
-};
-
-const BACKGROUND_IMAGE_EXTENSIONS = ["avif", "webp", "png", "jpg", "jpeg"] as const;
 const BACKGROUND_IMAGE_SCALE = 1;
 
 function getMovementBoundsFromBackgroundScale(scale: number) {
@@ -79,29 +69,6 @@ function getMovementBoundsFromBackgroundScale(scale: number) {
   };
 }
 
-function buildBackgroundCandidates(
-  backgroundId: string,
-  seasonId: string,
-  timeSlotId: string,
-) {
-  const candidates: string[] = [];
-
-  for (const extension of BACKGROUND_IMAGE_EXTENSIONS) {
-    candidates.push(
-      `/images/garden/backgrounds/${backgroundId}/${seasonId}/${timeSlotId}/background.${extension}`,
-    );
-  }
-
-  const seasonalFallback = GARDEN_ALL_SEASON_IMAGE[seasonId];
-  if (seasonalFallback) {
-    candidates.push(seasonalFallback);
-  }
-
-  candidates.push("/images/garden/backgrounds/garden-all/庭.png");
-
-  return candidates;
-}
-
 function SeasonTimeBackgroundLayer({
   backgroundId,
   seasonId,
@@ -112,12 +79,14 @@ function SeasonTimeBackgroundLayer({
   timeSlotId: string;
 }) {
   const candidates = useMemo(
-    () => buildBackgroundCandidates(backgroundId, seasonId, timeSlotId),
+    () => buildGardenBackgroundCandidates(backgroundId, seasonId, timeSlotId),
     [backgroundId, seasonId, timeSlotId],
   );
   const [candidateIndex, setCandidateIndex] = useState(0);
+  const [loadedImageSrc, setLoadedImageSrc] = useState<string | null>(null);
 
   const activeImage = candidates[Math.min(candidateIndex, Math.max(0, candidates.length - 1))];
+  const isLoading = loadedImageSrc !== activeImage;
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -127,26 +96,40 @@ function SeasonTimeBackgroundLayer({
         aria-hidden
         fill
         unoptimized
+        priority
         sizes="100vw"
         className="select-none object-cover"
+        onLoad={() => {
+          setLoadedImageSrc(activeImage);
+        }}
         onError={() => {
           setCandidateIndex((current) => {
             const lastIndex = candidates.length - 1;
-            return current < lastIndex ? current + 1 : current;
+            if (current >= lastIndex) {
+              setLoadedImageSrc(activeImage);
+              return current;
+            }
+
+            return current + 1;
           });
         }}
       />
+      {isLoading ? (
+        <div className="absolute inset-0 grid place-items-center bg-wa-black/20 backdrop-blur-[2px]">
+          <p className="rounded-full border border-white/40 bg-wa-black/55 px-3 py-1 text-xs tracking-[0.08em] text-white/95 animate-pulse">
+            背景を読み込み中...
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 export function GardenEmptyStage({
   backgroundId,
-  backgroundName,
   seasonId,
   seasonName,
   timeSlotId,
-  timeSlotName,
   fullscreen = false,
   allowObjectPlacement = false,
   placementObjectType = null,
@@ -216,13 +199,7 @@ export function GardenEmptyStage({
 
       <div className="pointer-events-none absolute left-4 top-4 z-40 flex flex-wrap gap-2 text-xs">
         <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-          背景: {backgroundName}
-        </span>
-        <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-          季節: {seasonName}
-        </span>
-        <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-          時間帯: {timeSlotName}
+          {seasonName}
         </span>
       </div>
 

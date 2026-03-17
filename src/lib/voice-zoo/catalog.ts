@@ -7,6 +7,8 @@ export type VoiceZooEntry = {
   name: string;
   ruby: string;
   icon: string;
+  catalogImageSrc: string;
+  stageVideoSrc: string;
   price: number;
   status: VoiceZooEntryStatus;
   soundDesign: string;
@@ -19,7 +21,9 @@ export const VOICE_ZOO_ENTRIES: VoiceZooEntry[] = [
     objectType: "furin",
     name: "風鈴",
     ruby: "ふうりん",
-    icon: "🎐",
+    icon: "furin",
+    catalogImageSrc: "/images/garden/objects/furin/catalog/huurine.png",
+    stageVideoSrc: "/videos/garden/objects/furin/stage/huurin.webm",
     price: 180,
     status: "prototype",
     soundDesign: "声を軽く高域寄りにして、透明感のある余韻へ変換（段階的に実装）",
@@ -30,7 +34,9 @@ export const VOICE_ZOO_ENTRIES: VoiceZooEntry[] = [
     objectType: "shishi-odoshi",
     name: "鹿威し",
     ruby: "ししおどし",
-    icon: "🎋",
+    icon: "shishi-odoshi",
+    catalogImageSrc: "/images/garden/objects/shishi-odoshi/catalog/sisiodosie.png",
+    stageVideoSrc: "/videos/garden/objects/shishi-odoshi/stage/sisiodosi.webm",
     price: 260,
     status: "planned",
     soundDesign: "声エネルギーを水量に見立て、一定量で竹が落ちる打撃音を合成",

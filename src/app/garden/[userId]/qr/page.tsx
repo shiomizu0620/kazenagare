@@ -115,7 +115,7 @@ export default async function GardenUserQrPage({ params }: GardenUserQrPageProps
     <PageShell title={`${userId} の庭 QR`} subtitle="この庭を共有できます">
       <div className="mb-4 flex flex-wrap justify-end gap-2">
         <Link
-          href="/?top=1"
+          href="/?login=1"
           className="rounded-md border border-wa-black px-3 py-2 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
         >
           トップへ戻る

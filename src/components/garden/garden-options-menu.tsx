@@ -1,6 +1,7 @@
 "use client";
 
 import { del, keys as getIdbKeys, set } from "idb-keyval";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -14,7 +15,7 @@ import {
   GARDEN_OBJECTS_STORAGE_KEY_ME,
   resetGardenPlacedObjects,
 } from "@/lib/garden/placed-objects-storage";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import {
   type VoiceZooEntry,
   type VoiceZooEntryStatus,
@@ -200,8 +201,8 @@ export function GardenOptionsMenu({
       return audioOwnerId || "local_guest";
     }
 
-    const { data } = await supabase.auth.getSession();
-    const resolvedOwnerId = data.session?.user?.id || "local_guest";
+    const currentSession = await getSupabaseSessionOrNull(supabase);
+    const resolvedOwnerId = currentSession?.user?.id || "local_guest";
 
     if (resolvedOwnerId !== audioOwnerId) {
       setAudioOwnerId(resolvedOwnerId);
@@ -358,21 +359,20 @@ export function GardenOptionsMenu({
   }, [recordingEntry]);
 
   const handlePlacementFromRecordingModal = useCallback(() => {
-    if (!recordingEntry || typeof window === "undefined") {
+    if (!recordingEntry) {
       return;
     }
 
-    const searchParams = new URLSearchParams(window.location.search);
-    searchParams.set("place", recordingEntry.objectType);
-    const nextSearch = searchParams.toString();
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    nextSearchParams.set("place", recordingEntry.objectType);
+    const nextSearch = nextSearchParams.toString();
+    const nextHref = nextSearch.length > 0 ? `${pathname}?${nextSearch}` : pathname;
 
     closeRecordingModal();
-    window.location.assign(
-      nextSearch.length > 0
-        ? `${window.location.pathname}?${nextSearch}`
-        : window.location.pathname,
-    );
-  }, [closeRecordingModal, recordingEntry]);
+    setIsCatalogOpen(false);
+    setIsOpen(false);
+    router.replace(nextHref, { scroll: false });
+  }, [closeRecordingModal, pathname, recordingEntry, router, searchParams]);
 
   useEffect(() => {
     recordingPreviewAudioUrlsRef.current = recordingPreviewAudioUrls;
@@ -385,7 +385,7 @@ export function GardenOptionsMenu({
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    void getSupabaseSessionOrNull(supabase).then((session) => {
       setAudioOwnerId(session?.user?.id || "local_guest");
     });
 
@@ -494,10 +494,11 @@ export function GardenOptionsMenu({
   }, [pathname, router, searchParams]);
 
   const handleResetWalletForTesting = () => {
+    const resolvedObjectStorageKey = `${GARDEN_OBJECTS_STORAGE_KEY_ME}_${audioOwnerId}`;
+
     saveVoiceZooWallet(createInitialVoiceZooWallet(), audioOwnerId);
-    window.localStorage.removeItem(`kazenagare_objects_me_${audioOwnerId}`);
-    window.localStorage.removeItem("kazenagare_objects_me");
     saveVoiceZooWallet(createInitialVoiceZooWallet());
+    resetGardenPlacedObjects(resolvedObjectStorageKey);
     resetGardenPlacedObjects(GARDEN_OBJECTS_STORAGE_KEY_ME);
     clearPlacementQueryIfNeeded();
     setOwnedCatalogObjectTypes([]);
@@ -525,8 +526,8 @@ export function GardenOptionsMenu({
       let ownerId = "local_guest";
 
       if (supabase) {
-        const { data } = await supabase.auth.getSession();
-        ownerId = data.session?.user?.id || "local_guest";
+        const currentSession = await getSupabaseSessionOrNull(supabase);
+        ownerId = currentSession?.user?.id || "local_guest";
       }
 
       const catalogStorageKey = getVoiceZooRecordingCatalogStorageKey(ownerId);
@@ -728,19 +729,41 @@ export function GardenOptionsMenu({
           </div>
 
           <div className="grid gap-2">
-            {actions.map((action) => (
-              <Link
-                key={`${action.href}-${action.label}`}
-                href={action.href}
-                onClick={() => setIsOpen(false)}
-                className={itemClass}
-              >
-                <span className="text-sm font-semibold">{action.label}</span>
-                {action.description ? (
-                  <span className={descriptionClass}>{action.description}</span>
-                ) : null}
-              </Link>
-            ))}
+            {actions.map((action) => {
+              if (action.label === "トップへ戻る") {
+                return (
+                  <button
+                    key={`${action.href}-${action.label}`}
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      if (typeof window !== "undefined") {
+                        window.location.replace(action.href);
+                      }
+                    }}
+                    className={itemClass}
+                  >
+                    <span className="text-sm font-semibold">{action.label}</span>
+                    {action.description ? (
+                      <span className={descriptionClass}>{action.description}</span>
+                    ) : null}
+                  </button>
+                );
+              }
+              return (
+                <Link
+                  key={`${action.href}-${action.label}`}
+                  href={action.href}
+                  onClick={() => setIsOpen(false)}
+                  className={itemClass}
+                >
+                  <span className="text-sm font-semibold">{action.label}</span>
+                  {action.description ? (
+                    <span className={descriptionClass}>{action.description}</span>
+                  ) : null}
+                </Link>
+              );
+            })}
 
             <button
               type="button"
@@ -844,7 +867,13 @@ export function GardenOptionsMenu({
                               : "border-wa-black/20 bg-white"
                           }`}
                         >
-                          <span aria-hidden>{selectedCatalogEntry.icon}</span>
+                          <Image
+                            src={selectedCatalogEntry.catalogImageSrc}
+                            alt={`${selectedCatalogEntry.name}の画像`}
+                            width={96}
+                            height={96}
+                            className="h-24 w-24 rounded-full object-cover"
+                          />
                         </div>
                         <p className="text-lg font-semibold leading-none">{selectedCatalogEntry.name}</p>
                         <p className={`text-xs ${darkMode ? "text-wa-white/75" : "text-wa-black/65"}`}>
@@ -943,9 +972,13 @@ export function GardenOptionsMenu({
                                   : "border-wa-black/15 bg-white/70 hover:bg-wa-red/8"
                             }`}
                           >
-                            <span className="text-2xl" aria-hidden>
-                              {entry.icon}
-                            </span>
+                            <Image
+                              src={entry.catalogImageSrc}
+                              alt={`${entry.name}の画像`}
+                              width={36}
+                              height={36}
+                              className="h-9 w-9 rounded-full object-cover"
+                            />
                             <span className="text-[11px] font-semibold leading-tight">{entry.name}</span>
                           </button>
                         );
@@ -1044,7 +1077,7 @@ export function GardenOptionsMenu({
       ) : null}
 
       {recordingEntry ? (
-        <div className="fixed inset-0 z-[90] isolate grid place-items-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[130] isolate grid place-items-center p-4 sm:p-6">
           <button
             type="button"
             aria-label="録音モーダルを閉じる"
@@ -1070,7 +1103,13 @@ export function GardenOptionsMenu({
                     : "border-wa-black/20 bg-[#ffffff]"
                 }`}
               >
-                <span aria-hidden>{recordingEntry.icon}</span>
+                <Image
+                  src={recordingEntry.catalogImageSrc}
+                  alt={`${recordingEntry.name}の画像`}
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
               </div>
               <div>
                 <h2 id="catalog-recording-title" className="text-xl font-semibold">

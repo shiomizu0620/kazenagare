@@ -15,14 +15,32 @@ export const OBJECT_PICKUP_HIT_RADIUS = 72;
 export const OBJECT_PLACEMENT_HIT_RADIUS = 22;
 export const CHARACTER_HITBOX_RADIUS = 16; // ~half of 32px-wide character sprite
 
-export const OBJECT_VISUALS: Record<ObjectType, { icon: string; label: string }> = {
+export const SHISHI_ODOSHI_STAGE_IMAGE_SIZE = 80;
+export const OBJECT_REWARD_VIDEO_DURATION_MS = 2400;
+
+export const OBJECT_VISUALS: Record<
+  ObjectType,
+  {
+    imageSrc: string;
+    stageVideoSrc: string;
+    label: string;
+    stageImageSize: number;
+    stageVideoSize: number;
+  }
+> = {
   furin: {
-    icon: "🎐",
+    imageSrc: "/images/garden/objects/furin/catalog/huurine.png",
+    stageVideoSrc: "/videos/garden/objects/furin/stage/huurin.webm",
     label: "風鈴",
+    stageImageSize: 32,
+    stageVideoSize: 50,
   },
   "shishi-odoshi": {
-    icon: "🎋",
+    imageSrc: "/images/garden/objects/shishi-odoshi/catalog/sisiodosie.png",
+    stageVideoSrc: "/videos/garden/objects/shishi-odoshi/stage/sisiodosi.webm",
     label: "鹿威し",
+    stageImageSize: SHISHI_ODOSHI_STAGE_IMAGE_SIZE,
+    stageVideoSize: SHISHI_ODOSHI_STAGE_IMAGE_SIZE + 20,
   },
 };
 
