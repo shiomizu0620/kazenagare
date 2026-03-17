@@ -83,10 +83,10 @@ function SeasonTimeBackgroundLayer({
     [backgroundId, seasonId, timeSlotId],
   );
   const [candidateIndex, setCandidateIndex] = useState(0);
-  const [loadedImageSrc, setLoadedImageSrc] = useState<string | null>(null);
+  const [hasResolvedBackgroundImage, setHasResolvedBackgroundImage] = useState(false);
 
   const activeImage = candidates[Math.min(candidateIndex, Math.max(0, candidates.length - 1))];
-  const isLoading = loadedImageSrc !== activeImage;
+  const isLoading = !hasResolvedBackgroundImage;
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -100,13 +100,14 @@ function SeasonTimeBackgroundLayer({
         sizes="100vw"
         className="select-none object-cover"
         onLoad={() => {
-          setLoadedImageSrc(activeImage);
+          setHasResolvedBackgroundImage(true);
         }}
         onError={() => {
           setCandidateIndex((current) => {
             const lastIndex = candidates.length - 1;
             if (current >= lastIndex) {
-              setLoadedImageSrc(activeImage);
+              // Stop showing the loading indicator once all candidates are exhausted.
+              setHasResolvedBackgroundImage(true);
               return current;
             }
 

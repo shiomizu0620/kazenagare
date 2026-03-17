@@ -2198,16 +2198,16 @@ export function EmptyStageCharacter({
     updateActiveAutoPlaybackVolumes,
   ]);
 
-  const resetButtonClass = `pointer-events-auto rounded-md border px-3 py-2 text-xs font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+  const resetButtonClass = `pointer-events-auto w-full rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] sm:w-auto sm:px-3 sm:py-2 sm:text-xs ${
     darkMode
       ? "border-white/35 bg-neutral-900 text-white hover:bg-neutral-800"
       : "border-black/20 bg-white text-neutral-900 hover:bg-neutral-100"
   }`;
 
-  const resetPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+8.75rem)] left-3 right-3 z-30 grid gap-2 rounded-xl border-2 p-2 shadow-xl sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[24rem] ${
+  const resetPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-3 z-50 w-[min(42vw,10rem)] sm:bottom-5 sm:left-5 sm:right-auto sm:z-30 sm:grid sm:w-auto sm:max-w-[24rem] sm:gap-2 sm:rounded-xl sm:border-2 sm:p-2 sm:shadow-xl ${
     darkMode
-      ? "border-white/30 bg-neutral-900"
-      : "border-black/20 bg-white"
+      ? "sm:border-white/30 sm:bg-neutral-900"
+      : "sm:border-black/20 sm:bg-white"
   }`;
   const objectChipFillColor = darkMode ? "rgba(43,43,43,0.78)" : "rgba(242,242,242,0.95)";
   const objectChipStrokeColor = darkMode
