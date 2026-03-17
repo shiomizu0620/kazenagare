@@ -270,7 +270,7 @@ function TitlePageContent() {
   const isLoginPanelVisible = shouldOpenLoginPanel || (authState === "guest" && guestIntroActivated);
   const shouldSkipGuestLoginAnimation = shouldOpenLoginPanel;
 
-  const playRippleTransitionSound = async () => {
+  const playRippleTransitionSound = useCallback(async () => {
     await Tone.start();
     const reverb = new Tone.Reverb({ decay: 5.2, wet: 0.62 }).toDestination();
     const synth = new Tone.MembraneSynth({
@@ -285,9 +285,9 @@ function TitlePageContent() {
       synth.dispose();
       reverb.dispose();
     }, 1800);
-  };
+  }, []);
 
-  const playGateChimeSound = async () => {
+  const playGateChimeSound = useCallback(async () => {
     await Tone.start();
 
     const reverb = new Tone.Reverb({ decay: 3.4, wet: 0.35 }).toDestination();
@@ -309,7 +309,7 @@ function TitlePageContent() {
       synth.dispose();
       reverb.dispose();
     }, 1900);
-  };
+  }, []);
 
   useEffect(() => {
     let isCancelled = false;
@@ -479,7 +479,7 @@ function TitlePageContent() {
     setLoadedBackgroundSrc(backgroundSrc);
   };
 
-  function startGardenEntryTransition(nextUserId: string) {
+  const startGardenEntryTransition = useCallback((nextUserId: string) => {
     if (!nextUserId || isTransitioningRef.current) {
       return;
     }
@@ -500,7 +500,7 @@ function TitlePageContent() {
       // Continue visual transition even if audio setup fails.
     });
     scheduleGardenEntry();
-  }
+  }, [playRippleTransitionSound, scheduleGardenEntry]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -533,7 +533,7 @@ function TitlePageContent() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [scheduleGardenEntry]);
+  }, [startGardenEntryTransition]);
 
   const handleGuestIntroTap = async (event: ReactPointerEvent<HTMLElement>) => {
     if (authState !== "guest" || isTransitioningRef.current || isLoginPanelVisible) {
