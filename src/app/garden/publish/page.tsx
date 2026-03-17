@@ -26,6 +26,7 @@ import {
 } from "@/lib/voice-zoo/recordings";
 
 type PublishStatus = "idle" | "publishing" | "success" | "error";
+type DeleteStatus = "idle" | "deleting" | "success" | "error";
 
 function normalizeOptionId(value: string | null, fallback: string, options: { id: string }[]) {
   if (!value) {
@@ -42,9 +43,11 @@ function GardenPublishContent() {
   const [isGuestUser, setIsGuestUser] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [status, setStatus] = useState<PublishStatus>("idle");
+  const [deleteStatus, setDeleteStatus] = useState<DeleteStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(
     supabase ? null : "Supabase設定が不足しています。環境変数を確認してください。",
   );
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
   const defaultState = getDefaultGardenLocalState();
   const [draft, setDraft] = useState<GardenLocalState>(defaultState);
@@ -150,6 +153,10 @@ function GardenPublishContent() {
     () => Boolean(userId) && !isGuestUser && !isAuthLoading && status !== "publishing",
     [isAuthLoading, isGuestUser, status, userId],
   );
+  const canDeletePost = useMemo(
+    () => Boolean(userId) && !isGuestUser && !isAuthLoading && deleteStatus !== "deleting",
+    [deleteStatus, isAuthLoading, isGuestUser, userId],
+  );
 
   const handlePublish = async () => {
     if (!supabase) {
@@ -175,6 +182,8 @@ function GardenPublishContent() {
 
     setStatus("publishing");
     setErrorMessage(null);
+    setDeleteStatus("idle");
+    setDeleteMessage(null);
 
     const placedObjectsStorageKey = getGardenObjectsStorageKeyForOwner(currentUser.id);
     const placedObjects = parseGardenPostPlacedObjects(
@@ -272,6 +281,50 @@ function GardenPublishContent() {
     setStatus("success");
   };
 
+  const handleDeletePost = async () => {
+    if (!supabase) {
+      setDeleteStatus("error");
+      setDeleteMessage("Supabase設定が不足しています。環境変数を確認してください。");
+      return;
+    }
+
+    const shouldDelete = window.confirm("公開中の庭投稿を削除します。よろしいですか？");
+    if (!shouldDelete) {
+      return;
+    }
+
+    const currentSession = await getSupabaseSessionOrNull(supabase);
+    const currentUser = currentSession?.user ?? null;
+
+    if (!currentUser) {
+      setDeleteStatus("error");
+      setDeleteMessage("投稿削除にはログインが必要です。");
+      return;
+    }
+
+    if (isAnonymousSupabaseUser(currentUser)) {
+      setDeleteStatus("error");
+      setDeleteMessage("ゲスト利用中は投稿削除できません。通常ログイン後に操作してください。");
+      return;
+    }
+
+    setDeleteStatus("deleting");
+    setDeleteMessage(null);
+    setStatus("idle");
+    setErrorMessage(null);
+
+    const { error } = await supabase.from("garden_posts").delete().eq("user_id", currentUser.id);
+
+    if (error) {
+      setDeleteStatus("error");
+      setDeleteMessage(`投稿削除に失敗しました: ${error.message}`);
+      return;
+    }
+
+    setDeleteStatus("success");
+    setDeleteMessage("自分の庭投稿を削除しました。");
+  };
+
   return (
     <main className="mx-auto grid min-h-[100dvh] w-full max-w-3xl gap-6 px-4 py-8 text-wa-black sm:px-6">
       <section className="grid gap-3 rounded-2xl border border-wa-black/20 bg-wa-white/90 p-5">
@@ -316,6 +369,15 @@ function GardenPublishContent() {
             {status === "publishing" ? "投稿中..." : "この庭を投稿する"}
           </button>
 
+          <button
+            type="button"
+            onClick={handleDeletePost}
+            disabled={!canDeletePost}
+            className="inline-flex w-fit items-center rounded-full border-2 border-wa-red/70 bg-white px-5 py-2 font-semibold text-wa-red transition-all duration-150 hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {deleteStatus === "deleting" ? "削除中..." : "自分の投稿を削除する"}
+          </button>
+
           {status === "success" && userId ? (
             <p className="text-emerald-700">
               投稿しました。公開URL: <Link href={`/garden/${userId}`} className="underline">/garden/{userId}</Link>
@@ -324,6 +386,10 @@ function GardenPublishContent() {
 
           {status === "error" && errorMessage ? (
             <p className="whitespace-pre-wrap text-wa-red">{errorMessage}</p>
+          ) : null}
+
+          {deleteMessage ? (
+            <p className={deleteStatus === "success" ? "text-emerald-700" : "text-wa-red"}>{deleteMessage}</p>
           ) : null}
 
           {!userId && !isAuthLoading ? (

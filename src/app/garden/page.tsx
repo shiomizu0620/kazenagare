@@ -39,6 +39,39 @@ function formatPublishedAt(publishedAt: string | null) {
   }).format(date);
 }
 
+function formatRemainingAutoDeleteTime(updatedAt: string | null) {
+  if (!updatedAt) {
+    return "残り時間不明";
+  }
+
+  const updatedAtDate = new Date(updatedAt);
+  if (Number.isNaN(updatedAtDate.getTime())) {
+    return "残り時間不明";
+  }
+
+  const expireAtMs = updatedAtDate.getTime() + 3 * 24 * 60 * 60 * 1000;
+  const remainingMs = expireAtMs - Date.now();
+
+  if (remainingMs <= 0) {
+    return "まもなく削除";
+  }
+
+  const totalMinutes = Math.floor(remainingMs / (60 * 1000));
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return `${days}日 ${hours}時間`;
+  }
+
+  if (hours > 0) {
+    return `${hours}時間 ${minutes}分`;
+  }
+
+  return `${Math.max(minutes, 1)}分`;
+}
+
 export default async function GardenIndexPage() {
   const publishedPosts = await fetchPublishedGardenPosts();
 
@@ -115,6 +148,9 @@ export default async function GardenIndexPage() {
 
                   <div className="flex items-center justify-between gap-3 text-sm text-wa-black/65">
                     <span>{formatPublishedAt(post.publishedAt)}</span>
+                    <span className="rounded-full border border-wa-black/20 px-2 py-0.5 text-xs text-wa-black/70">
+                      自動削除まで: {formatRemainingAutoDeleteTime(post.updatedAt)}
+                    </span>
                     <span className="font-semibold text-wa-red">庭を見る</span>
                   </div>
                 </Link>
