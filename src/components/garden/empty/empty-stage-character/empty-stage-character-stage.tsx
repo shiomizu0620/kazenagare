@@ -131,10 +131,22 @@ export function EmptyStageCharacterStage({
                       y={-halfVideoSize}
                       width={objectVisual.stageVideoSize}
                       height={objectVisual.stageVideoSize}
+                      style={{
+                        overflow: "visible",
+                        mixBlendMode: "normal",
+                        opacity: 1,
+                      }}
                     >
                       <div
                         {...({ xmlns: "http://www.w3.org/1999/xhtml" } as Record<string, string>)}
-                        style={{ width: "100%", height: "100%" }}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "transparent",
+                        }}
                       >
                         <video
                           key={`${placedObject.id}-${rewardVideoPlaybackKey}`}
@@ -143,7 +155,14 @@ export function EmptyStageCharacterStage({
                           muted
                           playsInline
                           preload="auto"
-                          className="block h-full w-full object-cover"
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            opacity: 1,
+                            visibility: "visible",
+                          }}
                         />
                       </div>
                     </foreignObject>
