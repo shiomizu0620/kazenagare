@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as Tone from "tone";
 import { AuthSection } from "@/components/auth/auth-section";
 import {
@@ -221,7 +221,7 @@ function GardenSceneVisual({
   );
 }
 
-export default function TitlePage() {
+function TitlePageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -734,5 +734,13 @@ export default function TitlePage() {
         ) : null}
       </AnimatePresence>
     </main>
+  );
+}
+
+export default function TitlePage() {
+  return (
+    <Suspense fallback={null}>
+      <TitlePageContent />
+    </Suspense>
   );
 }
