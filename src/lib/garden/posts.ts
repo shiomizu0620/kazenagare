@@ -16,6 +16,7 @@ export type GardenPostRecord = {
   seasonId: string;
   timeSlotId: string;
   publishedAt: string | null;
+  updatedAt: string | null;
   placedObjects: GardenPostPlacedObject[];
 };
 
@@ -25,6 +26,7 @@ type SupabaseGardenPostRow = {
   season_id?: unknown;
   time_slot_id?: unknown;
   published_at?: unknown;
+  updated_at?: unknown;
   placed_objects?: unknown;
 };
 
@@ -100,6 +102,7 @@ function normalizePostRow(row: SupabaseGardenPostRow): GardenPostRecord | null {
     seasonId: row.season_id,
     timeSlotId: row.time_slot_id,
     publishedAt: typeof row.published_at === "string" ? row.published_at : null,
+    updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
     placedObjects: parseGardenPostPlacedObjects(row.placed_objects),
   };
 }
@@ -113,11 +116,13 @@ export async function fetchPublishedGardenPosts(limit = 24) {
   }
 
   const requestUrl = new URL(`${supabaseUrl}/rest/v1/garden_posts`);
+  const staleThresholdIso = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   requestUrl.searchParams.set(
     "select",
-    "user_id,background_id,season_id,time_slot_id,published_at",
+    "user_id,background_id,season_id,time_slot_id,published_at,updated_at",
   );
   requestUrl.searchParams.set("published_at", "not.is.null");
+  requestUrl.searchParams.set("updated_at", `gte.${staleThresholdIso}`);
   requestUrl.searchParams.set("order", "published_at.desc");
   requestUrl.searchParams.set("limit", String(limit));
 
@@ -158,12 +163,14 @@ export async function fetchPublishedGardenPostByUserId(userId: string) {
   }
 
   const requestUrl = new URL(`${supabaseUrl}/rest/v1/garden_posts`);
+  const staleThresholdIso = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   requestUrl.searchParams.set(
     "select",
-    "user_id,background_id,season_id,time_slot_id,published_at,placed_objects",
+    "user_id,background_id,season_id,time_slot_id,published_at,updated_at,placed_objects",
   );
   requestUrl.searchParams.set("user_id", `eq.${userId}`);
   requestUrl.searchParams.set("published_at", "not.is.null");
+  requestUrl.searchParams.set("updated_at", `gte.${staleThresholdIso}`);
   requestUrl.searchParams.set("order", "published_at.desc");
   requestUrl.searchParams.set("limit", "1");
 
