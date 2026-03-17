@@ -213,8 +213,10 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
   const [transitionState, setTransitionState] = useState<TransitionState | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [ambientMotionReady, setAmbientMotionReady] = useState(false);
+  const [settledThumbnailCount, setSettledThumbnailCount] = useState(0);
   const transitionTimerRef = useRef<number | null>(null);
   const sceneRef = useRef<HTMLElement | null>(null);
+  const settledThumbnailKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -269,8 +271,28 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
     }));
   }, [posts]);
 
+  useEffect(() => {
+    settledThumbnailKeysRef.current.clear();
+    setSettledThumbnailCount(0);
+  }, [posts]);
+
+  const handleThumbnailSettled = useCallback((thumbnailKey: string) => {
+    if (settledThumbnailKeysRef.current.has(thumbnailKey)) {
+      return;
+    }
+
+    settledThumbnailKeysRef.current.add(thumbnailKey);
+    setSettledThumbnailCount(settledThumbnailKeysRef.current.size);
+  }, []);
+
   const activePost = activeIndex !== null ? decoratedPosts[activeIndex] ?? null : null;
   const atmosphere = useMemo(() => resolveAtmosphere(activePost), [activePost]);
+  const totalThumbnailCount = decoratedPosts.length;
+  const thumbnailProgressPercent =
+    totalThumbnailCount === 0
+      ? 100
+      : Math.min(100, Math.round((settledThumbnailCount / totalThumbnailCount) * 100));
+  const shouldShowThumbnailProgress = totalThumbnailCount > 0 && settledThumbnailCount < totalThumbnailCount;
 
   useEffect(() => {
     if (!sceneRef.current) {
@@ -352,13 +374,29 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
   );
 
   return (
-    <main ref={sceneRef} className="kazenagare-washitsu-scene relative min-h-screen overflow-hidden text-[#f4ecde]">
+    <main ref={sceneRef} className="kazenagare-washitsu-scene relative h-[100dvh] overflow-hidden overscroll-y-none text-[#f4ecde]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_44%,rgba(252,226,176,0.09),rgba(19,14,13,0.78))]" />
       <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(90deg,rgba(239,220,186,0.05)_0_2px,transparent_2px_140px)]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-14 border-b border-[#d8be94]/28 bg-[linear-gradient(180deg,rgba(42,26,17,0.95),rgba(28,18,13,0.88))]" />
 
+      {shouldShowThumbnailProgress && !transitionState ? (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 px-4 pt-2 sm:px-8">
+          <div className="mx-auto w-full max-w-5xl">
+            <div className="h-1.5 overflow-hidden rounded-full border border-[#d6bb90]/45 bg-[#2a1c13]/68">
+              <div
+                className="h-full rounded-full bg-[linear-gradient(90deg,#cfe9ff,#f2d6a8,#c7e6ff)] transition-[width] duration-300 ease-out"
+                style={{ width: `${thumbnailProgressPercent}%` }}
+              />
+            </div>
+            <p className="mt-1 text-right text-[10px] tracking-[0.12em] text-[#ead7bc]/74">
+              掛け軸を準備中 {settledThumbnailCount}/{totalThumbnailCount}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div
-        className={`relative z-10 flex min-h-screen flex-col ${
+        className={`relative z-10 flex h-full flex-col ${
           transitionState ? "pointer-events-none select-none" : ""
         }`}
       >
@@ -394,9 +432,9 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
             </p>
           </section>
         ) : (
-          <section className="relative flex flex-1 flex-col pb-28">
+          <section className="relative flex flex-1 flex-col pb-4">
             <div
-              className="kazenagare-hide-scrollbar relative flex-1 overflow-x-auto overflow-y-hidden pb-24 pt-7 sm:pt-9"
+              className="kazenagare-hide-scrollbar relative flex-1 overflow-x-auto overflow-y-hidden overscroll-y-none pb-8 pt-7 touch-pan-x sm:pt-9"
               onWheel={handleCorridorWheel}
             >
               <ul className="flex h-full w-max items-end gap-6 px-[max(7vw,2rem)] pb-6 sm:gap-9 sm:px-[max(8vw,3rem)] sm:pb-8">
@@ -474,6 +512,12 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
                               sizes="(max-width: 640px) 180px, 190px"
                               priority={index < 2}
                               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.08] group-focus-visible:scale-[1.08]"
+                              onLoadingComplete={() => {
+                                handleThumbnailSettled(`${post.userId}-${index}`);
+                              }}
+                              onError={() => {
+                                handleThumbnailSettled(`${post.userId}-${index}`);
+                              }}
                             />
                             <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#120d08]/44 via-transparent to-[#f6ebda]/16" />
                           </div>
@@ -482,12 +526,6 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
 
                           <div className="mt-2 flex flex-1 items-start px-3 text-[#3e3223] [text-orientation:upright] [writing-mode:vertical-rl]">
                             <p className="text-[1.1rem] leading-[1.66] tracking-[0.13em]">{post.ownerLabel}の庭</p>
-                            <p className="mr-2 text-xs tracking-[0.34em] text-[#5e4a34]/86">
-                              {post.seasonName}
-                              <span className="mx-1 text-[#8e795f]/64">・</span>
-                              {post.timeSlotName}
-                            </p>
-                            <p className="mr-1 text-xs tracking-[0.2em] text-[#6d5943]/74">{post.backgroundName}</p>
                           </div>
 
                           <p className="mx-2 mt-2 rounded-[0.45rem] border border-[#ba9f7a]/54 bg-[#f7ecd8]/84 px-2 py-1 text-center text-[11px] tracking-[0.08em] text-[#5f4a32]">
@@ -511,7 +549,6 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
 
             <div className="pointer-events-none absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-[#140f0e] to-transparent" />
             <div className="pointer-events-none absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-[#140f0e] to-transparent" />
-            <div className="kazenagare-tatami-floor pointer-events-none absolute inset-x-0 bottom-0 h-28" />
           </section>
         )}
       </div>
