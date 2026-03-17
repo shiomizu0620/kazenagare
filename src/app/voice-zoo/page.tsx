@@ -842,7 +842,7 @@ export default function VoiceZooPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible md:pb-0">
         {VOICE_ZOO_ENTRIES.map((entry) => {
           const isOwned = wallet.ownedObjectTypes.includes(entry.objectType);
           const playbackRewardCoins = calculatePlaybackRewardCoins(entry.price);
@@ -853,7 +853,7 @@ export default function VoiceZooPage() {
               type="button"
               onClick={() => handleSelectEntry(entry)}
               aria-haspopup="dialog"
-              className="grid gap-3 rounded-2xl border border-wa-black/20 bg-white/80 p-4 text-left transition-all duration-150 ease-out hover:-translate-y-1 hover:border-wa-red/40 hover:shadow-md"
+              className="grid min-w-[280px] flex-none snap-center gap-3 rounded-2xl border border-wa-black/20 bg-white/80 p-4 text-left transition-all duration-150 ease-out hover:-translate-y-1 hover:border-wa-red/40 hover:shadow-md md:min-w-0"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -869,6 +869,7 @@ export default function VoiceZooPage() {
                   <div>
                     <p className="text-lg font-semibold leading-none">{entry.name}</p>
                     <p className="mt-1 text-xs text-wa-black/65">{entry.ruby}</p>
+                    <p className="mt-1 max-w-[16rem] text-xs text-wa-black/55">{entry.memo}</p>
                   </div>
                 </div>
                 <span
@@ -937,10 +938,6 @@ export default function VoiceZooPage() {
 
             <dl className="grid gap-3 rounded-xl border border-wa-black/20 bg-white p-4 text-sm">
               <div>
-                <dt className="text-xs text-wa-black/65">解説: 音のデザイン</dt>
-                <dd className="mt-1 leading-relaxed">{selectedEntry.soundDesign}</dd>
-              </div>
-              <div>
                 <dt className="text-xs text-wa-black/65">解説: 見た目の反応</dt>
                 <dd className="mt-1 leading-relaxed">{selectedEntry.visualReaction}</dd>
               </div>
@@ -962,6 +959,11 @@ export default function VoiceZooPage() {
                   購入済み
                 </span>
               ) : null}
+            </div>
+
+            <div className="rounded-xl border border-wa-black/20 bg-white p-4 text-sm">
+              <p className="text-xs text-wa-black/65">解説: 音のデザイン</p>
+              <p className="mt-1 leading-relaxed">{selectedEntry.soundDesign}</p>
             </div>
 
             <div className="flex flex-wrap gap-2">

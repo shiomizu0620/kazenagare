@@ -1,4 +1,10 @@
-export type ObjectType = "furin" | "shishi-odoshi";
+export type ObjectType =
+  | "furin"
+  | "shishi-odoshi"
+  | "hanabi"
+  | "kane"
+  | "obake"
+  | "tyo-tyo";
 
 export type GardenBackground = {
   id: string;

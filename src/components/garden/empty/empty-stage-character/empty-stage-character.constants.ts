@@ -42,6 +42,34 @@ export const OBJECT_VISUALS: Record<
     stageImageSize: SHISHI_ODOSHI_STAGE_IMAGE_SIZE,
     stageVideoSize: SHISHI_ODOSHI_STAGE_IMAGE_SIZE + 20,
   },
+  hanabi: {
+    imageSrc: "/images/garden/objects/hanabi/catalog/hanabie.png",
+    stageVideoSrc: "/videos/garden/objects/hanabi/stage/hanabi.webm",
+    label: "花火",
+    stageImageSize: 48,
+    stageVideoSize: 56,
+  },
+  kane: {
+    imageSrc: "/images/garden/objects/kane/catalog/kanee.png",
+    stageVideoSrc: "/videos/garden/objects/kane/stage/kane.webm",
+    label: "鐘",
+    stageImageSize: 52,
+    stageVideoSize: 60,
+  },
+  obake: {
+    imageSrc: "/images/garden/objects/obake/catalog/obakee.png",
+    stageVideoSrc: "/videos/garden/objects/obake/stage/obake.webm",
+    label: "おばけ",
+    stageImageSize: 56,
+    stageVideoSize: 64,
+  },
+  "tyo-tyo": {
+    imageSrc: "/images/garden/objects/tyo-tyo/catalog/tyoutyoe.png",
+    stageVideoSrc: "/videos/garden/objects/tyo-tyo/stage/tyoutyo.webm",
+    label: "ちょうちょ",
+    stageImageSize: 44,
+    stageVideoSize: 52,
+  },
 };
 
 export const MOVEMENT_KEYS = [

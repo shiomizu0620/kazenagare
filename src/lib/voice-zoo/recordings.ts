@@ -3,6 +3,10 @@ import type { ObjectType } from "@/types/garden";
 export const VOICE_ZOO_SUPPORTED_OBJECT_TYPES: ObjectType[] = [
   "furin",
   "shishi-odoshi",
+  "hanabi",
+  "kane",
+  "obake",
+  "tyo-tyo",
 ];
 export const VOICE_ZOO_RECORDING_UPDATED_EVENT = "kazenagare:recording-updated";
 
@@ -19,7 +23,14 @@ export type VoiceZooRecordingMeta = {
 };
 
 function isObjectType(value: unknown): value is ObjectType {
-  return value === "furin" || value === "shishi-odoshi";
+  return (
+    value === "furin" ||
+    value === "shishi-odoshi" ||
+    value === "hanabi" ||
+    value === "kane" ||
+    value === "obake" ||
+    value === "tyo-tyo"
+  );
 }
 
 function isVoiceZooRecordingMeta(value: unknown): value is VoiceZooRecordingMeta {
@@ -69,6 +80,10 @@ export function getLatestRecordingIdByObjectType(
   return {
     furin: latestMap.furin?.id,
     "shishi-odoshi": latestMap["shishi-odoshi"]?.id,
+    hanabi: latestMap.hanabi?.id,
+    kane: latestMap.kane?.id,
+    obake: latestMap.obake?.id,
+    "tyo-tyo": latestMap["tyo-tyo"]?.id,
   };
 }
 
