@@ -213,10 +213,9 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
   const [transitionState, setTransitionState] = useState<TransitionState | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [ambientMotionReady, setAmbientMotionReady] = useState(false);
-  const [settledThumbnailCount, setSettledThumbnailCount] = useState(0);
+  const [settledThumbnailKeyMap, setSettledThumbnailKeyMap] = useState<Record<string, true>>({});
   const transitionTimerRef = useRef<number | null>(null);
   const sceneRef = useRef<HTMLElement | null>(null);
-  const settledThumbnailKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -271,22 +270,34 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
     }));
   }, [posts]);
 
-  useEffect(() => {
-    settledThumbnailKeysRef.current.clear();
-    setSettledThumbnailCount(0);
-  }, [posts]);
+  const postsSignature = useMemo(
+    () => posts.map((post, index) => `${post.userId}:${post.thumbnailSrc}:${index}`).join("|"),
+    [posts],
+  );
 
   const handleThumbnailSettled = useCallback((thumbnailKey: string) => {
-    if (settledThumbnailKeysRef.current.has(thumbnailKey)) {
-      return;
-    }
+    setSettledThumbnailKeyMap((current) => {
+      if (current[thumbnailKey]) {
+        return current;
+      }
 
-    settledThumbnailKeysRef.current.add(thumbnailKey);
-    setSettledThumbnailCount(settledThumbnailKeysRef.current.size);
+      return {
+        ...current,
+        [thumbnailKey]: true,
+      };
+    });
   }, []);
 
   const activePost = activeIndex !== null ? decoratedPosts[activeIndex] ?? null : null;
   const atmosphere = useMemo(() => resolveAtmosphere(activePost), [activePost]);
+  const settledThumbnailCount = useMemo(() => {
+    if (!postsSignature) {
+      return 0;
+    }
+
+    const currentPrefix = `${postsSignature}::`;
+    return Object.keys(settledThumbnailKeyMap).filter((key) => key.startsWith(currentPrefix)).length;
+  }, [postsSignature, settledThumbnailKeyMap]);
   const totalThumbnailCount = decoratedPosts.length;
   const thumbnailProgressPercent =
     totalThumbnailCount === 0
@@ -513,10 +524,10 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
                               priority={index < 2}
                               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.08] group-focus-visible:scale-[1.08]"
                               onLoadingComplete={() => {
-                                handleThumbnailSettled(`${post.userId}-${index}`);
+                                handleThumbnailSettled(`${postsSignature}::${post.userId}-${index}`);
                               }}
                               onError={() => {
-                                handleThumbnailSettled(`${post.userId}-${index}`);
+                                handleThumbnailSettled(`${postsSignature}::${post.userId}-${index}`);
                               }}
                             />
                             <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#120d08]/44 via-transparent to-[#f6ebda]/16" />
