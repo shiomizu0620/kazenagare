@@ -132,15 +132,20 @@ export function EmptyStageCharacterStage({
                       width={objectVisual.stageVideoSize}
                       height={objectVisual.stageVideoSize}
                     >
-                      <video
-                        key={`${placedObject.id}-${rewardVideoPlaybackKey}`}
-                        src={objectVisual.stageVideoSrc}
-                        autoPlay
-                        muted
-                        playsInline
-                        preload="auto"
-                        className="h-full w-full object-cover"
-                      />
+                      <div
+                        {...({ xmlns: "http://www.w3.org/1999/xhtml" } as Record<string, string>)}
+                        style={{ width: "100%", height: "100%" }}
+                      >
+                        <video
+                          key={`${placedObject.id}-${rewardVideoPlaybackKey}`}
+                          src={objectVisual.stageVideoSrc}
+                          autoPlay
+                          muted
+                          playsInline
+                          preload="auto"
+                          className="block h-full w-full object-cover"
+                        />
+                      </div>
                     </foreignObject>
                   ) : (
                     <image

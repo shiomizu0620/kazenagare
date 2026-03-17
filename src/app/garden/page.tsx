@@ -7,6 +7,24 @@ import {
   GARDEN_TIME_SLOTS,
 } from "@/lib/garden/setup/options";
 
+type QueryValue = string | string[] | undefined;
+
+type GardenIndexPageProps = {
+  searchParams: Promise<{
+    background?: QueryValue;
+    season?: QueryValue;
+    time?: QueryValue;
+  }>;
+};
+
+function normalizeQueryValue(value: QueryValue) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
+}
+
 function resolveOptionName(options: { id: string; name: string }[], id: string) {
   return options.find((option) => option.id === id)?.name ?? id;
 }
@@ -72,8 +90,27 @@ function formatRemainingAutoDeleteTime(updatedAt: string | null) {
   return `${Math.max(minutes, 1)}分`;
 }
 
-export default async function GardenIndexPage() {
+export default async function GardenIndexPage({ searchParams }: GardenIndexPageProps) {
+  const query = await searchParams;
   const publishedPosts = await fetchPublishedGardenPosts();
+  const selectedBackgroundId = normalizeQueryValue(query.background);
+  const selectedSeasonId = normalizeQueryValue(query.season);
+  const selectedTimeSlotId = normalizeQueryValue(query.time);
+
+  const nextMyGardenSearchParams = new URLSearchParams();
+  if (selectedBackgroundId) {
+    nextMyGardenSearchParams.set("background", selectedBackgroundId);
+  }
+  if (selectedSeasonId) {
+    nextMyGardenSearchParams.set("season", selectedSeasonId);
+  }
+  if (selectedTimeSlotId) {
+    nextMyGardenSearchParams.set("time", selectedTimeSlotId);
+  }
+
+  const nextMyGardenHref = nextMyGardenSearchParams.size
+    ? `/garden/me?${nextMyGardenSearchParams.toString()}`
+    : "/garden/me";
 
   return (
     <PageShell
@@ -88,7 +125,7 @@ export default async function GardenIndexPage() {
           トップへ戻る
         </Link>
         <Link
-          href="/garden/me"
+          href={nextMyGardenHref}
           className="rounded-md border border-wa-black px-4 py-3 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
         >
           自分の庭へ
