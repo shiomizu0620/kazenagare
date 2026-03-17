@@ -162,9 +162,11 @@ export function GardenEmptyStage({
   const initialCharacterWorldPosition =
     CHARACTER_START_POSITION_BY_BACKGROUND[backgroundId] ?? DEFAULT_CHARACTER_START_POSITION;
   const movementBounds = getMovementBoundsFromBackgroundScale(BACKGROUND_IMAGE_SCALE);
+  const hitmapUrl = "/images/garden/backgrounds/garden-all/hitmap1.png";
   const stageContainerClass = fullscreen
     ? `relative h-[100dvh] w-full overflow-hidden ${theme.stageClass}`
     : `relative h-[78dvh] min-h-[520px] w-full overflow-hidden rounded-3xl border ${theme.stageClass}`;
+  const showCollisionDebug = process.env.NODE_ENV !== "production";
 
   return (
     <section className={stageContainerClass}>
@@ -176,6 +178,8 @@ export function GardenEmptyStage({
 
       <EmptyStageCharacter
         darkMode={isNight}
+        showCollisionDebug={showCollisionDebug}
+        hitmapUrl={hitmapUrl}
         allowObjectPlacement={allowObjectPlacement}
         placementObjectType={placementObjectType}
         objectStorageKey={objectStorageKey}
@@ -183,7 +187,7 @@ export function GardenEmptyStage({
         audioOwnerIdOverride={audioOwnerIdOverride}
         initialCharacterWorldPosition={initialCharacterWorldPosition}
         movementBounds={movementBounds}
-        collisionZones={COLLISION_ZONES[backgroundId] ?? []}
+        collisionZones={COLLISION_ZONES[backgroundId] ?? COLLISION_ZONES["garden-all"] ?? []}
       >
         <SeasonTimeBackgroundLayer
           key={`${backgroundId}-${seasonId}-${timeSlotId}`}
