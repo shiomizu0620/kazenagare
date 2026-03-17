@@ -23,6 +23,7 @@ type EmptyStageCharacterStageProps = {
   onStagePointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onStagePointerLeave: () => void;
   placedObjects: PlacedStageObject[];
+  rewardVideoPlaybackByObjectId: Record<string, number>;
   coinRewardPopups: CoinRewardPopup[];
   liftedObjectId: string | null;
   objectChipFillColor: string;
@@ -30,7 +31,7 @@ type EmptyStageCharacterStageProps = {
   objectChipTextColor: string;
   shouldRenderPlacementPreview: boolean;
   pointerWorldPosition: Vector2 | null;
-  activePlacementObject: { icon: string; label: string } | null;
+  activePlacementObject: { imageSrc: string; label: string; stageImageSize: number } | null;
   isTouchPlacementLifted: boolean;
   liftedShadowColor: string;
   placementGuideFillColor: string;
@@ -56,6 +57,7 @@ export function EmptyStageCharacterStage({
   onStagePointerDown,
   onStagePointerLeave,
   placedObjects,
+  rewardVideoPlaybackByObjectId,
   coinRewardPopups,
   liftedObjectId,
   objectChipFillColor,
@@ -76,6 +78,10 @@ export function EmptyStageCharacterStage({
   locatorArrowFillColor,
   locatorArrowChipFillColor,
 }: EmptyStageCharacterStageProps) {
+  const previewHalfImageSize = activePlacementObject
+    ? activePlacementObject.stageImageSize * 0.5
+    : 0;
+
   return (
     <>
       <div
@@ -98,6 +104,9 @@ export function EmptyStageCharacterStage({
           >
             {placedObjects.map((placedObject) => {
               const objectVisual = OBJECT_VISUALS[placedObject.objectType];
+              const halfImageSize = objectVisual.stageImageSize * 0.5;
+              const halfVideoSize = objectVisual.stageVideoSize * 0.5;
+              const rewardVideoPlaybackKey = rewardVideoPlaybackByObjectId[placedObject.id];
 
               if (liftedObjectId && placedObject.id === liftedObjectId) {
                 return null;
@@ -108,18 +117,36 @@ export function EmptyStageCharacterStage({
                   key={placedObject.id}
                   transform={`translate(${placedObject.x} ${placedObject.y})`}
                 >
-                  <text
-                    x="0"
-                    y="0"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fontSize="30"
-                  >
-                    {objectVisual.icon}
-                  </text>
+                  {rewardVideoPlaybackKey ? (
+                    <foreignObject
+                      x={-halfVideoSize}
+                      y={-halfVideoSize}
+                      width={objectVisual.stageVideoSize}
+                      height={objectVisual.stageVideoSize}
+                    >
+                      <video
+                        key={`${placedObject.id}-${rewardVideoPlaybackKey}`}
+                        src={objectVisual.stageVideoSrc}
+                        autoPlay
+                        muted
+                        playsInline
+                        preload="auto"
+                        className="h-full w-full object-cover"
+                      />
+                    </foreignObject>
+                  ) : (
+                    <image
+                      href={objectVisual.imageSrc}
+                      x={-halfImageSize}
+                      y={-halfImageSize}
+                      width={objectVisual.stageImageSize}
+                      height={objectVisual.stageImageSize}
+                      preserveAspectRatio="xMidYMid slice"
+                    />
+                  )}
                   <rect
                     x="-34"
-                    y="18"
+                    y="40"
                     width="68"
                     height="20"
                     rx="10"
@@ -128,7 +155,7 @@ export function EmptyStageCharacterStage({
                   />
                   <text
                     x="0"
-                    y="28"
+                    y="50"
                     textAnchor="middle"
                     dominantBaseline="middle"
                     fontSize="10"
@@ -204,15 +231,14 @@ export function EmptyStageCharacterStage({
                   stroke={placementGuideStrokeColor}
                   strokeDasharray="6 4"
                 />
-                <text
-                  x="0"
-                  y={previewIconY}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize="30"
-                >
-                  {activePlacementObject.icon}
-                </text>
+                <image
+                  href={activePlacementObject.imageSrc}
+                  x={-previewHalfImageSize}
+                  y={previewIconY - previewHalfImageSize}
+                  width={activePlacementObject.stageImageSize}
+                  height={activePlacementObject.stageImageSize}
+                  preserveAspectRatio="xMidYMid slice"
+                />
                 {isTouchPlacementLifted ? (
                   <>
                     <rect

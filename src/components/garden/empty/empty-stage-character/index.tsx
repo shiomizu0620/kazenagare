@@ -50,6 +50,7 @@ import {
   MOVE_MAX_SPEED,
   MOVEMENT_KEYS,
   OBJECT_VISUALS,
+  OBJECT_REWARD_VIDEO_DURATION_MS,
   STICK_KNOB_SIZE,
   WALK_ANIMATION_SPEED_THRESHOLD,
   WORLD_HEIGHT,
@@ -217,6 +218,9 @@ export function EmptyStageCharacter({
   const [walletGainPopup, setWalletGainPopup] = useState<{ id: string; coins: number } | null>(
     null,
   );
+  const [rewardVideoPlaybackByObjectId, setRewardVideoPlaybackByObjectId] = useState<
+    Record<string, number>
+  >({});
   const [characterVoiceVolume, setCharacterVoiceVolume] = useState(
     DEFAULT_KAZENAGARE_AUDIO_SETTINGS.characterVoiceVolume,
   );
@@ -258,6 +262,7 @@ export function EmptyStageCharacter({
   const autoPlaybackInFlightObjectIdsRef = useRef<Set<string>>(new Set());
   const coinRewardPopupTimerIdsRef = useRef<number[]>([]);
   const walletGainPopupTimerIdRef = useRef<number | null>(null);
+  const rewardVideoTimerByObjectIdRef = useRef<Record<string, number>>({});
   const lastSavedCharacterPositionRef = useRef<string | null>(null);
   const activePlacementObjectType = grabbedObjectType ?? placementObjectType;
   const effectiveAudioOwnerId = audioOwnerIdOverride ?? audioOwnerId;
@@ -737,6 +742,34 @@ export function EmptyStageCharacter({
     coinRewardPopupTimerIdsRef.current.push(removalTimerId);
   }, []);
 
+  const triggerRewardVideoPlayback = useCallback((placedObject: PlacedStageObject) => {
+    const playbackKey = Date.now();
+
+    setRewardVideoPlaybackByObjectId((current) => ({
+      ...current,
+      [placedObject.id]: playbackKey,
+    }));
+
+    const existingTimerId = rewardVideoTimerByObjectIdRef.current[placedObject.id];
+    if (typeof existingTimerId === "number") {
+      window.clearTimeout(existingTimerId);
+    }
+
+    rewardVideoTimerByObjectIdRef.current[placedObject.id] = window.setTimeout(() => {
+      setRewardVideoPlaybackByObjectId((current) => {
+        if (!(placedObject.id in current)) {
+          return current;
+        }
+
+        const next = { ...current };
+        delete next[placedObject.id];
+        return next;
+      });
+
+      delete rewardVideoTimerByObjectIdRef.current[placedObject.id];
+    }, OBJECT_REWARD_VIDEO_DURATION_MS);
+  }, []);
+
   const awardPlaybackReward = useCallback(
     (placedObject: PlacedStageObject) => {
       if (audioOwnerIdOverride) {
@@ -782,8 +815,9 @@ export function EmptyStageCharacter({
       }, WALLET_GAIN_POPUP_DURATION_MS);
 
       addCoinRewardPopup(placedObject, rewardCoins);
+      triggerRewardVideoPlayback(placedObject);
     },
-    [addCoinRewardPopup, audioOwnerId, audioOwnerIdOverride],
+[addCoinRewardPopup, audioOwnerId, audioOwnerIdOverride, triggerRewardVideoPlayback]
   );
 
   const playAutoPlaybackForObject = useCallback(
@@ -1848,6 +1882,12 @@ export function EmptyStageCharacter({
         walletGainPopupTimerIdRef.current = null;
       }
 
+      for (const timerId of Object.values(rewardVideoTimerByObjectIdRef.current)) {
+        window.clearTimeout(timerId);
+      }
+
+      rewardVideoTimerByObjectIdRef.current = {};
+
       coinRewardPopupTimerIdsRef.current = [];
     };
   }, []);
@@ -2071,8 +2111,8 @@ export function EmptyStageCharacter({
       ? grabbedPlacedObject.id
       : null;
   const previewIconY = isTouchPlacementLifted ? -18 : 0;
-  const previewChipY = previewIconY + 18;
-  const previewChipTextY = previewIconY + 28;
+  const previewChipY = previewIconY + 24;
+  const previewChipTextY = previewIconY + 34;
   const stageCursorClass =
     canPlaceObject && !isCoarsePointer
       ? hasPlacedActiveObject
@@ -2131,6 +2171,7 @@ export function EmptyStageCharacter({
         onStagePointerDown={handleStagePointerDown}
         onStagePointerLeave={handleStagePointerLeave}
         placedObjects={placedObjects}
+        rewardVideoPlaybackByObjectId={rewardVideoPlaybackByObjectId}
         coinRewardPopups={coinRewardPopups}
         liftedObjectId={liftedObjectId}
         objectChipFillColor={objectChipFillColor}

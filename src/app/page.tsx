@@ -174,6 +174,7 @@ function GardenSceneVisual({
 
         {placedObjects.map((placedObject) => {
           const objectVisual = OBJECT_VISUALS[placedObject.objectType];
+          const halfImageSize = objectVisual.stageImageSize * 0.5;
           const worldX = clamp(placedObject.x, 0, WORLD_WIDTH);
           const worldY = clamp(placedObject.y, 0, WORLD_HEIGHT);
 
@@ -182,15 +183,14 @@ function GardenSceneVisual({
               key={placedObject.id}
               transform={`translate(${worldX} ${worldY})`}
             >
-              <text
-                x="0"
-                y="0"
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize="30"
-              >
-                {objectVisual.icon}
-              </text>
+              <image
+                href={objectVisual.imageSrc}
+                x={-halfImageSize}
+                y={-halfImageSize}
+                width={objectVisual.stageImageSize}
+                height={objectVisual.stageImageSize}
+                preserveAspectRatio="xMidYMid slice"
+              />
               <rect
                 x="-34"
                 y="18"
