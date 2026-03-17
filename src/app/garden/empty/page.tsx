@@ -71,6 +71,7 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
     GARDEN_TIME_SLOTS[0];
   const selectedPlacementObjectType = parsePlacementObjectType(params.place);
   const isNight = selectedTimeSlot.id === "night";
+  const currentGardenQuery = `background=${encodeURIComponent(selectedBackground.id)}&season=${encodeURIComponent(selectedSeason.id)}&time=${encodeURIComponent(selectedTimeSlot.id)}`;
 
   const optionActions: GardenOptionAction[] = [
     {
@@ -84,7 +85,7 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
       description: "最初のページへ戻る",
     },
     {
-      href: "/garden",
+      href: `/garden?${currentGardenQuery}`,
       label: "庭一覧へ",
       description: "他の人の庭を見に行く",
     },

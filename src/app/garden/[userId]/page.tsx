@@ -85,6 +85,7 @@ export default async function GardenUserPage({
     GARDEN_TIME_SLOTS[0];
   const selectedPlacementObjectType = parsePlacementObjectType(query.place);
   const isNight = timeSlot.id === "night";
+  const currentGardenQuery = `background=${encodeURIComponent(background.id)}&season=${encodeURIComponent(season.id)}&time=${encodeURIComponent(timeSlot.id)}`;
 
   if (isMe) {
     const optionActions: GardenOptionAction[] = [
@@ -99,7 +100,7 @@ export default async function GardenUserPage({
         description: "最初のページへ戻る",
       },
       {
-        href: "/garden",
+        href: `/garden?${currentGardenQuery}`,
         label: "庭一覧へ",
         description: "他の人の庭を見に行く",
       },
