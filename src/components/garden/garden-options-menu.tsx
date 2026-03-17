@@ -1,6 +1,7 @@
 "use client";
 
 import { del, keys as getIdbKeys, set } from "idb-keyval";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -844,7 +845,13 @@ export function GardenOptionsMenu({
                               : "border-wa-black/20 bg-white"
                           }`}
                         >
-                          <span aria-hidden>{selectedCatalogEntry.icon}</span>
+                          <Image
+                            src={selectedCatalogEntry.catalogImageSrc}
+                            alt={`${selectedCatalogEntry.name}の画像`}
+                            width={96}
+                            height={96}
+                            className="h-24 w-24 rounded-full object-cover"
+                          />
                         </div>
                         <p className="text-lg font-semibold leading-none">{selectedCatalogEntry.name}</p>
                         <p className={`text-xs ${darkMode ? "text-wa-white/75" : "text-wa-black/65"}`}>
@@ -943,9 +950,13 @@ export function GardenOptionsMenu({
                                   : "border-wa-black/15 bg-white/70 hover:bg-wa-red/8"
                             }`}
                           >
-                            <span className="text-2xl" aria-hidden>
-                              {entry.icon}
-                            </span>
+                            <Image
+                              src={entry.catalogImageSrc}
+                              alt={`${entry.name}の画像`}
+                              width={36}
+                              height={36}
+                              className="h-9 w-9 rounded-full object-cover"
+                            />
                             <span className="text-[11px] font-semibold leading-tight">{entry.name}</span>
                           </button>
                         );
@@ -1070,7 +1081,13 @@ export function GardenOptionsMenu({
                     : "border-wa-black/20 bg-[#ffffff]"
                 }`}
               >
-                <span aria-hidden>{recordingEntry.icon}</span>
+                <Image
+                  src={recordingEntry.catalogImageSrc}
+                  alt={`${recordingEntry.name}の画像`}
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
               </div>
               <div>
                 <h2 id="catalog-recording-title" className="text-xl font-semibold">

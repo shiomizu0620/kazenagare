@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { del, get, set } from "idb-keyval";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -854,7 +855,13 @@ export default function VoiceZooPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="grid h-11 w-11 place-items-center rounded-full border border-wa-black/20 bg-wa-white text-xl">
-                    <span aria-hidden>{entry.icon}</span>
+                    <Image
+                      src={entry.catalogImageSrc}
+                      alt={`${entry.name}の画像`}
+                      width={36}
+                      height={36}
+                      className="h-9 w-9 rounded-full object-cover"
+                    />
                   </div>
                   <div>
                     <p className="text-lg font-semibold leading-none">{entry.name}</p>
@@ -903,7 +910,13 @@ export default function VoiceZooPage() {
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="grid h-12 w-12 place-items-center rounded-full border border-wa-black/20 bg-white text-2xl">
-                  <span aria-hidden>{selectedEntry.icon}</span>
+                  <Image
+                    src={selectedEntry.catalogImageSrc}
+                    alt={`${selectedEntry.name}の画像`}
+                    width={40}
+                    height={40}
+                    className="h-10 w-10 rounded-full object-cover"
+                  />
                 </div>
                 <div>
                   <h2 id="voice-zoo-modal-title" className="text-xl font-semibold leading-none">
@@ -1037,7 +1050,13 @@ export default function VoiceZooPage() {
           >
             <div className="flex items-start gap-3">
               <div className="grid h-12 w-12 place-items-center rounded-full border border-wa-black/20 bg-white text-2xl">
-                <span aria-hidden>{recordingEntry.icon}</span>
+                <Image
+                  src={recordingEntry.catalogImageSrc}
+                  alt={`${recordingEntry.name}の画像`}
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
               </div>
               <div>
                 <h2 id="voice-zoo-recording-title" className="text-xl font-semibold">
