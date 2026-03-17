@@ -14,7 +14,7 @@ import {
   GARDEN_OBJECTS_STORAGE_KEY_ME,
   resetGardenPlacedObjects,
 } from "@/lib/garden/placed-objects-storage";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import {
   type VoiceZooEntry,
   type VoiceZooEntryStatus,
@@ -200,8 +200,8 @@ export function GardenOptionsMenu({
       return audioOwnerId || "local_guest";
     }
 
-    const { data } = await supabase.auth.getSession();
-    const resolvedOwnerId = data.session?.user?.id || "local_guest";
+    const currentSession = await getSupabaseSessionOrNull(supabase);
+    const resolvedOwnerId = currentSession?.user?.id || "local_guest";
 
     if (resolvedOwnerId !== audioOwnerId) {
       setAudioOwnerId(resolvedOwnerId);
@@ -384,7 +384,7 @@ export function GardenOptionsMenu({
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    void getSupabaseSessionOrNull(supabase).then((session) => {
       setAudioOwnerId(session?.user?.id || "local_guest");
     });
 
@@ -525,8 +525,8 @@ export function GardenOptionsMenu({
       let ownerId = "local_guest";
 
       if (supabase) {
-        const { data } = await supabase.auth.getSession();
-        ownerId = data.session?.user?.id || "local_guest";
+        const currentSession = await getSupabaseSessionOrNull(supabase);
+        ownerId = currentSession?.user?.id || "local_guest";
       }
 
       const catalogStorageKey = getVoiceZooRecordingCatalogStorageKey(ownerId);
@@ -737,7 +737,7 @@ export function GardenOptionsMenu({
                     onClick={() => {
                       setIsOpen(false);
                       if (typeof window !== "undefined") {
-                        window.location.replace("/?top=1");
+                        window.location.replace(action.href);
                       }
                     }}
                     className={itemClass}

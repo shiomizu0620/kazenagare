@@ -1,76 +1,106 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { PageShell } from "@/components/ui/page-shell";
 import Link from "next/link";
-import { AuthSection } from "@/components/auth/auth-section"; // 作ったファイルを読み込む
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { isAnonymousSupabaseUser } from "@/lib/auth/user";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 
-export default function Home() {
+export default function TitlePage() {
   const router = useRouter();
-  const supabase = getSupabaseClient();
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [nextPath, setNextPath] = useState<"/top" | "/garden/me" | null>(null);
 
   useEffect(() => {
-    const shouldStayOnTop =
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).get("top") === "1";
-
-    if (!supabase || shouldStayOnTop) {
-      const timerId = window.setTimeout(() => {
-        setIsCheckingSession(false);
-      }, 0);
-
-      return () => {
-        window.clearTimeout(timerId);
-      };
-    }
-
     let isCancelled = false;
 
-    void supabase.auth.getSession().then(({ data }) => {
+    const resolveNextPath = async () => {
+      const supabase = getSupabaseClient();
+      const session = await getSupabaseSessionOrNull(supabase);
       if (isCancelled) {
         return;
       }
 
-      const user = data.session?.user ?? null;
+      const user = session?.user ?? null;
       if (user && !isAnonymousSupabaseUser(user)) {
-        router.replace("/garden/me");
+        setNextPath("/garden/me");
       } else {
-        setIsCheckingSession(false);
+        setNextPath("/top");
       }
-    });
+    };
+
+    void resolveNextPath();
 
     return () => {
       isCancelled = true;
     };
-  }, [router, supabase]);
+  }, []);
 
-  if (isCheckingSession) {
-    return null;
-  }
+  useEffect(() => {
+    if (nextPath !== "/garden/me") {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      router.replace("/garden/me");
+    }, 900);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [nextPath, router]);
 
   return (
-    <PageShell
-      title="風流 - Kazenagare"
-      subtitle="声を和の情景へ溶け込ませるインタラクティブ体験"
-    >
-      <div className="flex flex-col gap-6">
-        {/* === ここにログイン機能をガサッと表示 === */}
-        <AuthSection />
-        {/* ==================================== */}
+    <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[radial-gradient(circle_at_12%_18%,rgba(217,156,88,0.22),transparent_34%),radial-gradient(circle_at_88%_82%,rgba(165,33,117,0.16),transparent_36%),linear-gradient(160deg,#f9f4ea_0%,#fbf8f2_55%,#f0e6d7_100%)] px-6 py-12 text-wa-black font-serif">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(43,43,43,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(43,43,43,0.04)_1px,transparent_1px)] bg-[size:28px_28px]" />
 
-        <div className="border-t border-wa-black/10 pt-4">
-          <Link
-            href="/garden"
-            className="rounded-md border border-wa-black px-4 py-3 text-sm transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
-          >
-            庭一覧へ
-          </Link>
+      <section className="relative w-full max-w-2xl rounded-3xl border border-wa-black/20 bg-white/90 p-8 shadow-[0_24px_64px_rgba(43,43,43,0.14)] sm:p-10">
+        <div className="grid gap-6">
+          <p className="w-fit rounded-full border border-wa-black/20 bg-white px-3 py-1 text-[11px] font-semibold tracking-[0.12em] text-wa-black/70">
+            TITLE SCREEN
+          </p>
+
+          <div className="grid gap-3">
+            <h1 className="text-4xl font-bold leading-tight sm:text-5xl">風流 - Kazenagare</h1>
+            <p className="text-sm leading-relaxed text-wa-black/75 sm:text-base">
+              声を和の情景へ溶け込ませる、ささやかな庭あそび。
+            </p>
+          </div>
+
+          {nextPath === null ? (
+            <p className="text-sm text-wa-black/70">庭を準備しています...</p>
+          ) : null}
+
+          {nextPath === "/top" ? (
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/top"
+                className="inline-flex items-center rounded-full border-2 border-wa-black bg-wa-black px-6 py-2.5 text-sm font-semibold text-wa-white transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red active:translate-y-[1px] active:scale-[0.98]"
+              >
+                タイトルからはじめる
+              </Link>
+              <Link
+                href="/garden"
+                className="inline-flex items-center rounded-full border border-wa-black/25 bg-white px-6 py-2.5 text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
+              >
+                庭一覧へ
+              </Link>
+            </div>
+          ) : null}
+
+          {nextPath === "/garden/me" ? (
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <p className="text-wa-black/75">ログイン状態を確認しました。あなたの庭へ移動します...</p>
+              <button
+                type="button"
+                onClick={() => router.replace("/garden/me")}
+                className="inline-flex items-center rounded-full border border-wa-black/25 bg-white px-4 py-2 text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
+              >
+                いますぐ移動
+              </button>
+            </div>
+          ) : null}
         </div>
-      </div>
-    </PageShell>
+      </section>
+    </main>
   );
 }

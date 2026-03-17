@@ -4,7 +4,7 @@ import { get as getIdbValue } from "idb-keyval";
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import {
   GARDEN_OBJECTS_STORAGE_KEY_ME,
   getGardenObjectsStorageKeyForOwner,
@@ -87,12 +87,12 @@ function GardenPublishContent() {
     let isCancelled = false;
 
     const syncAuthState = async () => {
-      const { data } = await supabase.auth.getSession();
+      const currentSession = await getSupabaseSessionOrNull(supabase);
       if (isCancelled) {
         return;
       }
 
-      const currentUser = data.session?.user ?? null;
+      const currentUser = currentSession?.user ?? null;
       setUserId(currentUser?.id ?? null);
       setIsGuestUser(isAnonymousSupabaseUser(currentUser));
       setIsAuthLoading(false);
@@ -158,8 +158,8 @@ function GardenPublishContent() {
       return;
     }
 
-    const { data } = await supabase.auth.getSession();
-    const currentUser = data.session?.user ?? null;
+    const currentSession = await getSupabaseSessionOrNull(supabase);
+    const currentUser = currentSession?.user ?? null;
 
     if (!currentUser) {
       setErrorMessage("投稿にはログインが必要です。");
@@ -297,7 +297,7 @@ function GardenPublishContent() {
             サーバー負荷対策のため、投稿は通常ログインのみ対応です。ログインすると現在のゲストデータを引き継げます。
           </p>
           <Link
-            href="/?top=1"
+            href="/top"
             className="inline-flex w-fit rounded-full border border-amber-900 px-4 py-2 font-semibold text-amber-900 transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-amber-100 active:translate-y-[1px] active:scale-[0.98]"
           >
             トップでログインする
@@ -334,7 +334,7 @@ function GardenPublishContent() {
 
       <div className="flex flex-wrap gap-3 text-sm">
         <Link
-          href="/?top=1"
+          href="/top"
           className="rounded-md border border-wa-black px-4 py-2 transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
         >
           トップへ戻る

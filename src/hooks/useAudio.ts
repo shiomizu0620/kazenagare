@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { clamp } from "@/lib/utils/math";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import { get, set, del } from "idb-keyval";
 
 export function useAudio() {
@@ -24,7 +24,7 @@ export function useAudio() {
     const supabase = getSupabaseClient();
     if (!supabase) return;
     
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    void getSupabaseSessionOrNull(supabase).then((session) => {
       setUserId(session?.user?.id || "local_guest");
     });
 

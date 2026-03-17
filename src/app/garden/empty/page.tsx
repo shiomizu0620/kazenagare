@@ -72,7 +72,7 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
       description: "背景・季節・時間帯を選び直す",
     },
     {
-      href: "/?top=1",
+      href: "/top",
       label: "トップへ戻る",
       description: "最初のページへ戻る",
     },

@@ -5,7 +5,7 @@ export default function GardenSetupPage() {
   return (
     <PageShell
       title="庭の初期設定"
-      subtitle="季節を選んでから庭に入ります"
+      subtitle="季節を選んで、庭の空気感を決めます"
     >
       <GardenSetupForm nextPath="/garden/empty" />
     </PageShell>
