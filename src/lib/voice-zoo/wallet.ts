@@ -30,7 +30,14 @@ export function calculatePlaybackRewardCoins(objectPrice: number) {
 }
 
 function isObjectType(value: unknown): value is ObjectType {
-  return value === "furin" || value === "shishi-odoshi";
+  return (
+    value === "furin" ||
+    value === "shishi-odoshi" ||
+    value === "hanabi" ||
+    value === "kane" ||
+    value === "obake" ||
+    value === "tyo-tyo"
+  );
 }
 
 export function createInitialVoiceZooWallet(): VoiceZooWallet {

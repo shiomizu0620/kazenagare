@@ -157,9 +157,7 @@ export function GardenOptionsMenu({
     ? (recordingPreviewAudioUrls[recordingEntry.objectType] ?? null)
     : null;
   const canPlaceFromRecordingModal = Boolean(recordingEntryAudioUrl) && !isRecording;
-  const catalogSlots = Array.from({ length: 3 }, (_, index) =>
-    VOICE_ZOO_ENTRIES[index] ?? null,
-  );
+  const catalogSlots = VOICE_ZOO_ENTRIES;
 
   const clearRecordingTimers = useCallback(() => {
     if (recordingStopTimerRef.current !== null) {
@@ -882,6 +880,16 @@ export function GardenOptionsMenu({
                       </div>
                     </div>
 
+                    <div
+                      className={`rounded-xl border p-3 text-sm leading-relaxed ${
+                        darkMode
+                          ? "border-wa-white/20 bg-wa-black/35 text-wa-white/85"
+                          : "border-wa-black/15 bg-white/80 text-wa-black/80"
+                      }`}
+                    >
+                      {selectedCatalogEntry.soundDesign}
+                    </div>
+
                     {isSelectedCatalogObjectOwned ? (
                       <button
                         type="button"
@@ -936,22 +944,7 @@ export function GardenOptionsMenu({
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
-                      {catalogSlots.map((entry, index) => {
-                        if (!entry) {
-                          return (
-                            <div
-                              key={`catalog-slot-empty-${index}`}
-                              className={`grid min-h-24 place-items-center rounded-xl border text-center text-xs ${
-                                darkMode
-                                  ? "border-wa-white/20 bg-wa-white/5 text-wa-white/60"
-                                  : "border-wa-black/15 bg-white/70 text-wa-black/60"
-                              }`}
-                            >
-                              準備中
-                            </div>
-                          );
-                        }
-
+                      {catalogSlots.map((entry) => {
                         const isSelected = entry.objectType === selectedCatalogEntry.objectType;
 
                         return (
@@ -983,16 +976,6 @@ export function GardenOptionsMenu({
                           </button>
                         );
                       })}
-                    </div>
-
-                    <div
-                      className={`rounded-xl border p-3 text-sm leading-relaxed ${
-                        darkMode
-                          ? "border-wa-white/20 bg-wa-black/35 text-wa-white/85"
-                          : "border-wa-black/15 bg-white/80 text-wa-black/80"
-                      }`}
-                    >
-                      {selectedCatalogEntry.soundDesign}
                     </div>
 
                     <details

@@ -33,7 +33,14 @@ function normalizeQueryValue(value: QueryValue, fallback: string) {
 function parsePlacementObjectType(value: QueryValue): ObjectType | null {
   const normalizedValue = normalizeQueryValue(value, "");
 
-  if (normalizedValue === "furin" || normalizedValue === "shishi-odoshi") {
+  if (
+    normalizedValue === "furin" ||
+    normalizedValue === "shishi-odoshi" ||
+    normalizedValue === "hanabi" ||
+    normalizedValue === "kane" ||
+    normalizedValue === "obake" ||
+    normalizedValue === "tyo-tyo"
+  ) {
     return normalizedValue;
   }
 
