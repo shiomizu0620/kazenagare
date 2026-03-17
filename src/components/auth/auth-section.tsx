@@ -271,22 +271,6 @@ export function AuthSection({
       window.sessionStorage.removeItem(OAUTH_REDIRECT_PENDING_KEY);
     };
 
-    void getSupabaseSessionOrNull(supabase).then((session) => {
-      if (!hasPendingOAuthRedirect()) {
-        return;
-      }
-
-      if (session) {
-        void migratePendingGuestData(session.user.id).finally(() => {
-          clearPendingOAuthRedirect();
-          void handleAuthCompleted({
-            userId: session.user.id,
-            isAnonymous: isAnonymousSupabaseUser(session.user),
-          });
-        });
-      }
-    });
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
