@@ -17,6 +17,7 @@ import {
   getTimeOverlayClass,
 } from "@/components/garden/empty/empty-stage-theme";
 import { isAnonymousSupabaseUser } from "@/lib/auth/user";
+import { buildGardenBackgroundCandidates } from "@/lib/garden/background-images";
 import {
   createGardenCharacterPositionStorageKey,
   parseGardenCharacterPosition,
@@ -56,15 +57,6 @@ const DEFAULT_GARDEN_SCENE: TitleGardenScene = {
     y: WORLD_HEIGHT * 0.5,
   },
 };
-
-const GARDEN_ALL_SEASON_IMAGE: Record<string, string> = {
-  spring: "/images/garden/backgrounds/garden-all/spring/庭-春.png",
-  summer: "/images/garden/backgrounds/garden-all/summer/庭-夏.png",
-  autumn: "/images/garden/backgrounds/garden-all/autumn/庭-秋.png",
-  winter: "/images/garden/backgrounds/garden-all/winter/庭-冬.png",
-};
-
-const BACKGROUND_IMAGE_EXTENSIONS = ["avif", "webp", "png", "jpg", "jpeg"] as const;
 const PREVIEW_OBJECT_LIMIT = 24;
 
 function clamp(value: number, min: number, max: number) {
@@ -109,25 +101,6 @@ function parseTitlePlacedObjects(rawValue: string | null): TitlePlacedObject[] {
   }
 }
 
-function buildBackgroundCandidates(backgroundId: string, seasonId: string, timeSlotId: string) {
-  const candidates: string[] = [];
-
-  for (const extension of BACKGROUND_IMAGE_EXTENSIONS) {
-    candidates.push(
-      `/images/garden/backgrounds/${backgroundId}/${seasonId}/${timeSlotId}/background.${extension}`,
-    );
-  }
-
-  const seasonalFallback = GARDEN_ALL_SEASON_IMAGE[seasonId];
-  if (seasonalFallback) {
-    candidates.push(seasonalFallback);
-  }
-
-  candidates.push("/images/garden/backgrounds/garden-all/庭.png");
-
-  return candidates;
-}
-
 type GardenSceneVisualProps = {
   backgroundSrc: string;
   seasonOverlayClass: string;
@@ -138,6 +111,7 @@ type GardenSceneVisualProps = {
     y: number;
   };
   isNightScene: boolean;
+  onBackgroundLoad: () => void;
   onBackgroundError: () => void;
 };
 
@@ -148,6 +122,7 @@ function GardenSceneVisual({
   placedObjects,
   characterWorldPosition,
   isNightScene,
+  onBackgroundLoad,
   onBackgroundError,
 }: GardenSceneVisualProps) {
   const objectChipFillColor = isNightScene ? "rgba(17,17,17,0.84)" : "rgba(255,255,255,0.87)";
@@ -166,6 +141,7 @@ function GardenSceneVisual({
         unoptimized
         sizes="100vw"
         className="select-none object-cover"
+        onLoad={onBackgroundLoad}
         onError={onBackgroundError}
       />
       <div className={`absolute inset-0 ${seasonOverlayClass}`} />
@@ -253,6 +229,7 @@ export default function TitlePage() {
   }>({ sceneKey: "", index: 0 });
   const [tapPoint, setTapPoint] = useState<{ x: number; y: number } | null>(null);
   const [showTitleText, setShowTitleText] = useState(true);
+  const [loadedBackgroundSrc, setLoadedBackgroundSrc] = useState<string | null>(null);
   const isTransitioningRef = useRef(false);
   const transitionTimerRef = useRef<number | null>(null);
 
@@ -380,12 +357,13 @@ export default function TitlePage() {
     }, 2000);
   };
 
-  const clearLayerClipPath = tapPoint
-    ? `circle(150% at ${tapPoint.x}px ${tapPoint.y}px)`
-    : "circle(0% at 50% 50%)";
-
   const backgroundCandidates = useMemo(
-    () => buildBackgroundCandidates(scene.backgroundId, scene.seasonId, scene.timeSlotId),
+    () =>
+      buildGardenBackgroundCandidates(
+        scene.backgroundId,
+        scene.seasonId,
+        scene.timeSlotId,
+      ),
     [scene.backgroundId, scene.seasonId, scene.timeSlotId],
   );
   const sceneKey = `${scene.backgroundId}:${scene.seasonId}:${scene.timeSlotId}`;
@@ -395,6 +373,7 @@ export default function TitlePage() {
     backgroundCandidates[
       Math.min(activeBackgroundIndex, Math.max(0, backgroundCandidates.length - 1))
     ];
+  const isBackgroundLoading = loadedBackgroundSrc !== backgroundSrc;
 
   const handleBackgroundError = () => {
     setBackgroundErrorState((current) => {
@@ -407,6 +386,10 @@ export default function TitlePage() {
         index: nextIndex,
       };
     });
+  };
+
+  const handleBackgroundLoad = () => {
+    setLoadedBackgroundSrc(backgroundSrc);
   };
 
   const seasonOverlayClass = getSeasonOverlayClass(scene.seasonId);
@@ -429,33 +412,41 @@ export default function TitlePage() {
             placedObjects={scene.placedObjects}
             characterWorldPosition={scene.characterWorldPosition}
             isNightScene={isNightScene}
+            onBackgroundLoad={handleBackgroundLoad}
             onBackgroundError={handleBackgroundError}
           />
         </div>
 
-        <motion.div
-          className="pointer-events-none absolute inset-0 [will-change:clip-path]"
-          initial={{ clipPath: "circle(0% at 50% 50%)" }}
-          animate={{ clipPath: clearLayerClipPath }}
-          transition={
-            tapPoint
-              ? {
-                  duration: 1.5,
-                  ease: [0.4, 0, 0.2, 1],
-                }
-              : { duration: 0 }
-          }
-        >
-          <GardenSceneVisual
-            backgroundSrc={backgroundSrc}
-            seasonOverlayClass={seasonOverlayClass}
-            timeOverlayClass={timeOverlayClass}
-            placedObjects={scene.placedObjects}
-            characterWorldPosition={scene.characterWorldPosition}
-            isNightScene={isNightScene}
-            onBackgroundError={handleBackgroundError}
-          />
-        </motion.div>
+        {tapPoint ? (
+          <motion.div
+            className="pointer-events-none absolute inset-0 [will-change:clip-path]"
+            initial={{ clipPath: `circle(0% at ${tapPoint.x}px ${tapPoint.y}px)` }}
+            animate={{ clipPath: `circle(150% at ${tapPoint.x}px ${tapPoint.y}px)` }}
+            transition={{
+              duration: 1.5,
+              ease: [0.4, 0, 0.2, 1],
+            }}
+          >
+            <GardenSceneVisual
+              backgroundSrc={backgroundSrc}
+              seasonOverlayClass={seasonOverlayClass}
+              timeOverlayClass={timeOverlayClass}
+              placedObjects={scene.placedObjects}
+              characterWorldPosition={scene.characterWorldPosition}
+              isNightScene={isNightScene}
+              onBackgroundLoad={handleBackgroundLoad}
+              onBackgroundError={handleBackgroundError}
+            />
+          </motion.div>
+        ) : null}
+
+        {isBackgroundLoading ? (
+          <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center bg-wa-black/25 backdrop-blur-[2px]">
+            <p className="rounded-full border border-white/40 bg-wa-black/55 px-3 py-1 text-xs tracking-[0.08em] text-white/95 animate-pulse">
+              情景を読み込み中...
+            </p>
+          </div>
+        ) : null}
 
         <AnimatePresence>
           {showTitleText ? (
