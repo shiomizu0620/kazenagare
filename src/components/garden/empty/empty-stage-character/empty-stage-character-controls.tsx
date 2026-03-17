@@ -2,24 +2,14 @@ import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 type EmptyStageCharacterControlsProps = {
   allowObjectPlacement: boolean;
-  canPlaceObject: boolean;
-  canShowObjectLocator: boolean;
-  hasPlacedActiveObject: boolean;
   walletCoins: number;
   walletGainPopup: {
     id: string;
     coins: number;
   } | null;
-  isTouchPlacementArmed: boolean;
-  isMousePlacementArmed: boolean;
   resetPanelClass: string;
   resetButtonClass: string;
-  helperTextClass: string;
-  placementDividerClass: string;
-  interactionGuideText: string;
   onResetToStart: () => void;
-  onShowPlacedObjectLocator: () => void;
-  onReleaseGrab: () => void;
   mobileStickPanelClass: string;
   darkMode: boolean;
   stickPadRef: RefObject<HTMLDivElement | null>;
@@ -31,21 +21,11 @@ type EmptyStageCharacterControlsProps = {
 
 export function EmptyStageCharacterControls({
   allowObjectPlacement,
-  canPlaceObject,
-  canShowObjectLocator,
-  hasPlacedActiveObject,
   walletCoins,
   walletGainPopup,
-  isTouchPlacementArmed,
-  isMousePlacementArmed,
   resetPanelClass,
   resetButtonClass,
-  helperTextClass,
-  placementDividerClass,
-  interactionGuideText,
   onResetToStart,
-  onShowPlacedObjectLocator,
-  onReleaseGrab,
   mobileStickPanelClass,
   darkMode,
   stickPadRef,
@@ -64,38 +44,6 @@ export function EmptyStageCharacterControls({
         >
           開始地点に戻る
         </button>
-        <p className={`hidden sm:block ${helperTextClass}`}>
-          PC: WASD / 矢印キー ・ スマホ: スティック
-        </p>
-
-        {allowObjectPlacement ? (
-          <div className={`grid gap-2 border-t pt-2 ${placementDividerClass}`}>
-            <p className={helperTextClass}>{interactionGuideText}</p>
-            <p className={helperTextClass}>
-              初回はそのまま配置、2回目以降はつかんで移動できます。
-            </p>
-
-            {canShowObjectLocator && canPlaceObject && hasPlacedActiveObject ? (
-              <button
-                type="button"
-                onClick={onShowPlacedObjectLocator}
-                className={resetButtonClass}
-              >
-                置いてある場所を矢印で表示
-              </button>
-            ) : null}
-
-            {canPlaceObject && (isTouchPlacementArmed || isMousePlacementArmed) ? (
-              <button
-                type="button"
-                onClick={onReleaseGrab}
-                className={resetButtonClass}
-              >
-                つかみを解除
-              </button>
-            ) : null}
-          </div>
-        ) : null}
       </div>
 
       {allowObjectPlacement ? (

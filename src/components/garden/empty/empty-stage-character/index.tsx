@@ -298,7 +298,6 @@ export function EmptyStageCharacter({
     : null;
   const placedPlacementObject = grabbedPlacedObject;
   const hasPlacedActiveObject = Boolean(canPlaceObject && grabbedPlacedObject);
-  const hasAnyPlacedObject = placedObjects.length > 0;
   const canShowObjectLocator = allowObjectPlacement && Boolean(placementObjectType);
   const selectedPlacementObject = placementObjectType
     ? [...placedObjects]
@@ -343,6 +342,10 @@ export function EmptyStageCharacter({
       return null;
     }
 
+    if (autoPlaybackAudioContextRef.current?.state === "closed") {
+      autoPlaybackAudioContextRef.current = null;
+    }
+
     if (!autoPlaybackAudioContextRef.current) {
       autoPlaybackAudioContextRef.current = new AudioContextConstructor();
     }
@@ -353,7 +356,13 @@ export function EmptyStageCharacter({
   const resumeAutoPlaybackAudioContextIfNeeded = useCallback(async () => {
     const audioContext = autoPlaybackAudioContextRef.current;
 
-    if (!audioContext || audioContext.state !== "suspended") {
+    if (!audioContext) {
+      return;
+    }
+
+    const audioContextState = audioContext.state as string;
+
+    if (audioContextState !== "suspended" && audioContextState !== "interrupted") {
       return;
     }
 
@@ -976,7 +985,6 @@ export function EmptyStageCharacter({
   const {
     isObjectLocatorVisible,
     objectLocatorIndicator,
-    showPlacedObjectLocator,
   } = useEmptyStageObjectLocator({
     canPlaceObject: canShowObjectLocator,
     placementObjectType,
@@ -1875,11 +1883,77 @@ export function EmptyStageCharacter({
     };
   }, [effectiveAudioOwnerId, placedObjects]);
 
+  const syncAutoPlaybackSchedules = useCallback(() => {
+    const activeObjectIds = new Set(
+      placedObjectsRef.current.map((placedObject) => placedObject.id),
+    );
+
+    for (const objectId of Object.keys(autoPlaybackNextAtByObjectIdRef.current)) {
+      if (!activeObjectIds.has(objectId)) {
+        stopAutoPlaybackObject(objectId);
+      }
+    }
+
+    for (const placedObject of placedObjectsRef.current) {
+      if (!(placedObject.id in autoPlaybackNextAtByObjectIdRef.current)) {
+        autoPlaybackNextAtByObjectIdRef.current[placedObject.id] =
+          Date.now() + getRandomPlaybackDelayMs();
+      }
+    }
+  }, [stopAutoPlaybackObject]);
+
+  const runAutoPlaybackSchedulerTick = useCallback(() => {
+    syncAutoPlaybackSchedules();
+
+    const now = Date.now();
+
+    for (const placedObject of placedObjectsRef.current) {
+      const objectId = placedObject.id;
+
+      if (autoPlaybackInFlightObjectIdsRef.current.has(objectId)) {
+        continue;
+      }
+
+      const nextPlaybackAt = autoPlaybackNextAtByObjectIdRef.current[objectId] ?? 0;
+
+      if (nextPlaybackAt > now) {
+        continue;
+      }
+
+      autoPlaybackNextAtByObjectIdRef.current[objectId] = now + getRandomPlaybackDelayMs();
+      playAutoPlaybackForObject(objectId);
+    }
+  }, [playAutoPlaybackForObject, syncAutoPlaybackSchedules]);
+
+  const startAutoPlaybackScheduler = useCallback(() => {
+    clearAutoPlaybackScheduler();
+    runAutoPlaybackSchedulerTick();
+    autoPlaybackSchedulerTimerRef.current = window.setInterval(
+      runAutoPlaybackSchedulerTick,
+      AUTO_PLAYBACK_SCHEDULER_TICK_MS,
+    );
+  }, [clearAutoPlaybackScheduler, runAutoPlaybackSchedulerTick]);
+
+  const ensureAutoPlaybackSchedulerRunning = useCallback(() => {
+    if (autoPlaybackSchedulerTimerRef.current !== null) {
+      return;
+    }
+
+    startAutoPlaybackScheduler();
+  }, [startAutoPlaybackScheduler]);
+
   useEffect(() => {
     if (!pathname.startsWith("/garden")) {
       stopAutoPlayback();
+      return;
     }
-  }, [pathname, stopAutoPlayback]);
+
+    startAutoPlaybackScheduler();
+
+    return () => {
+      stopAutoPlayback();
+    };
+  }, [pathname, startAutoPlaybackScheduler, stopAutoPlayback]);
 
   useEffect(() => {
     const handlePageHide = () => {
@@ -1889,6 +1963,11 @@ export function EmptyStageCharacter({
     const handleVisibilityChange = () => {
       if (document.hidden) {
         stopAutoPlayback();
+        return;
+      }
+
+      if (pathname.startsWith("/garden")) {
+        ensureAutoPlaybackSchedulerRunning();
       }
     };
 
@@ -1901,66 +1980,31 @@ export function EmptyStageCharacter({
       window.removeEventListener("beforeunload", handlePageHide);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [stopAutoPlayback]);
+  }, [ensureAutoPlaybackSchedulerRunning, pathname, stopAutoPlayback]);
 
   useEffect(() => {
-    const syncObjectSchedules = () => {
-      const activeObjectIds = new Set(
-        placedObjectsRef.current.map((placedObject) => placedObject.id),
-      );
+    if (!pathname.startsWith("/garden")) {
+      return;
+    }
 
-      for (const objectId of Object.keys(autoPlaybackNextAtByObjectIdRef.current)) {
-        if (!activeObjectIds.has(objectId)) {
-          stopAutoPlaybackObject(objectId);
-        }
-      }
-
-      for (const placedObject of placedObjectsRef.current) {
-        if (!(placedObject.id in autoPlaybackNextAtByObjectIdRef.current)) {
-          autoPlaybackNextAtByObjectIdRef.current[placedObject.id] =
-            Date.now() + getRandomPlaybackDelayMs();
-        }
-      }
+    const handleInteraction = () => {
+      ensureAutoPlaybackSchedulerRunning();
+      void resumeAutoPlaybackAudioContextIfNeeded();
     };
 
-    const runSchedulerTick = () => {
-      syncObjectSchedules();
-
-      const now = Date.now();
-
-      for (const placedObject of placedObjectsRef.current) {
-        const objectId = placedObject.id;
-
-        if (autoPlaybackInFlightObjectIdsRef.current.has(objectId)) {
-          continue;
-        }
-
-        const nextPlaybackAt = autoPlaybackNextAtByObjectIdRef.current[objectId] ?? 0;
-
-        if (nextPlaybackAt > now) {
-          continue;
-        }
-
-        autoPlaybackNextAtByObjectIdRef.current[objectId] = now + getRandomPlaybackDelayMs();
-        playAutoPlaybackForObject(objectId);
-      }
-    };
-
-    runSchedulerTick();
-    clearAutoPlaybackScheduler();
-    autoPlaybackSchedulerTimerRef.current = window.setInterval(
-      runSchedulerTick,
-      AUTO_PLAYBACK_SCHEDULER_TICK_MS,
-    );
+    window.addEventListener("pointerdown", handleInteraction);
+    window.addEventListener("keydown", handleInteraction);
+    window.addEventListener("touchstart", handleInteraction);
 
     return () => {
-      stopAutoPlayback();
+      window.removeEventListener("pointerdown", handleInteraction);
+      window.removeEventListener("keydown", handleInteraction);
+      window.removeEventListener("touchstart", handleInteraction);
     };
   }, [
-    clearAutoPlaybackScheduler,
-    playAutoPlaybackForObject,
-    stopAutoPlaybackObject,
-    stopAutoPlayback,
+    ensureAutoPlaybackSchedulerRunning,
+    pathname,
+    resumeAutoPlaybackAudioContextIfNeeded,
   ]);
 
   useEffect(() => {
@@ -2160,15 +2204,11 @@ export function EmptyStageCharacter({
       : "border-black/20 bg-white text-neutral-900 hover:bg-neutral-100"
   }`;
 
-  const helperTextClass = `text-[10px] ${darkMode ? "text-wa-white/80" : "text-wa-black/70"}`;
-
   const resetPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+8.75rem)] left-3 right-3 z-30 grid gap-2 rounded-xl border-2 p-2 shadow-xl sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[24rem] ${
     darkMode
       ? "border-white/30 bg-neutral-900"
       : "border-black/20 bg-white"
   }`;
-
-  const placementDividerClass = darkMode ? "border-wa-white/20" : "border-wa-black/15";
   const objectChipFillColor = darkMode ? "rgba(43,43,43,0.78)" : "rgba(242,242,242,0.95)";
   const objectChipStrokeColor = darkMode
     ? "rgba(242,242,242,0.45)"
@@ -2197,7 +2237,6 @@ export function EmptyStageCharacter({
   const locatorArrowChipFillColor = darkMode
     ? "rgba(15,23,42,0.8)"
     : "rgba(255,255,255,0.9)";
-  const selectedObjectLabel = activePlacementObject?.label ?? "オブジェクト";
   const isPointerPlacementArmed = isCoarsePointer
     ? isTouchPlacementArmed
     : isMousePlacementArmed;
@@ -2229,26 +2268,6 @@ export function EmptyStageCharacter({
   const shouldRenderObjectLocator =
     isObjectLocatorVisible &&
     Boolean(objectLocatorIndicator);
-
-  const interactionGuideText = canPlaceObject
-    ? hasPlacedActiveObject
-      ? isCoarsePointer
-        ? isTouchPlacementArmed
-          ? `${selectedObjectLabel}を置く場所をタップで離します。`
-          : `${selectedObjectLabel}をタップで浮かせます。`
-        : isMousePlacementArmed
-          ? `${selectedObjectLabel}を置く場所をクリックで離します。`
-          : `${selectedObjectLabel}をクリックで浮かせます。`
-      : hasPlacedSelectedObject
-        ? `${selectedObjectLabel}をタップしてつかむと移動できます。`
-      : isCoarsePointer
-        ? isTouchPlacementArmed
-          ? `${selectedObjectLabel}を置く場所をタップで配置`
-          : `${selectedObjectLabel}をタップで浮かせます。`
-        : `${selectedObjectLabel}を置く場所をクリックで配置`
-    : hasAnyPlacedObject
-      ? "図鑑を選ばなくても、置いてあるオブジェクトをタップでつかんで移動できます。"
-      : "図鑑でオブジェクトを選ぶと、この庭で配置できます。";
 
   const mobileStickPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] right-3 z-40 rounded-2xl border p-2 backdrop-blur-sm sm:hidden ${
     darkMode
@@ -2297,21 +2316,11 @@ export function EmptyStageCharacter({
 
       <EmptyStageCharacterControls
         allowObjectPlacement={allowObjectPlacement}
-        canPlaceObject={canPlaceObject}
-        canShowObjectLocator={canShowObjectLocator}
-        hasPlacedActiveObject={Boolean(canPlaceObject && (grabbedPlacedObject ?? selectedPlacementObject))}
         walletCoins={walletCoins}
         walletGainPopup={walletGainPopup}
-        isTouchPlacementArmed={isTouchPlacementArmed}
-        isMousePlacementArmed={isMousePlacementArmed}
         resetPanelClass={resetPanelClass}
         resetButtonClass={resetButtonClass}
-        helperTextClass={helperTextClass}
-        placementDividerClass={placementDividerClass}
-        interactionGuideText={interactionGuideText}
         onResetToStart={resetToStart}
-        onShowPlacedObjectLocator={showPlacedObjectLocator}
-        onReleaseGrab={clearPlacementState}
         mobileStickPanelClass={mobileStickPanelClass}
         darkMode={darkMode}
         stickPadRef={stickPadRef}

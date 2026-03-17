@@ -303,7 +303,9 @@ export function AuthSection({
     try {
       const currentSession = await getSupabaseSessionOrNull(supabase);
       if (currentSession && !isAnonymousSupabaseUser(currentSession.user)) {
-        const { error: signOutError } = await supabase.auth.signOut();
+        const { error: signOutError } = await supabase.auth.signOut({
+          scope: "local",
+        });
         if (signOutError) {
           alert("ログアウトに失敗しました: " + signOutError.message);
           return;
