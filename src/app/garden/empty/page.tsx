@@ -118,6 +118,8 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
         allowObjectPlacement
         placementObjectType={selectedPlacementObjectType}
         objectStorageKey="kazenagare_objects_me"
+        ownerName="あなた"
+        resolveCurrentUserIdentity
       />
 
       <GardenOptionsMenu

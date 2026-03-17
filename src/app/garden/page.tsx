@@ -1,4 +1,4 @@
-import {
+﻿import {
   GardenCorridor,
   type GardenCorridorPost,
 } from "@/components/garden/garden-corridor";
@@ -102,6 +102,7 @@ export default async function GardenIndexPage({ searchParams }: GardenIndexPageP
 
   const corridorPosts: GardenCorridorPost[] = publishedPosts.map((post) => ({
     userId: post.userId,
+    ownerDisplayName: post.ownerDisplayName,
     backgroundName: resolveOptionName(GARDEN_BACKGROUNDS, post.backgroundId),
     seasonName: resolveOptionName(GARDEN_SEASONS, post.seasonId),
     timeSlotName: resolveOptionName(GARDEN_TIME_SLOTS, post.timeSlotId),

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import { EmptyStageDecoration } from "@/components/garden/empty/empty-stage-decoration";
 import {
   EmptyStageCharacter,
@@ -14,6 +15,7 @@ import {
   getSeasonOverlayClass,
   getTimeOverlayClass,
 } from "@/components/garden/empty/empty-stage-theme";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import {
   buildGardenBackgroundCandidates,
   preloadGardenBackgroundCandidates,
@@ -34,6 +36,9 @@ type GardenEmptyStageProps = {
   initialPlacedObjects?: PlacedStageObject[];
   audioOwnerIdOverride?: string | null;
   showDevelopmentPlaceholder?: boolean;
+  ownerName?: string | null;
+  gardenName?: string | null;
+  resolveCurrentUserIdentity?: boolean;
 };
 
 const DEFAULT_CHARACTER_START_POSITION = {
@@ -48,6 +53,43 @@ const CHARACTER_START_POSITION_BY_BACKGROUND: Record<string, { x: number; y: num
   "garden-all": { ...DEFAULT_CHARACTER_START_POSITION },
 };
 const BACKGROUND_IMAGE_SCALE = 1;
+
+function normalizeLabel(value: string | null | undefined) {
+  const trimmedValue = value?.trim();
+  return trimmedValue ? trimmedValue : null;
+}
+
+function deriveOwnerNameFromUser(user: User | null | undefined) {
+  if (!user) {
+    return null;
+  }
+
+  const userMetadata = user.user_metadata as Record<string, unknown> | undefined;
+  const candidateKeys = ["display_name", "displayName", "full_name", "fullName", "name", "user_name", "username"];
+
+  for (const key of candidateKeys) {
+    const candidateValue = userMetadata?.[key];
+    if (typeof candidateValue === "string") {
+      const normalizedValue = normalizeLabel(candidateValue);
+      if (normalizedValue) {
+        return normalizedValue;
+      }
+    }
+  }
+
+  if (typeof user.email === "string") {
+    const emailLocalPart = normalizeLabel(user.email.split("@")[0]);
+    if (emailLocalPart) {
+      return emailLocalPart;
+    }
+  }
+
+  return normalizeLabel(user.id);
+}
+
+function buildDefaultGardenName(ownerName: string | null) {
+  return ownerName ? `${ownerName}の庭` : "わたしの庭";
+}
 
 function getMovementBoundsFromBackgroundScale(scale: number) {
   if (scale <= 1) {
@@ -147,7 +189,13 @@ export function GardenEmptyStage({
   initialPlacedObjects = [],
   audioOwnerIdOverride = null,
   showDevelopmentPlaceholder = false,
+  ownerName = null,
+  gardenName = null,
+  resolveCurrentUserIdentity = false,
 }: GardenEmptyStageProps) {
+  const [resolvedOwnerName, setResolvedOwnerName] = useState<string | null>(
+    normalizeLabel(ownerName),
+  );
   const isNight = timeSlotId === "night";
   const theme = getBackgroundTheme(isNight ? "night-pond" : "misty-temple");
   const seasonOverlayClass = getSeasonOverlayClass(seasonId);
@@ -160,6 +208,52 @@ export function GardenEmptyStage({
     ? `relative h-[100dvh] w-full overflow-hidden ${theme.stageClass}`
     : `relative h-[78dvh] min-h-[520px] w-full overflow-hidden rounded-3xl border ${theme.stageClass}`;
   const showCollisionDebug = process.env.NODE_ENV !== "production";
+  const fallbackOwnerName = normalizeLabel(ownerName) ?? "あなた";
+  const visibleOwnerName = resolvedOwnerName ?? fallbackOwnerName;
+  const visibleGardenName = normalizeLabel(gardenName) ?? buildDefaultGardenName(visibleOwnerName);
+
+  useEffect(() => {
+    setResolvedOwnerName(normalizeLabel(ownerName));
+  }, [ownerName]);
+
+  useEffect(() => {
+    if (!resolveCurrentUserIdentity) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const syncOwnerName = async () => {
+      const session = await getSupabaseSessionOrNull(supabase);
+      if (isCancelled) {
+        return;
+      }
+
+      const nextOwnerName = deriveOwnerNameFromUser(session?.user);
+      if (nextOwnerName) {
+        setResolvedOwnerName(nextOwnerName);
+      }
+    };
+
+    void syncOwnerName();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextOwnerName = deriveOwnerNameFromUser(session?.user);
+      setResolvedOwnerName(nextOwnerName ?? normalizeLabel(ownerName));
+    });
+
+    return () => {
+      isCancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [ownerName, resolveCurrentUserIdentity]);
 
   return (
     <section className={stageContainerClass}>
@@ -207,7 +301,13 @@ export function GardenEmptyStage({
         ) : null}
       </EmptyStageCharacter>
 
-      <div className="pointer-events-none absolute left-4 top-4 z-40 flex flex-wrap gap-2 text-xs">
+      <div className="pointer-events-none absolute left-4 top-4 z-40 flex max-w-[min(92vw,28rem)] flex-wrap gap-2 text-xs">
+        <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
+          {visibleOwnerName}
+        </span>
+        <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
+          {visibleGardenName}
+        </span>
         <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
           {seasonName}
         </span>

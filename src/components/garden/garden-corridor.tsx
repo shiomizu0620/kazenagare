@@ -16,6 +16,7 @@ import {
 
 export type GardenCorridorPost = {
   userId: string;
+  ownerDisplayName?: string | null;
   backgroundName: string;
   seasonName: string;
   timeSlotName: string;
@@ -104,12 +105,14 @@ function hashSeed(value: string) {
   return Math.abs(hash);
 }
 
-function resolveOwnerLabel(userId: string) {
-  if (userId.length <= 8) {
-    return userId;
+function resolveOwnerLabel(ownerDisplayName: string | null | undefined, userId: string) {
+  const rawLabel = ownerDisplayName?.trim() || userId;
+
+  if (rawLabel.length <= 12) {
+    return rawLabel;
   }
 
-  return `${userId.slice(0, 6)}…`;
+  return `${rawLabel.slice(0, 8)}...`;
 }
 
 function resolveAtmosphere(post: GardenCorridorPost | null): Atmosphere {
@@ -264,7 +267,7 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
   const decoratedPosts = useMemo<DecoratedCorridorPost[]>(() => {
     return posts.map((post, index) => ({
       ...post,
-      ownerLabel: resolveOwnerLabel(post.userId),
+      ownerLabel: resolveOwnerLabel(post.ownerDisplayName, post.userId),
       motionClass: `kazenagare-tanzaku-motion-${hashSeed(`${post.userId}-${index}`) % 8}`,
     }));
   }, [posts]);

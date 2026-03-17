@@ -203,9 +203,25 @@ export function AuthSection({
 
     hasNavigatedRef.current = true;
 
+    const supabase = getSupabaseClient();
+
     if (nextUserId) {
+      // 0. display_name をチェック（なければ季節設定画面で入力）
+      if (supabase) {
+        const session = await getSupabaseSessionOrNull(supabase);
+        const user = session?.user;
+        if (user) {
+          const userMetadata = user.user_metadata as Record<string, unknown> | undefined;
+          const displayName = userMetadata?.display_name;
+          
+          if (!displayName || typeof displayName !== "string" || !displayName.trim()) {
+            router.push("/garden/setup");
+            return;
+          }
+        }
+      }
+
       // 1. DBから復元（アカウント単位データを優先）
-      const supabase = getSupabaseClient();
       if (supabase) {
         const { data } = await supabase
           .from("garden_posts")

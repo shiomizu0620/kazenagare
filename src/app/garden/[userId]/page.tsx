@@ -133,6 +133,8 @@ export default async function GardenUserPage({
           allowObjectPlacement
           placementObjectType={selectedPlacementObjectType}
           objectStorageKey="kazenagare_objects_me"
+          ownerName="あなた"
+          resolveCurrentUserIdentity
         />
 
         <GardenOptionsMenu
@@ -178,6 +180,8 @@ export default async function GardenUserPage({
         fullscreen
         initialPlacedObjects={publishedPost?.placedObjects ?? []}
         audioOwnerIdOverride={userId}
+        ownerName={userId}
+        gardenName={`${userId}の庭`}
       />
 
       {!publishedPost ? (
