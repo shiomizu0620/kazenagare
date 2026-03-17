@@ -12,6 +12,10 @@ import {
   loadKazenagareAudioSettings,
   parseKazenagareAudioSettings,
 } from "@/lib/audio/settings";
+import {
+  createGardenCharacterPositionStorageKey,
+  parseGardenCharacterPosition,
+} from "@/lib/garden/character-position";
 import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import { getVoiceZooObjectPrice } from "@/lib/voice-zoo/catalog";
 import { applyVoiceZooPlaybackEffect } from "@/lib/voice-zoo/playback-effects";
@@ -81,6 +85,7 @@ const WALLET_GAIN_POPUP_DURATION_MS = 1050;
 const AUTO_PLAYBACK_DISTANCE_NEAR_PX = 130;
 const AUTO_PLAYBACK_DISTANCE_FAR_PX = 760;
 const AUTO_PLAYBACK_DISTANCE_MIN_GAIN = 0.04;
+const CHARACTER_POSITION_SAVE_INTERVAL_MS = 900;
 
 type CompatibleAudioContextWindow = Window & typeof globalThis & {
   webkitAudioContext?: typeof AudioContext;
@@ -149,6 +154,29 @@ function toCharacterOffset(worldPosition?: Vector2 | null, movementBounds: World
   return {
     x: clampedWorldX - WORLD_WIDTH * 0.5,
     y: clampedWorldY - WORLD_HEIGHT * 0.5,
+  };
+}
+
+function toCharacterWorldPosition(
+  offset: Vector2,
+  movementBounds: WorldBounds = DEFAULT_WORLD_BOUNDS,
+): Vector2 {
+  const clampedMinX = Math.min(movementBounds.minX, movementBounds.maxX);
+  const clampedMaxX = Math.max(movementBounds.minX, movementBounds.maxX);
+  const clampedMinY = Math.min(movementBounds.minY, movementBounds.maxY);
+  const clampedMaxY = Math.max(movementBounds.minY, movementBounds.maxY);
+  const minWorldX = clampedMinX + CHARACTER_HITBOX_RADIUS;
+  const maxWorldX = clampedMaxX - CHARACTER_HITBOX_RADIUS;
+  const minWorldY = clampedMinY + CHARACTER_HITBOX_RADIUS;
+  const maxWorldY = clampedMaxY - CHARACTER_HITBOX_RADIUS;
+
+  return {
+    x: Math.round(
+      clamp(WORLD_WIDTH * 0.5 + offset.x, minWorldX, Math.max(minWorldX, maxWorldX)),
+    ),
+    y: Math.round(
+      clamp(WORLD_HEIGHT * 0.5 + offset.y, minWorldY, Math.max(minWorldY, maxWorldY)),
+    ),
   };
 }
 
@@ -230,8 +258,12 @@ export function EmptyStageCharacter({
   const autoPlaybackInFlightObjectIdsRef = useRef<Set<string>>(new Set());
   const coinRewardPopupTimerIdsRef = useRef<number[]>([]);
   const walletGainPopupTimerIdRef = useRef<number | null>(null);
+  const lastSavedCharacterPositionRef = useRef<string | null>(null);
   const activePlacementObjectType = grabbedObjectType ?? placementObjectType;
   const effectiveAudioOwnerId = audioOwnerIdOverride ?? audioOwnerId;
+  const characterPositionStorageKey = allowObjectPlacement
+    ? createGardenCharacterPositionStorageKey(effectiveAudioOwnerId)
+    : null;
   const activePlacementObject = activePlacementObjectType
     ? OBJECT_VISUALS[activePlacementObjectType]
     : null;
@@ -1416,6 +1448,100 @@ export function EmptyStageCharacter({
       subscription.unsubscribe();
     };
   }, [audioOwnerIdOverride]);
+
+  const saveCharacterPosition = useCallback(() => {
+    if (!characterPositionStorageKey) {
+      return;
+    }
+
+    const currentWorldPosition = toCharacterWorldPosition(
+      desiredOffsetRef.current,
+      movementBounds,
+    );
+    const serializedPosition = JSON.stringify(currentWorldPosition);
+
+    if (serializedPosition === lastSavedCharacterPositionRef.current) {
+      return;
+    }
+
+    window.localStorage.setItem(characterPositionStorageKey, serializedPosition);
+    lastSavedCharacterPositionRef.current = serializedPosition;
+  }, [characterPositionStorageKey, movementBounds]);
+
+  useEffect(() => {
+    if (!characterPositionStorageKey) {
+      return;
+    }
+
+    const loadTimer = window.setTimeout(() => {
+      const storedPosition = parseGardenCharacterPosition(
+        window.localStorage.getItem(characterPositionStorageKey),
+      );
+
+      if (!storedPosition) {
+        return;
+      }
+
+      const nextOffset = toCharacterOffset(storedPosition, movementBounds);
+      desiredOffsetRef.current = clampCharacterBounds(nextOffset);
+      cameraOffsetRef.current = clampCameraBounds(desiredOffsetRef.current);
+      velocityRef.current = { x: 0, y: 0 };
+      previousTimestampRef.current = 0;
+      applyWorldTransform();
+      applyCharacterTransform();
+
+      const clampedWorldPosition = toCharacterWorldPosition(
+        desiredOffsetRef.current,
+        movementBounds,
+      );
+      updateActiveAutoPlaybackVolumes(clampedWorldPosition.x, clampedWorldPosition.y);
+      lastSavedCharacterPositionRef.current = JSON.stringify(clampedWorldPosition);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(loadTimer);
+    };
+  }, [
+    applyCharacterTransform,
+    applyWorldTransform,
+    characterPositionStorageKey,
+    clampCameraBounds,
+    clampCharacterBounds,
+    movementBounds,
+    updateActiveAutoPlaybackVolumes,
+  ]);
+
+  useEffect(() => {
+    if (!characterPositionStorageKey) {
+      return;
+    }
+
+    const handlePageHide = () => {
+      saveCharacterPosition();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        saveCharacterPosition();
+      }
+    };
+
+    const timerId = window.setInterval(() => {
+      saveCharacterPosition();
+    }, CHARACTER_POSITION_SAVE_INTERVAL_MS);
+
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(timerId);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handlePageHide);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      saveCharacterPosition();
+    };
+  }, [characterPositionStorageKey, saveCharacterPosition]);
 
   useEffect(() => {
     const handleRecordingUpdate: EventListener = (event) => {
