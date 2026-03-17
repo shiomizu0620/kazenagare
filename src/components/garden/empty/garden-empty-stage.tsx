@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EmptyStageDecoration } from "@/components/garden/empty/empty-stage-decoration";
 import {
   EmptyStageCharacter,
@@ -14,7 +14,10 @@ import {
   getSeasonOverlayClass,
   getTimeOverlayClass,
 } from "@/components/garden/empty/empty-stage-theme";
-import { buildGardenBackgroundCandidates } from "@/lib/garden/background-images";
+import {
+  buildGardenBackgroundCandidates,
+  preloadGardenBackgroundCandidates,
+} from "@/lib/garden/background-images";
 import type { PlacedStageObject } from "@/components/garden/empty/empty-stage-character/empty-stage-character.types";
 import type { ObjectType } from "@/types/garden";
 import { COLLISION_ZONES } from "@/components/garden/empty/empty-stage-character/collision-zones";
@@ -85,6 +88,11 @@ function SeasonTimeBackgroundLayer({
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [hasResolvedBackgroundImage, setHasResolvedBackgroundImage] = useState(false);
 
+  // 背景画像をマウント時にプリロード
+  useEffect(() => {
+    void preloadGardenBackgroundCandidates(backgroundId, seasonId, timeSlotId);
+  }, [backgroundId, seasonId, timeSlotId]);
+
   const activeImage = candidates[Math.min(candidateIndex, Math.max(0, candidates.length - 1))];
   const isLoading = !hasResolvedBackgroundImage;
 
@@ -95,9 +103,10 @@ function SeasonTimeBackgroundLayer({
         alt=""
         aria-hidden
         fill
-        unoptimized
         priority
         sizes="100vw"
+        quality={85}
+        loading="eager"
         className="select-none object-cover"
         onLoad={() => {
           setHasResolvedBackgroundImage(true);
