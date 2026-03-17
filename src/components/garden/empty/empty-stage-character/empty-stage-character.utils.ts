@@ -127,23 +127,55 @@ export function resolveMovement(
     return nextDesiredOffset;
   }
 
-  // 全軸移動を試みる
-  if (!isBlocked(nextDesiredOffset.x, nextDesiredOffset.y)) {
-    return nextDesiredOffset;
+  const totalDeltaX = nextDesiredOffset.x - currentDesiredOffset.x;
+  const totalDeltaY = nextDesiredOffset.y - currentDesiredOffset.y;
+  const totalDistance = Math.hypot(totalDeltaX, totalDeltaY);
+
+  // 1フレーム移動を分割して判定することで壁際の引っ掛かりを減らす
+  const maxStepDistance = Math.max(2, characterRadius * 0.35);
+  const stepCount = Math.max(1, Math.ceil(totalDistance / maxStepDistance));
+
+  let resolved = { x: currentDesiredOffset.x, y: currentDesiredOffset.y };
+
+  for (let stepIndex = 1; stepIndex <= stepCount; stepIndex += 1) {
+    const t = stepIndex / stepCount;
+    const targetX = currentDesiredOffset.x + totalDeltaX * t;
+    const targetY = currentDesiredOffset.y + totalDeltaY * t;
+
+    // 全軸移動を優先
+    if (!isBlocked(targetX, targetY)) {
+      resolved = { x: targetX, y: targetY };
+      continue;
+    }
+
+    const stepDeltaX = targetX - resolved.x;
+    const stepDeltaY = targetY - resolved.y;
+    const prioritizeX = Math.abs(stepDeltaX) >= Math.abs(stepDeltaY);
+
+    // 主軸→副軸の順でスライドを試し、通る方を採用
+    if (prioritizeX) {
+      if (!isBlocked(targetX, resolved.y)) {
+        resolved = { x: targetX, y: resolved.y };
+        continue;
+      }
+
+      if (!isBlocked(resolved.x, targetY)) {
+        resolved = { x: resolved.x, y: targetY };
+      }
+      continue;
+    }
+
+    if (!isBlocked(resolved.x, targetY)) {
+      resolved = { x: resolved.x, y: targetY };
+      continue;
+    }
+
+    if (!isBlocked(targetX, resolved.y)) {
+      resolved = { x: targetX, y: resolved.y };
+    }
   }
 
-  // X軸のみ移動
-  if (!isBlocked(nextDesiredOffset.x, currentDesiredOffset.y)) {
-    return { x: nextDesiredOffset.x, y: currentDesiredOffset.y };
-  }
-
-  // Y軸のみ移動
-  if (!isBlocked(currentDesiredOffset.x, nextDesiredOffset.y)) {
-    return { x: currentDesiredOffset.x, y: nextDesiredOffset.y };
-  }
-
-  // 完全に詰まっている
-  return currentDesiredOffset;
+  return resolved;
 }
 
 type LocatorIndicatorInput = {

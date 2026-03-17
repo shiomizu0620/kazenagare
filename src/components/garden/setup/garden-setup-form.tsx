@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   GARDEN_SEASONS,
   type GardenOption,
   type GardenSetupSelection,
 } from "@/lib/garden/setup/options";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 
 const FIXED_BACKGROUND_ID = "garden-all";
 const FIXED_TIME_SLOT_ID = "daytime";
@@ -153,6 +154,8 @@ export function GardenSetupForm({
   const [selectedSeasonId, setSelectedSeasonId] = useState(
     GARDEN_SEASONS[0]?.id ?? "",
   );
+  const [displayName, setDisplayName] = useState("");
+  const [isNameLoading, setIsNameLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -179,8 +182,52 @@ export function GardenSetupForm({
     [selectedSeasonId],
   );
 
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadDisplayName = async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        if (!isCancelled) {
+          setIsNameLoading(false);
+        }
+        return;
+      }
+
+      const session = await getSupabaseSessionOrNull(supabase);
+      if (isCancelled) {
+        return;
+      }
+
+      const userMetadata = session?.user.user_metadata as Record<string, unknown> | undefined;
+      const currentDisplayName = userMetadata?.display_name;
+      if (typeof currentDisplayName === "string") {
+        setDisplayName(currentDisplayName);
+      }
+
+      setIsNameLoading(false);
+    };
+
+    void loadDisplayName();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
   const handleProceed = async () => {
     if (isSubmitting) {
+      return;
+    }
+
+    const trimmedDisplayName = displayName.trim();
+    if (!trimmedDisplayName) {
+      setSubmitError("お名前を入力してください。");
+      return;
+    }
+
+    if (trimmedDisplayName.length > 50) {
+      setSubmitError("お名前は50文字以内で入力してください。");
       return;
     }
 
@@ -188,10 +235,33 @@ export function GardenSetupForm({
     setSubmitError(null);
 
     try {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const session = await getSupabaseSessionOrNull(supabase);
+        if (session?.user) {
+          const userMetadata = session.user.user_metadata as Record<string, unknown> | undefined;
+          const currentDisplayName =
+            typeof userMetadata?.display_name === "string" ? userMetadata.display_name : "";
+
+          if (currentDisplayName.trim() !== trimmedDisplayName) {
+            const { error } = await supabase.auth.updateUser({
+              data: {
+                display_name: trimmedDisplayName,
+              },
+            });
+
+            if (error) {
+              throw new Error(`名前の保存に失敗しました: ${error.message}`);
+            }
+          }
+        }
+      }
+
       await onSubmit?.(selectedSetting);
       router.push(nextHref);
-    } catch {
-      setSubmitError("設定の保存に失敗しました。もう一度お試しください。");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "設定の保存に失敗しました。もう一度お試しください。";
+      setSubmitError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -241,11 +311,28 @@ export function GardenSetupForm({
           <p className="text-xs leading-relaxed text-wa-black/70">{selectedSeasonUi.copy}</p>
         </section>
 
+        <section className="grid gap-3 rounded-2xl border border-wa-black/20 bg-white/95 p-4 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-semibold">お名前</p>
+            <span className="text-[11px] text-wa-black/60">庭の表示名</span>
+          </div>
+          <input
+            type="text"
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            placeholder="例: 壱萬ノ利休"
+            maxLength={50}
+            disabled={isSubmitting || isNameLoading}
+            className="rounded-lg border border-wa-black/20 bg-white px-4 py-2 text-wa-black placeholder:text-wa-black/50 disabled:opacity-60"
+          />
+          <p className="text-xs text-wa-black/60">{displayName.length}/50</p>
+        </section>
+
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
             onClick={handleProceed}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isNameLoading}
             className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-wa-black bg-wa-black px-6 py-2.5 text-sm font-semibold text-wa-white transition-all duration-150 hover:-translate-y-0.5 hover:bg-wa-red active:translate-y-[1px] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span>{isSubmitting ? "処理中..." : submitLabel}</span>

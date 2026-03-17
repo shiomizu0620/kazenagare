@@ -11,12 +11,15 @@ function resolveOptionName(options: { id: string; name: string }[], id: string) 
   return options.find((option) => option.id === id)?.name ?? id;
 }
 
-function formatGardenOwnerLabel(userId: string) {
-  if (userId.length <= 12) {
-    return userId;
+function formatGardenOwnerLabel(ownerDisplayName: string | null | undefined, userId: string) {
+  // owner_display_name を優先的に表示、なければ userId をフォールバック
+  const displayValue = ownerDisplayName || userId;
+  
+  if (displayValue.length <= 12) {
+    return displayValue;
   }
 
-  return `${userId.slice(0, 8)}...`;
+  return `${displayValue.slice(0, 8)}...`;
 }
 
 function formatPublishedAt(publishedAt: string | null) {
@@ -129,7 +132,7 @@ export default async function GardenIndexPage() {
                   <div className="space-y-1">
                     <p className="text-xs tracking-[0.22em] text-wa-black/45">PUBLIC GARDEN</p>
                     <p className="text-lg font-semibold">
-                      {formatGardenOwnerLabel(post.userId)} の庭
+                      {formatGardenOwnerLabel(post.ownerDisplayName, post.userId)} の庭
                     </p>
                     <p className="break-all text-xs text-wa-black/55">ID: {post.userId}</p>
                   </div>

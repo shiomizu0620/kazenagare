@@ -256,6 +256,10 @@ function GardenPublishContent() {
         : undefined,
     }));
 
+    // currentUser の display_name を取得
+    const userMetadata = currentUser.user_metadata as Record<string, unknown> | undefined;
+    const ownerDisplayName = userMetadata?.display_name ?? currentUser.id;
+
     const { error } = await supabase.from("garden_posts").upsert(
       {
         user_id: currentUser.id,
@@ -263,6 +267,7 @@ function GardenPublishContent() {
         season_id: resolvedDraft.seasonId,
         time_slot_id: resolvedDraft.timeSlotId,
         placed_objects: placedObjectsWithRecordingUrls,
+        owner_display_name: ownerDisplayName,
         published_at: new Date().toISOString(),
       },
       {
