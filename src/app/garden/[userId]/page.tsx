@@ -87,7 +87,7 @@ export default async function GardenUserPage({
         description: "背景・季節・時間帯を選び直す",
       },
       {
-        href: "/",
+        href: "/top",
         label: "トップへ戻る",
         description: "最初のページへ戻る",
       },
@@ -118,11 +118,9 @@ export default async function GardenUserPage({
 
         <GardenEmptyStage
           backgroundId={background.id}
-          backgroundName={background.name}
           seasonId={season.id}
           seasonName={season.name}
           timeSlotId={timeSlot.id}
-          timeSlotName={timeSlot.name}
           fullscreen
           allowObjectPlacement
           placementObjectType={selectedPlacementObjectType}
@@ -140,7 +138,7 @@ export default async function GardenUserPage({
 
   const visitorActions: GardenOptionAction[] = [
     {
-      href: "/",
+      href: "/top",
       label: "トップへ戻る",
       description: "最初のページへ戻る",
     },
@@ -166,11 +164,9 @@ export default async function GardenUserPage({
       <GardenEmptyStage
         key={`${userId}-${publishedPost?.publishedAt ?? "draft"}`}
         backgroundId={background.id}
-        backgroundName={background.name}
         seasonId={season.id}
         seasonName={season.name}
         timeSlotId={timeSlot.id}
-        timeSlotName={timeSlot.name}
         fullscreen
         initialPlacedObjects={publishedPost?.placedObjects ?? []}
         audioOwnerIdOverride={userId}

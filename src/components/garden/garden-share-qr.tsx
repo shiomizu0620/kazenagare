@@ -4,7 +4,7 @@ import Image from "next/image";
 import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 import { isAnonymousSupabaseUser } from "@/lib/auth/user";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 
 type GardenShareQrProps = {
   origin: string;
@@ -40,12 +40,12 @@ export function GardenShareQr({ origin, userId }: GardenShareQrProps) {
 
     let isCancelled = false;
 
-    void supabase.auth.getSession().then(({ data }) => {
+    void getSupabaseSessionOrNull(supabase).then((session) => {
       if (isCancelled) {
         return;
       }
 
-      const currentUser = data.session?.user ?? null;
+      const currentUser = session?.user ?? null;
 
       if (!currentUser || isAnonymousSupabaseUser(currentUser)) {
         setResolvedUserId(null);

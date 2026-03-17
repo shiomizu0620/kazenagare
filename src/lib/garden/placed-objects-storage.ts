@@ -1,6 +1,10 @@
 export const GARDEN_OBJECTS_STORAGE_KEY_ME = "kazenagare_objects_me";
 export const GARDEN_PLACED_OBJECTS_UPDATED_EVENT = "kazenagare:placed-objects-updated";
 
+export function getGardenObjectsStorageKeyForOwner(ownerId: string) {
+  return `${GARDEN_OBJECTS_STORAGE_KEY_ME}_${ownerId || "local_guest"}`;
+}
+
 export type GardenPlacedObjectsUpdatedEventDetail = {
   storageKey: string;
 };

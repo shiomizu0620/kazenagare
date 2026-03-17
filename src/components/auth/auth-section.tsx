@@ -3,7 +3,7 @@
 import { get as getIdbValue, keys as getIdbKeys, set as setIdbValue } from "idb-keyval";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import {
   createGardenLocalStateStorageKey,
   parseGardenLocalState,
@@ -110,11 +110,11 @@ export function AuthSection() {
       return;
     }
 
-    const { data } = await supabase.auth.getSession();
-    if (isAnonymousSupabaseUser(data.session?.user)) {
+    const currentSession = await getSupabaseSessionOrNull(supabase);
+    if (isAnonymousSupabaseUser(currentSession?.user)) {
       window.sessionStorage.setItem(
         OAUTH_PENDING_GUEST_USER_ID_KEY,
-        data.session?.user.id ?? LEGACY_LOCAL_GUEST_USER_ID,
+        currentSession?.user.id ?? LEGACY_LOCAL_GUEST_USER_ID,
       );
       return;
     }
@@ -195,15 +195,15 @@ export function AuthSection() {
       window.sessionStorage.removeItem(OAUTH_REDIRECT_PENDING_KEY);
     };
 
-    void supabase.auth.getSession().then(({ data }) => {
+    void getSupabaseSessionOrNull(supabase).then((session) => {
       if (!hasPendingOAuthRedirect()) {
         return;
       }
 
-      if (data.session) {
-        void migratePendingGuestData(data.session.user.id).finally(() => {
+      if (session) {
+        void migratePendingGuestData(session.user.id).finally(() => {
           clearPendingOAuthRedirect();
-          void navigateAfterAuth(data.session.user.id);
+          void navigateAfterAuth(session.user.id);
         });
       }
     });
@@ -235,8 +235,8 @@ export function AuthSection() {
     setIsLoggingIn(true);
 
     try {
-      const { data: currentSessionData } = await supabase.auth.getSession();
-      if (currentSessionData.session && !isAnonymousSupabaseUser(currentSessionData.session.user)) {
+      const currentSession = await getSupabaseSessionOrNull(supabase);
+      if (currentSession && !isAnonymousSupabaseUser(currentSession.user)) {
         const { error: signOutError } = await supabase.auth.signOut();
         if (signOutError) {
           alert("ログアウトに失敗しました: " + signOutError.message);

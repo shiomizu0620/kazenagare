@@ -9,7 +9,7 @@ import {
   GARDEN_OBJECTS_STORAGE_KEY_ME,
   resetGardenPlacedObjects,
 } from "@/lib/garden/placed-objects-storage";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import type { ObjectType } from "@/types/garden";
 import {
   type VoiceZooEntry,
@@ -149,7 +149,7 @@ export default function VoiceZooPage() {
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    void getSupabaseSessionOrNull(supabase).then((session) => {
       setAudioOwnerId(session?.user?.id || "local_guest");
     });
 
@@ -358,8 +358,8 @@ export default function VoiceZooPage() {
       return audioOwnerId || "local_guest";
     }
 
-    const { data } = await supabase.auth.getSession();
-    const resolvedOwnerId = data.session?.user?.id || "local_guest";
+    const currentSession = await getSupabaseSessionOrNull(supabase);
+    const resolvedOwnerId = currentSession?.user?.id || "local_guest";
 
     if (resolvedOwnerId !== audioOwnerId) {
       setAudioOwnerId(resolvedOwnerId);
@@ -661,9 +661,12 @@ export default function VoiceZooPage() {
   };
 
   const handleResetWalletForTesting = () => {
+    const resolvedObjectStorageKey = `${GARDEN_OBJECTS_STORAGE_KEY_ME}_${audioOwnerId}`;
+
     closeModal();
     closeRecordingModal();
     setWallet(createInitialVoiceZooWallet());
+    resetGardenPlacedObjects(resolvedObjectStorageKey);
     resetGardenPlacedObjects(GARDEN_OBJECTS_STORAGE_KEY_ME);
     setTestingNotice(
       `テスト用に購入状態を初期化しました（所持コイン: ${INITIAL_VOICE_ZOO_COINS}）。`,

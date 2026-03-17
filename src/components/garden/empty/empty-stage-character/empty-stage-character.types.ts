@@ -37,6 +37,7 @@ export type PlacedStageObject = {
   id: string;
   objectType: ObjectType;
   recordingId: string | null;
+  recordingUrl?: string;
   x: number;
   y: number;
   createdAt: string;

@@ -72,7 +72,7 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
       description: "背景・季節・時間帯を選び直す",
     },
     {
-      href: "/",
+      href: "/top",
       label: "トップへ戻る",
       description: "最初のページへ戻る",
     },
@@ -103,11 +103,9 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
 
       <GardenEmptyStage
         backgroundId={selectedBackground.id}
-        backgroundName={selectedBackground.name}
         seasonId={selectedSeason.id}
         seasonName={selectedSeason.name}
         timeSlotId={selectedTimeSlot.id}
-        timeSlotName={selectedTimeSlot.name}
         fullscreen
         allowObjectPlacement
         placementObjectType={selectedPlacementObjectType}
