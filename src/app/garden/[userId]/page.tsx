@@ -103,10 +103,14 @@ export default async function GardenUserPage({
   const selectedPlacementObjectType = parsePlacementObjectType(query.place);
   const isNight = timeSlot.id === "night";
   const currentGardenQuery = `background=${encodeURIComponent(background.id)}&season=${encodeURIComponent(season.id)}&time=${encodeURIComponent(timeSlot.id)}`;
-  const visitedGardenOwnerName =
-    typeof publishedPost?.ownerDisplayName === "string" && publishedPost.ownerDisplayName.trim()
+  const normalizedOwnerDisplayName =
+    typeof publishedPost?.ownerDisplayName === "string"
       ? publishedPost.ownerDisplayName.trim()
-      : userId;
+      : "";
+  const visitedGardenOwnerName =
+    normalizedOwnerDisplayName && normalizedOwnerDisplayName !== userId
+      ? normalizedOwnerDisplayName
+      : "庭主";
   const visitorGardenName = `${visitedGardenOwnerName}の庭`;
 
   if (isMe) {
@@ -185,9 +189,8 @@ export default async function GardenUserPage({
         fullscreen
         initialPlacedObjects={publishedPost?.placedObjects ?? []}
         audioOwnerIdOverride={userId}
-        ownerName="あなた"
+        ownerName={visitedGardenOwnerName}
         gardenName={visitorGardenName}
-        resolveCurrentUserIdentity
       />
 
       {!publishedPost ? (

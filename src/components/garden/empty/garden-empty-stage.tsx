@@ -227,7 +227,7 @@ export function GardenEmptyStage({
   }, [ownerName]);
 
   useEffect(() => {
-    if (!resolveCurrentUserIdentity) {
+    if (!resolveCurrentUserIdentity || audioOwnerIdOverride) {
       return;
     }
 
@@ -263,7 +263,7 @@ export function GardenEmptyStage({
       isCancelled = true;
       subscription.unsubscribe();
     };
-  }, [ownerName, resolveCurrentUserIdentity]);
+  }, [audioOwnerIdOverride, ownerName, resolveCurrentUserIdentity]);
 
   return (
     <section className={stageContainerClass}>

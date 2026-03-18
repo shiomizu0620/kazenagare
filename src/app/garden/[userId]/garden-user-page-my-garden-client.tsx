@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { GardenEmptyStage } from "@/components/garden/empty/garden-empty-stage";
 import {
   GardenOptionsMenu,
   type GardenOptionAction,
 } from "@/components/garden/garden-options-menu";
 import { GardenLocalStateSync } from "@/components/garden/garden-local-state-sync";
+import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import type { ObjectType } from "@/types/garden";
 
 type GardenUserPageMyGardenClientProps = {
@@ -28,7 +30,64 @@ export function GardenUserPageMyGardenClient({
   optionActions,
   darkMode,
 }: GardenUserPageMyGardenClientProps) {
+  const router = useRouter();
+  const [isAccessReady, setIsAccessReady] = useState(false);
   const [grabbedObjectId, setGrabbedObjectId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const verifyAccess = async () => {
+      await Promise.resolve();
+      if (isCancelled) {
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        if (!isCancelled) {
+          setIsAccessReady(true);
+        }
+        return;
+      }
+
+      const session = await getSupabaseSessionOrNull(supabase);
+      if (isCancelled) {
+        return;
+      }
+
+      const user = session?.user;
+      if (!user) {
+        router.replace("/?login=1");
+        return;
+      }
+
+      const userMetadata = user.user_metadata as Record<string, unknown> | undefined;
+      const displayName = userMetadata?.display_name;
+      if (typeof displayName !== "string" || !displayName.trim()) {
+        router.replace("/garden/setup");
+        return;
+      }
+
+      setIsAccessReady(true);
+    };
+
+    void verifyAccess();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [router]);
+
+  if (!isAccessReady) {
+    return (
+      <main className="relative grid h-[100dvh] place-items-center overflow-hidden bg-wa-white text-wa-black font-serif">
+        <p className="rounded-full border border-wa-black/25 bg-wa-white/90 px-4 py-2 text-sm text-wa-black/80 shadow-sm">
+          庭へ案内しています...
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="relative h-[100dvh] overflow-hidden bg-wa-white text-wa-black font-serif">
