@@ -5,8 +5,9 @@ const GARDEN_ALL_SEASON_IMAGE: Record<string, string> = {
   winter: "/images/garden/backgrounds/garden-all/winter/庭-冬.png",
 };
 
-// Avoid repeated 404 probes on initial load until each background has real scene assets.
-const BACKGROUNDS_WITH_SCENE_SPECIFIC_IMAGES = new Set<string>(["garden-all"]);
+// scene-specific background.webp が未配置の間は 404 を避けるため空にしておく。
+// 実ファイルを追加したら対象ID（例: "garden-all"）を再度ここに入れる。
+const BACKGROUNDS_WITH_SCENE_SPECIFIC_IMAGES = new Set<string>();
 
 export function buildGardenBackgroundCandidates(
   backgroundId: string,
