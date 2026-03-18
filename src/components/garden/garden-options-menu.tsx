@@ -1007,15 +1007,16 @@ export function GardenOptionsMenu({
               </div>
 
               {selectedCatalogEntry ? (
-                <div
-                  className={`relative grid min-h-0 overflow-hidden rounded-2xl border md:h-full md:grid-cols-[1.05fr_0.95fr] ${
-                    darkMode
-                      ? "border-wa-white/20 bg-wa-black/15"
-                      : "border-wa-black/15 bg-white/55"
-                  }`}
-                >
+                <div className="min-h-0 overflow-x-auto pb-1 md:overflow-visible md:pb-0">
                   <div
-                    className={`relative grid min-h-0 gap-4 border-b p-4 md:border-b-0 md:border-r md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
+                    className={`relative grid min-h-0 min-w-[42rem] overflow-hidden rounded-2xl border grid-cols-[1.05fr_0.95fr] md:h-full md:min-w-0 ${
+                      darkMode
+                        ? "border-wa-white/20 bg-wa-black/15"
+                        : "border-wa-black/15 bg-white/55"
+                    }`}
+                  >
+                  <div
+                    className={`relative grid min-h-0 gap-4 border-r p-4 md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
                       darkMode
                         ? "border-[#6b5a41]/40 bg-[linear-gradient(120deg,rgba(60,50,38,0.5)_0%,rgba(50,42,30,0.3)_100%)]"
                         : "border-[#d1a877]/30 bg-[linear-gradient(120deg,rgba(255,252,246,0.95)_0%,rgba(250,242,228,0.88)_100%)]"
@@ -1269,6 +1270,7 @@ export function GardenOptionsMenu({
                       darkMode ? "bg-wa-white/18" : "bg-wa-black/15"
                     }`}
                   />
+                </div>
                 </div>
               ) : null}
 
