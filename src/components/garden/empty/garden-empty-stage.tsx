@@ -30,6 +30,8 @@ type GardenEmptyStageProps = {
   seasonName: string;
   timeSlotId: string;
   fullscreen?: boolean;
+  className?: string;
+  showStageBgm?: boolean;
   allowObjectPlacement?: boolean;
   placementObjectType?: ObjectType | null;
   objectStorageKey?: string;
@@ -39,6 +41,8 @@ type GardenEmptyStageProps = {
   ownerName?: string | null;
   gardenName?: string | null;
   resolveCurrentUserIdentity?: boolean;
+  hideHeaderChips?: boolean;
+  hideStageNote?: boolean;
 };
 
 const DEFAULT_CHARACTER_START_POSITION = {
@@ -183,6 +187,8 @@ export function GardenEmptyStage({
   seasonName,
   timeSlotId,
   fullscreen = false,
+  className,
+  showStageBgm = true,
   allowObjectPlacement = false,
   placementObjectType = null,
   objectStorageKey,
@@ -192,6 +198,8 @@ export function GardenEmptyStage({
   ownerName = null,
   gardenName = null,
   resolveCurrentUserIdentity = false,
+  hideHeaderChips = false,
+  hideStageNote = false,
 }: GardenEmptyStageProps) {
   const [resolvedOwnerName, setResolvedOwnerName] = useState<string | null>(
     normalizeLabel(ownerName),
@@ -205,8 +213,8 @@ export function GardenEmptyStage({
   const movementBounds = getMovementBoundsFromBackgroundScale(BACKGROUND_IMAGE_SCALE);
   const hitmapUrl = "/images/garden/backgrounds/garden-all/hitmap1.png";
   const stageContainerClass = fullscreen
-    ? `relative h-[100dvh] w-full overflow-hidden ${theme.stageClass}`
-    : `relative h-[78dvh] min-h-[520px] w-full overflow-hidden rounded-3xl border ${theme.stageClass}`;
+    ? `relative h-[100dvh] w-full overflow-hidden ${theme.stageClass} ${className ?? ""}`
+    : `relative h-[78dvh] min-h-[520px] w-full overflow-hidden rounded-3xl border ${theme.stageClass} ${className ?? ""}`;
   const showCollisionDebug = process.env.NODE_ENV !== "production";
   const fallbackOwnerName = normalizeLabel(ownerName) ?? "あなた";
   const visibleOwnerName = resolvedOwnerName ?? fallbackOwnerName;
@@ -257,11 +265,13 @@ export function GardenEmptyStage({
 
   return (
     <section className={stageContainerClass}>
-      <GardenStageBgm
-        backgroundId={backgroundId}
-        seasonId={seasonId}
-        timeSlotId={timeSlotId}
-      />
+      {showStageBgm ? (
+        <GardenStageBgm
+          backgroundId={backgroundId}
+          seasonId={seasonId}
+          timeSlotId={timeSlotId}
+        />
+      ) : null}
 
       <EmptyStageCharacter
         darkMode={isNight}
@@ -301,21 +311,25 @@ export function GardenEmptyStage({
         ) : null}
       </EmptyStageCharacter>
 
-      <div className="pointer-events-none absolute left-4 top-4 z-40 flex max-w-[min(92vw,28rem)] flex-wrap gap-2 text-xs">
-        <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-          {visibleOwnerName}
-        </span>
-        <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-          {visibleGardenName}
-        </span>
-        <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-          {seasonName}
-        </span>
-      </div>
+      {hideHeaderChips ? null : (
+        <div className="pointer-events-none absolute left-4 top-4 z-40 flex max-w-[min(92vw,28rem)] flex-wrap gap-2 text-xs">
+          <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
+            {visibleOwnerName}
+          </span>
+          <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
+            {visibleGardenName}
+          </span>
+          <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
+            {seasonName}
+          </span>
+        </div>
+      )}
 
-      <p className={`pointer-events-none absolute bottom-4 right-4 z-40 hidden text-xs sm:block ${theme.noteClass}`}>
-        和の静けさをベースに、ここから配置を始めます。
-      </p>
+      {hideStageNote ? null : (
+        <p className={`pointer-events-none absolute bottom-4 right-4 z-40 hidden text-xs sm:block ${theme.noteClass}`}>
+          和の静けさをベースに、ここから配置を始めます。
+        </p>
+      )}
     </section>
   );
 }
