@@ -39,6 +39,13 @@ export type VoiceZooRecordingMeta = {
   createdAt: string;
 };
 
+export type GardenHarmonyRecordingMeta = {
+  objectId: string;
+  objectType: ObjectType;
+  recordingId: string;
+  createdAt: string;
+};
+
 function isObjectType(value: unknown): value is ObjectType {
   return (
     value === "furin" ||
@@ -81,6 +88,21 @@ function isVoiceZooRecordingMeta(value: unknown): value is VoiceZooRecordingMeta
   );
 }
 
+function isGardenHarmonyRecordingMeta(value: unknown): value is GardenHarmonyRecordingMeta {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<GardenHarmonyRecordingMeta>;
+
+  return (
+    typeof candidate.objectId === "string" &&
+    isObjectType(candidate.objectType) &&
+    typeof candidate.recordingId === "string" &&
+    typeof candidate.createdAt === "string"
+  );
+}
+
 export function parseVoiceZooRecordingCatalog(rawValue: string | null): VoiceZooRecordingMeta[] {
   if (!rawValue) {
     return [];
@@ -93,6 +115,25 @@ export function parseVoiceZooRecordingCatalog(rawValue: string | null): VoiceZoo
     }
 
     return parsed.filter(isVoiceZooRecordingMeta);
+  } catch {
+    return [];
+  }
+}
+
+export function parseGardenHarmonyRecordingCatalog(
+  rawValue: string | null,
+): GardenHarmonyRecordingMeta[] {
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(isGardenHarmonyRecordingMeta);
   } catch {
     return [];
   }
@@ -156,4 +197,25 @@ export function createVoiceZooRecordingId(objectType: ObjectType) {
 
 export function getVoiceZooRecordingStorageKey(ownerId: string, objectType: ObjectType) {
   return getVoiceZooLegacyRecordingStorageKey(ownerId, objectType);
+}
+
+export function getGardenHarmonyRecordingCatalogStorageKey(
+  viewerId: string,
+  gardenOwnerId: string,
+) {
+  return `kazenagare_harmony_catalog_${viewerId}_${gardenOwnerId}`;
+}
+
+export function getGardenHarmonyRecordingBlobStorageKey(
+  viewerId: string,
+  gardenOwnerId: string,
+  recordingId: string,
+) {
+  return `kazenagare_harmony_blob_${viewerId}_${gardenOwnerId}_${recordingId}`;
+}
+
+export function createGardenHarmonyRecordingId(objectType: ObjectType, objectId: string) {
+  return `harmony-${objectType}-${objectId}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
 }

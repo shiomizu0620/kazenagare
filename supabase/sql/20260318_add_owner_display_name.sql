@@ -3,6 +3,6 @@
 
 begin;
 
-alter table public.garden_posts add column if not exists owner_display_name text;
+alter table "public".garden_posts add column if not exists owner_display_name text;
 
 commit;
