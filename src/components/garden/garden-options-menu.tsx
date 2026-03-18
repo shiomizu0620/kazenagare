@@ -1018,7 +1018,7 @@ export function GardenOptionsMenu({
                     }`}
                   >
                   <div
-                    className={`relative grid min-h-0 gap-4 border-b p-4 md:border-b-0 md:border-r md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
+                    className={`relative grid min-h-0 gap-4 border-b p-4 pb-24 md:border-b-0 md:border-r md:p-4 md:pb-4 md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
                       darkMode
                         ? "border-[#6b5a41]/40 bg-[linear-gradient(120deg,rgba(60,50,38,0.5)_0%,rgba(50,42,30,0.3)_100%)]"
                         : "border-[#d1a877]/30 bg-[linear-gradient(120deg,rgba(255,252,246,0.95)_0%,rgba(250,242,228,0.88)_100%)]"
@@ -1136,10 +1136,10 @@ export function GardenOptionsMenu({
                   </div>
 
                   <div
-                    className={`grid min-h-0 content-start gap-4 p-4 md:[transform-origin:left_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-right-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
+                    className={`absolute inset-x-0 bottom-0 z-20 grid min-h-0 content-start gap-3 border-t p-3 md:static md:z-auto md:gap-4 md:border-t-0 md:p-4 md:[transform-origin:left_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-right-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
                       darkMode
-                        ? "bg-[linear-gradient(240deg,rgba(60,50,38,0.3)_0%,rgba(50,42,30,0.15)_100%)]"
-                        : "bg-[linear-gradient(240deg,rgba(255,252,246,0.92)_0%,rgba(250,242,228,0.78)_100%)]"
+                        ? "border-[#6b5a41]/45 bg-[linear-gradient(240deg,rgba(45,38,29,0.98)_0%,rgba(39,33,25,0.96)_100%)]"
+                        : "border-[#d1a877]/35 bg-[linear-gradient(240deg,rgba(252,248,242,0.98)_0%,rgba(247,239,226,0.96)_100%)]"
                     }`}
                   >
                     <div className="hidden md:block">
@@ -1162,7 +1162,7 @@ export function GardenOptionsMenu({
                     >
                       <span>オブジェクト一覧</span>
                       <span className="inline-flex items-center gap-1 text-xs">
-                        {isCatalogListExpanded ? "閉じる" : "開く"}
+                        {isCatalogListExpanded ? "閉じる" : "展開"}
                         <svg
                           aria-hidden="true"
                           viewBox="0 0 24 24"
@@ -1181,7 +1181,9 @@ export function GardenOptionsMenu({
                     <div
                       id={`${catalogPanelId}-mobile-list`}
                       className={`min-h-0 pr-1 md:max-h-[44dvh] md:overflow-y-auto md:overscroll-y-contain ${
-                        isCatalogListExpanded ? "max-h-[34svh] overflow-y-auto overscroll-y-contain" : "hidden md:block"
+                        isCatalogListExpanded
+                          ? "max-h-[34svh] overflow-y-auto overscroll-y-contain"
+                          : "max-h-[7.75rem] overflow-hidden"
                       }`}
                     >
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -1235,9 +1237,19 @@ export function GardenOptionsMenu({
                       </div>
                     </div>
 
+                    {!isCatalogListExpanded ? (
+                      <p
+                        className={`text-center text-[11px] md:hidden ${
+                          darkMode ? "text-wa-white/70" : "text-wa-black/65"
+                        }`}
+                      >
+                        一覧の続きを見るには「展開」を押してください。
+                      </p>
+                    ) : null}
+
                     {isDevelopment ? (
                       <details
-                        className={`rounded-xl border p-3 text-xs ${
+                        className={`hidden rounded-xl border p-3 text-xs md:block ${
                           darkMode
                             ? "border-wa-white/20 bg-wa-black/35 text-wa-white/85"
                             : "border-wa-black/15 bg-white/80 text-wa-black/80"
