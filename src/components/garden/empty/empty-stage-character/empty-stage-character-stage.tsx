@@ -224,7 +224,7 @@ export function EmptyStageCharacterStage({
                     fontWeight="700"
                     fill="#9A3412"
                   >
-                    +{popup.coins} coin
+                    +{popup.coins} コイン
                   </text>
                   <text
                     x="0"

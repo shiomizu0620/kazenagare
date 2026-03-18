@@ -101,7 +101,7 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
     {
       href: `/garden/publish?background=${encodeURIComponent(selectedBackground.id)}&season=${encodeURIComponent(selectedSeason.id)}&time=${encodeURIComponent(selectedTimeSlot.id)}`,
       label: "この庭を投稿する",
-      description: "他の人が /garden/[userId] で見られるようにする",
+      description: "自分の庭を公開する",
     },
     {
       href: "/garden/me/qr",
