@@ -15,6 +15,18 @@ type EmptyStageCharacterStageProps = {
   children?: ReactNode;
   darkMode: boolean;
   isWalking: boolean;
+  characterImageSrc: string;
+  characterImageSizePx: number;
+  characterFacingDirection:
+    | "right"
+    | "down-right"
+    | "down"
+    | "down-left"
+    | "left"
+    | "up-left"
+    | "up"
+    | "up-right";
+  characterHorizontalFacing: "left" | "right";
   isPlacementBlocked: boolean;
   placementBlockedNotice: {
     id: string;
@@ -55,6 +67,10 @@ export function EmptyStageCharacterStage({
   children,
   darkMode,
   isWalking,
+  characterImageSrc,
+  characterImageSizePx,
+  characterFacingDirection,
+  characterHorizontalFacing,
   stageRef,
   worldRef,
   characterRef,
@@ -89,6 +105,20 @@ export function EmptyStageCharacterStage({
   const previewHalfImageSize = activePlacementObject
     ? activePlacementObject.stageImageSize * 0.5
     : 0;
+  const effectiveHorizontalFacing =
+    characterFacingDirection === "left" ||
+    characterFacingDirection === "down-left" ||
+    characterFacingDirection === "up-left"
+      ? "left"
+      : characterFacingDirection === "right" ||
+          characterFacingDirection === "down-right" ||
+          characterFacingDirection === "up-right"
+        ? "right"
+        : characterHorizontalFacing;
+  const characterFacingTransformClassName =
+    effectiveHorizontalFacing === "right"
+      ? "-scale-x-100 rotate-0"
+      : "scale-x-100 rotate-0";
 
   return (
     <>
@@ -368,14 +398,17 @@ export function EmptyStageCharacterStage({
                 : ""
             }`}
           >
-            <div
-              className={`h-7 w-7 rounded-full border-2 ${
-                darkMode
-                  ? "border-wa-white/70 bg-wa-white/20"
-                  : "border-wa-black/50 bg-wa-white"
+            <img
+              src={characterImageSrc}
+              alt=""
+              aria-hidden
+              draggable={false}
+              width={characterImageSizePx}
+              height={characterImageSizePx}
+              className={`select-none object-contain transition-transform duration-100 ${characterFacingTransformClassName} ${
+                darkMode ? "brightness-95" : ""
               }`}
             />
-            <div className="h-9 w-8 rounded-t-2xl border-2 border-wa-red/70 bg-wa-red/70" />
           </div>
         </div>
       </div>
