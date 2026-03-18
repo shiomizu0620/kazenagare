@@ -916,6 +916,22 @@ export function EmptyStageCharacter({
 
       let hasFinalizedPlayback = false;
       let hasRewardedPlayback = false;
+      let hasTriggeredVisitorVideoPlayback = false;
+
+      const triggerVisitorVideoPlayback = () => {
+        if (!audioOwnerIdOverride || hasTriggeredVisitorVideoPlayback) {
+          return;
+        }
+
+        hasTriggeredVisitorVideoPlayback = true;
+
+        const latestObject =
+          placedObjectsRef.current.find((placedObject) => placedObject.id === objectId) ?? null;
+
+        if (latestObject) {
+          triggerRewardVideoPlayback(latestObject);
+        }
+      };
 
       const rewardPlayback = () => {
         if (hasRewardedPlayback) {
@@ -961,12 +977,14 @@ export function EmptyStageCharacter({
       };
 
       objectAudio.onplay = () => {
+        triggerVisitorVideoPlayback();
         rewardPlayback();
       };
 
       void resumeAutoPlaybackAudioContextIfNeeded()
         .then(() => objectAudio.play())
         .then(() => {
+          triggerVisitorVideoPlayback();
           rewardPlayback();
         })
         .catch(() => {
@@ -981,6 +999,8 @@ export function EmptyStageCharacter({
       resumeAutoPlaybackAudioContextIfNeeded,
       setAutoPlaybackVolume,
       stopAutoPlaybackObject,
+      audioOwnerIdOverride,
+      triggerRewardVideoPlayback,
     ],
   );
 
