@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import {
   OBJECT_VISUALS,
@@ -161,22 +162,11 @@ export function EmptyStageCharacterStage({
                       y={-halfVideoSize}
                       width={objectVisual.stageVideoSize}
                       height={objectVisual.stageVideoSize}
-                      style={{
-                        overflow: "visible",
-                        mixBlendMode: "normal",
-                        opacity: 1,
-                      }}
+                      className="overflow-visible mix-blend-normal opacity-100"
                     >
                       <div
                         {...({ xmlns: "http://www.w3.org/1999/xhtml" } as Record<string, string>)}
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "transparent",
-                        }}
+                        className="flex h-full w-full items-center justify-center bg-transparent"
                       >
                         <video
                           key={`${placedObject.id}-${rewardVideoPlaybackKey}`}
@@ -185,14 +175,7 @@ export function EmptyStageCharacterStage({
                           muted
                           playsInline
                           preload="auto"
-                          style={{
-                            display: "block",
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                            opacity: 1,
-                            visibility: "visible",
-                          }}
+                          className="block h-full w-full object-cover opacity-100 visible"
                         />
                       </div>
                     </foreignObject>
@@ -398,13 +381,14 @@ export function EmptyStageCharacterStage({
                 : ""
             }`}
           >
-            <img
+            <Image
               src={characterImageSrc}
               alt=""
-              aria-hidden
+              aria-hidden={true}
               draggable={false}
               width={characterImageSizePx}
               height={characterImageSizePx}
+              unoptimized
               className={`select-none object-contain transition-transform duration-100 ${characterFacingTransformClassName} ${
                 darkMode ? "brightness-95" : ""
               }`}

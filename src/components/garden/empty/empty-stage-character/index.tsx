@@ -264,7 +264,7 @@ export function EmptyStageCharacter({
     ? `${objectStorageKey}_${audioOwnerId}`
     : null;
   const [isWalking, setIsWalking] = useState(false);
-  const [characterImageSrc, setCharacterImageSrc] = useState(CHARACTER_IDLE_IMAGE_SRC);
+  const [isCharacterWalkFrame, setIsCharacterWalkFrame] = useState(false);
   const [characterFacingDirection, setCharacterFacingDirection] =
     useState<CharacterFacingDirection>("right");
   const [characterHorizontalFacing, setCharacterHorizontalFacing] =
@@ -362,23 +362,14 @@ export function EmptyStageCharacter({
   }, [hitmapData]);
 
   useEffect(() => {
-    if (!isWalking) {
-      setCharacterImageSrc(CHARACTER_IDLE_IMAGE_SRC);
-      return;
-    }
-
     const timerId = window.setInterval(() => {
-      setCharacterImageSrc((current) =>
-        current === CHARACTER_IDLE_IMAGE_SRC
-          ? CHARACTER_WALK_IMAGE_SRC
-          : CHARACTER_IDLE_IMAGE_SRC,
-      );
+      setIsCharacterWalkFrame((current) => !current);
     }, CHARACTER_WALK_FRAME_INTERVAL_MS);
 
     return () => {
       window.clearInterval(timerId);
     };
-  }, [isWalking]);
+  }, []);
 
   const getListenerWorldPosition = useCallback(() => {
     return {
@@ -2387,6 +2378,10 @@ export function EmptyStageCharacter({
   const shouldRenderObjectLocator =
     isObjectLocatorVisible &&
     Boolean(objectLocatorIndicator);
+  const characterImageSrc =
+    isWalking && isCharacterWalkFrame
+      ? CHARACTER_WALK_IMAGE_SRC
+      : CHARACTER_IDLE_IMAGE_SRC;
   const characterImageSizePx =
     characterImageSrc === CHARACTER_IDLE_IMAGE_SRC
       ? CHARACTER_IDLE_IMAGE_SIZE_PX
