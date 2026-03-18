@@ -312,16 +312,46 @@ export function GardenEmptyStage({
       </EmptyStageCharacter>
 
       {hideHeaderChips ? null : (
-        <div className="pointer-events-none absolute left-4 top-4 z-40 flex max-w-[min(92vw,28rem)] flex-wrap gap-2 text-xs">
-          <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-            {visibleOwnerName}
-          </span>
-          <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-            {visibleGardenName}
-          </span>
-          <span className={`rounded-full border px-3 py-1 ${theme.chipClass}`}>
-            {seasonName}
-          </span>
+        <div className="pointer-events-none absolute left-3 top-3 z-40 w-[min(86vw,23rem)] sm:left-4 sm:top-4 sm:w-[min(76vw,25rem)]">
+          <section
+            className={`kazenagare-garden-info-panel rounded-2xl border px-3.5 py-3 shadow-[0_16px_36px_rgba(0,0,0,0.26)] ${
+              isNight
+                ? "kazenagare-garden-info-panel-night border-[#f0dcb9]/28 text-[#fff8eb]"
+                : "border-[#c89f6b]/45 text-[#34261a]"
+            }`}
+          >
+            <p
+              className={`text-[10px] uppercase tracking-[0.2em] ${
+                isNight ? "text-[#f6e7ce]/64" : "text-[#7f5f3f]/72"
+              }`}
+            >
+              庭のたより
+            </p>
+            <p className="mt-1 break-words font-serif text-base font-semibold leading-snug sm:text-lg">
+              {visibleGardenName}
+            </p>
+
+            <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px] sm:text-xs">
+              <span
+                className={`kazenagare-garden-info-tag rounded-full border px-2.5 py-1 ${
+                  isNight
+                    ? "border-[#f2dfbe]/26 bg-[#f7e9cf]/12 text-[#fff5e4]"
+                    : "border-[#b98d59]/32 bg-[#fff8ea]/88 text-[#503a27]"
+                }`}
+              >
+                庭主 {visibleOwnerName}
+              </span>
+              <span
+                className={`kazenagare-garden-info-tag rounded-full border px-2.5 py-1 ${
+                  isNight
+                    ? "border-[#f2dfbe]/26 bg-[#f7e9cf]/12 text-[#fff5e4]"
+                    : "border-[#b98d59]/32 bg-[#fff8ea]/88 text-[#503a27]"
+                }`}
+              >
+                季節 {seasonName}
+              </span>
+            </div>
+          </section>
         </div>
       )}
 

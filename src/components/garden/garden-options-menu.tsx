@@ -1,6 +1,6 @@
 "use client";
 
-import { del, keys as getIdbKeys, set } from "idb-keyval";
+import { del, set } from "idb-keyval";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -48,7 +48,6 @@ import {
 import type { ObjectType } from "@/types/garden";
 
 const RECORDING_DURATION_SECONDS = 3;
-const LOCAL_STORAGE_PREFIX = "kazenagare_";
 type RecordingModalMode = "purchase" | "rerecord";
 type RecordingModalCloseReason = "user" | "placement" | "force";
 
@@ -162,29 +161,29 @@ export function GardenOptionsMenu({
   const recordingCountdownTimerRef = useRef<number | null>(null);
   const recordingPreviewAudioUrlsRef = useRef<Partial<Record<ObjectType, string>>>({});
 
-  const iconButtonClass = `grid h-11 w-11 place-items-center rounded-full border-2 shadow-lg transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+  const iconButtonClass = `grid h-11 w-11 place-items-center rounded-full border shadow-[0_12px_28px_rgba(0,0,0,0.24)] backdrop-blur-[2px] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(0,0,0,0.3)] active:translate-y-[1px] active:scale-[0.98] ${
     darkMode
-      ? "border-white/45 bg-neutral-900 text-white hover:bg-neutral-800"
-      : "border-black/25 bg-white text-neutral-900 hover:bg-neutral-100"
+      ? "border-[#e6d2b3]/40 bg-[radial-gradient(circle_at_32%_25%,rgba(255,255,255,0.2)_0%,rgba(255,255,255,0.1)_44%,rgba(30,24,18,0.88)_100%)] text-white hover:border-[#f3dcbb]/55"
+      : "border-[#b78c58]/55 bg-[radial-gradient(circle_at_32%_25%,rgba(255,255,255,0.98)_0%,rgba(248,236,216,0.94)_58%,rgba(227,203,170,0.92)_100%)] text-[#33261b] hover:border-[#936438]/70"
   }`;
 
-  const panelClass = `grid gap-3 rounded-2xl border-2 p-3 shadow-2xl transition-all duration-150 ${
+  const panelClass = `kazenagare-options-panel relative isolate grid max-h-[min(78vh,34rem)] gap-3 overflow-y-auto rounded-2xl border p-3.5 shadow-[0_36px_70px_rgba(0,0,0,0.35)] transition-all duration-200 ${
     isOpen
-      ? "pointer-events-auto translate-y-0 opacity-100"
+      ? "pointer-events-auto translate-y-0 opacity-100 animate-[kazenagare-options-panel-reveal_280ms_cubic-bezier(0.18,1,0.32,1)]"
       : "pointer-events-none -translate-y-1 opacity-0"
   } ${
     darkMode
-      ? "border-white/30 bg-neutral-900 text-white"
-      : "border-black/20 bg-white text-neutral-900"
+      ? "kazenagare-options-panel-dark border-[#e2cfb2]/35 text-wa-white"
+      : "border-[#c79e6b]/45 text-[#2f2319]"
   }`;
 
-  const itemClass = `grid gap-1 rounded-xl border px-3 py-2 text-left transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+  const itemClass = `kazenagare-options-item grid gap-1 rounded-xl border px-3 py-2 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
     darkMode
-      ? "border-wa-white/20 bg-wa-white/5 hover:bg-wa-white/10"
-      : "border-wa-black/15 bg-wa-white hover:bg-wa-red/10"
+      ? "border-[#e8d4b7]/25 bg-[#f5ebd9]/[0.07] text-wa-white hover:border-[#f2dcb9]/45 hover:bg-[#f2dcb9]/12"
+      : "border-[#bc935f]/35 bg-[#fff9ee]/95 text-[#312419] hover:border-[#95663a]/60 hover:bg-[#f6e2c3]"
   }`;
 
-  const descriptionClass = `text-xs ${darkMode ? "text-wa-white/75" : "text-wa-black/70"}`;
+  const descriptionClass = `text-xs ${darkMode ? "text-wa-white/75" : "text-[#5b4533]/80"}`;
 
   const selectedCatalogEntry =
     VOICE_ZOO_ENTRIES.find((entry) => entry.objectType === selectedCatalogObjectType) ??
@@ -649,44 +648,6 @@ export function GardenOptionsMenu({
     }
   };
 
-  const handleClearAllLocalSaveData = useCallback(async () => {
-    const shouldClear = window.confirm(
-      "このブラウザに保存されているローカルデータを削除します。続行しますか？",
-    );
-    if (!shouldClear) {
-      return;
-    }
-
-    let removedLocalStorageCount = 0;
-    const localStorageKeys = Object.keys(window.localStorage);
-    for (const key of localStorageKeys) {
-      if (!key.startsWith(LOCAL_STORAGE_PREFIX)) {
-        continue;
-      }
-
-      window.localStorage.removeItem(key);
-      removedLocalStorageCount += 1;
-    }
-
-    let removedIdbCount = 0;
-    const idbKeys = await getIdbKeys();
-    await Promise.all(
-      idbKeys.map(async (key) => {
-        if (typeof key !== "string" || !key.startsWith(LOCAL_STORAGE_PREFIX)) {
-          return;
-        }
-
-        await del(key);
-        removedIdbCount += 1;
-      }),
-    );
-
-    window.alert(
-      `ローカル保存データを削除しました（localStorage: ${removedLocalStorageCount}件 / IndexedDB: ${removedIdbCount}件）。`,
-    );
-    window.location.reload();
-  }, []);
-
   return (
     <>
       {isOpen || isCatalogOpen ? (
@@ -694,7 +655,11 @@ export function GardenOptionsMenu({
           type="button"
           aria-label="モーダルを閉じる"
           onClick={closeAllPanels}
-          className="fixed inset-0 z-[60] bg-wa-black/35 backdrop-blur-[1px]"
+          className={`fixed inset-0 z-[60] backdrop-blur-[2px] ${
+            darkMode
+              ? "bg-[radial-gradient(circle_at_85%_10%,rgba(154,130,93,0.18)_0%,rgba(0,0,0,0.74)_62%)]"
+              : "bg-[radial-gradient(circle_at_85%_10%,rgba(180,133,76,0.2)_0%,rgba(31,24,19,0.45)_68%)]"
+          }`}
         />
       ) : null}
 
@@ -770,21 +735,28 @@ export function GardenOptionsMenu({
           </button>
         </div>
 
-        <div id={panelId} className={`mt-2 w-[min(88vw,22rem)] ${panelClass}`}>
-          <p className="text-sm font-semibold">{resolvedPanelTitle}</p>
+        <div id={panelId} className={`mt-2 w-[min(90vw,23.5rem)] ${panelClass}`}>
+          <div className="grid gap-1">
+            <p className={`text-[10px] uppercase tracking-[0.24em] ${darkMode ? "text-wa-white/55" : "text-[#78583b]/70"}`}>
+              庭のしつらえ
+            </p>
+            <p className="font-serif text-base font-semibold tracking-[0.08em]">
+              {resolvedPanelTitle}
+            </p>
+          </div>
 
           <div
             className={`grid gap-2 rounded-xl border p-3 ${
               darkMode
-                ? "border-wa-white/20 bg-wa-white/8"
-                : "border-wa-black/15 bg-wa-white/90"
+                ? "border-[#e2cfb2]/30 bg-[linear-gradient(148deg,rgba(24,23,20,0.9)_0%,rgba(58,49,35,0.72)_100%)]"
+                : "border-[#caa16e]/45 bg-[linear-gradient(148deg,rgba(255,252,246,0.98)_0%,rgba(248,234,207,0.94)_100%)]"
             }`}
           >
-            <p className="text-xs font-semibold">サウンド設定</p>
+            <p className="text-xs font-semibold tracking-[0.08em]">サウンド設定</p>
 
             <label className="grid gap-1">
               <div className="flex items-center justify-between text-xs">
-                <span>BGM音量</span>
+                <span>背景音量</span>
                 <span>{Math.round(audioSettings.bgmVolume * 100)}%</span>
               </div>
               <input
@@ -794,6 +766,7 @@ export function GardenOptionsMenu({
                 step={1}
                 value={Math.round(audioSettings.bgmVolume * 100)}
                 onChange={(event) => updateAudioSetting("bgmVolume", event.target.value)}
+                className={darkMode ? "accent-[#ddb985]" : "accent-[#b77a37]"}
               />
             </label>
 
@@ -811,6 +784,7 @@ export function GardenOptionsMenu({
                 onChange={(event) =>
                   updateAudioSetting("characterVoiceVolume", event.target.value)
                 }
+                className={darkMode ? "accent-[#ddb985]" : "accent-[#b77a37]"}
               />
             </label>
           </div>
@@ -851,20 +825,6 @@ export function GardenOptionsMenu({
                 </Link>
               );
             })}
-
-            <button
-              type="button"
-              onClick={() => {
-                setIsOpen(false);
-                void handleClearAllLocalSaveData();
-              }}
-              className={`${itemClass} border-wa-red/45 text-wa-red`}
-            >
-              <span className="text-sm font-semibold">ローカル保存を削除</span>
-              <span className={descriptionClass}>
-                このブラウザの庭設定・配置・録音キャッシュを初期化します
-              </span>
-            </button>
           </div>
         </div>
       </div>
@@ -886,7 +846,7 @@ export function GardenOptionsMenu({
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-wa-black/10 pb-3 dark:border-wa-white/15">
                 <div>
                   <p className={`text-xs ${darkMode ? "text-wa-white/75" : "text-wa-black/65"}`}>
-                    KAZENAGARE Collection
+                    風の音コレクション
                   </p>
                   <h2 className="text-2xl font-semibold leading-none">和の音オブジェクト図鑑</h2>
                 </div>
@@ -927,7 +887,7 @@ export function GardenOptionsMenu({
                         <p className="mt-1 flex items-end gap-2 leading-none">
                           <span className="text-4xl font-bold">{selectedEntryPlaybackReward}</span>
                           <span className={`pb-1 text-sm ${darkMode ? "text-wa-white/70" : "text-wa-black/65"}`}>
-                            coins
+                            コイン
                           </span>
                         </p>
                       </div>
