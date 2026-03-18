@@ -6,7 +6,7 @@ type GardenFieldProps = {
 
 export function GardenField({ children }: GardenFieldProps) {
   return (
-    <section className="relative h-[100dvh] w-[100dvw] overflow-hidden bg-wa-white text-wa-black">
+    <section className="relative h-[100svh] w-[100dvw] overflow-hidden overscroll-none bg-wa-white text-wa-black md:h-[100dvh] md:overscroll-auto">
       {children}
     </section>
   );

@@ -215,7 +215,7 @@ export function GardenEmptyStage({
   const movementBounds = getMovementBoundsFromBackgroundScale(BACKGROUND_IMAGE_SCALE);
   const hitmapUrl = "/images/garden/backgrounds/garden-all/hitmap1.png";
   const stageContainerClass = fullscreen
-    ? `relative h-[100dvh] w-full overflow-hidden ${theme.stageClass} ${className ?? ""}`
+    ? `relative h-[100svh] w-full overflow-hidden overscroll-none md:h-[100dvh] md:overscroll-auto ${theme.stageClass} ${className ?? ""}`
     : `relative h-[78dvh] min-h-[520px] w-full overflow-hidden rounded-3xl border ${theme.stageClass} ${className ?? ""}`;
   const showCollisionDebug = process.env.NODE_ENV !== "production";
   const fallbackOwnerName = normalizeLabel(ownerName) ?? "あなた";
