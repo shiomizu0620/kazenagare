@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import {
   OBJECT_VISUALS,
@@ -15,6 +16,18 @@ type EmptyStageCharacterStageProps = {
   children?: ReactNode;
   darkMode: boolean;
   isWalking: boolean;
+  characterImageSrc: string;
+  characterImageSizePx: number;
+  characterFacingDirection:
+    | "right"
+    | "down-right"
+    | "down"
+    | "down-left"
+    | "left"
+    | "up-left"
+    | "up"
+    | "up-right";
+  characterHorizontalFacing: "left" | "right";
   isPlacementBlocked: boolean;
   placementBlockedNotice: {
     id: string;
@@ -55,6 +68,10 @@ export function EmptyStageCharacterStage({
   children,
   darkMode,
   isWalking,
+  characterImageSrc,
+  characterImageSizePx,
+  characterFacingDirection,
+  characterHorizontalFacing,
   stageRef,
   worldRef,
   characterRef,
@@ -89,6 +106,20 @@ export function EmptyStageCharacterStage({
   const previewHalfImageSize = activePlacementObject
     ? activePlacementObject.stageImageSize * 0.5
     : 0;
+  const effectiveHorizontalFacing =
+    characterFacingDirection === "left" ||
+    characterFacingDirection === "down-left" ||
+    characterFacingDirection === "up-left"
+      ? "left"
+      : characterFacingDirection === "right" ||
+          characterFacingDirection === "down-right" ||
+          characterFacingDirection === "up-right"
+        ? "right"
+        : characterHorizontalFacing;
+  const characterFacingTransformClassName =
+    effectiveHorizontalFacing === "right"
+      ? "-scale-x-100 rotate-0"
+      : "scale-x-100 rotate-0";
 
   return (
     <>
@@ -131,22 +162,11 @@ export function EmptyStageCharacterStage({
                       y={-halfVideoSize}
                       width={objectVisual.stageVideoSize}
                       height={objectVisual.stageVideoSize}
-                      style={{
-                        overflow: "visible",
-                        mixBlendMode: "normal",
-                        opacity: 1,
-                      }}
+                      className="overflow-visible mix-blend-normal opacity-100"
                     >
                       <div
                         {...({ xmlns: "http://www.w3.org/1999/xhtml" } as Record<string, string>)}
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "transparent",
-                        }}
+                        className="flex h-full w-full items-center justify-center bg-transparent"
                       >
                         <video
                           key={`${placedObject.id}-${rewardVideoPlaybackKey}`}
@@ -155,14 +175,7 @@ export function EmptyStageCharacterStage({
                           muted
                           playsInline
                           preload="auto"
-                          style={{
-                            display: "block",
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                            opacity: 1,
-                            visibility: "visible",
-                          }}
+                          className="block h-full w-full object-cover opacity-100 visible"
                         />
                       </div>
                     </foreignObject>
@@ -368,14 +381,18 @@ export function EmptyStageCharacterStage({
                 : ""
             }`}
           >
-            <div
-              className={`h-7 w-7 rounded-full border-2 ${
-                darkMode
-                  ? "border-wa-white/70 bg-wa-white/20"
-                  : "border-wa-black/50 bg-wa-white"
+            <Image
+              src={characterImageSrc}
+              alt=""
+              aria-hidden={true}
+              draggable={false}
+              width={characterImageSizePx}
+              height={characterImageSizePx}
+              unoptimized
+              className={`select-none object-contain transition-transform duration-100 ${characterFacingTransformClassName} ${
+                darkMode ? "brightness-95" : ""
               }`}
             />
-            <div className="h-9 w-8 rounded-t-2xl border-2 border-wa-red/70 bg-wa-red/70" />
           </div>
         </div>
       </div>
