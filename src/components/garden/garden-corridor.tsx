@@ -382,7 +382,7 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
   );
 
   return (
-    <main ref={sceneRef} className="kazenagare-washitsu-scene relative h-[100dvh] overflow-hidden overscroll-y-none text-[#f4ecde]">
+    <main ref={sceneRef} className="kazenagare-washitsu-scene relative h-[100svh] overflow-hidden overscroll-none text-[#f4ecde] md:h-[100dvh] md:overscroll-auto">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_44%,rgba(252,226,176,0.09),rgba(19,14,13,0.78))]" />
       <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(90deg,rgba(239,220,186,0.05)_0_2px,transparent_2px_140px)]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-14 border-b border-[#d8be94]/28 bg-[linear-gradient(180deg,rgba(42,26,17,0.95),rgba(28,18,13,0.88))]" />

@@ -179,7 +179,7 @@ export default async function GardenUserPage({
   ];
 
   return (
-    <main className="relative h-[100dvh] overflow-hidden bg-wa-white text-wa-black font-serif">
+    <main className="relative h-[100svh] overflow-hidden overscroll-none bg-wa-white text-wa-black font-serif md:h-[100dvh] md:overscroll-auto">
       <GardenEmptyStage
         key={`${userId}-${publishedPost?.publishedAt ?? "draft"}`}
         backgroundId={background.id}

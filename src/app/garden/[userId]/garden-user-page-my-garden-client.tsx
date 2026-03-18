@@ -81,7 +81,7 @@ export function GardenUserPageMyGardenClient({
 
   if (!isAccessReady) {
     return (
-      <main className="relative grid h-[100dvh] place-items-center overflow-hidden bg-wa-white text-wa-black font-serif">
+      <main className="relative grid h-[100svh] place-items-center overflow-hidden overscroll-none bg-wa-white text-wa-black font-serif md:h-[100dvh] md:overscroll-auto">
         <p className="rounded-full border border-wa-black/25 bg-wa-white/90 px-4 py-2 text-sm text-wa-black/80 shadow-sm">
           庭へ案内しています...
         </p>
@@ -90,7 +90,7 @@ export function GardenUserPageMyGardenClient({
   }
 
   return (
-    <main className="relative h-[100dvh] overflow-hidden bg-wa-white text-wa-black font-serif">
+    <main className="relative h-[100svh] overflow-hidden overscroll-none bg-wa-white text-wa-black font-serif md:h-[100dvh] md:overscroll-auto">
       <GardenLocalStateSync
         backgroundId={backgroundId}
         seasonId={seasonId}
