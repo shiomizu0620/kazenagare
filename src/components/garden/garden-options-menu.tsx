@@ -1018,20 +1018,20 @@ export function GardenOptionsMenu({
                     }`}
                   >
                   <div
-                    className={`relative grid min-h-0 gap-4 border-b p-4 pb-24 md:border-b-0 md:border-r md:p-4 md:pb-4 md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
+                    className={`relative grid min-h-0 gap-2 border-b p-3 pb-24 md:border-b-0 md:border-r md:p-4 md:pb-4 md:gap-4 md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
                       darkMode
                         ? "border-[#6b5a41]/40 bg-[linear-gradient(120deg,rgba(60,50,38,0.5)_0%,rgba(50,42,30,0.3)_100%)]"
                         : "border-[#d1a877]/30 bg-[linear-gradient(120deg,rgba(255,252,246,0.95)_0%,rgba(250,242,228,0.88)_100%)]"
                     }`}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-2 md:gap-3">
                       <div>
-                        <p className={`text-xs ${darkMode ? "text-wa-white/75" : "text-wa-black/65"}`}>
+                        <p className={`text-[10px] md:text-xs ${darkMode ? "text-wa-white/75" : "text-wa-black/65"}`}>
                           1回の再生報酬
                         </p>
-                        <p className="mt-1 flex items-end gap-2 leading-none">
-                          <span className="text-4xl font-bold">{selectedEntryPlaybackReward}</span>
-                          <span className={`pb-1 text-sm ${darkMode ? "text-wa-white/70" : "text-wa-black/65"}`}>
+                        <p className="mt-0.5 md:mt-1 flex items-end gap-1 md:gap-2 leading-none">
+                          <span className="text-3xl md:text-4xl font-bold">{selectedEntryPlaybackReward}</span>
+                          <span className={`pb-0.5 md:pb-1 text-xs md:text-sm ${darkMode ? "text-wa-white/70" : "text-wa-black/65"}`}>
                             コイン
                           </span>
                         </p>
@@ -1039,15 +1039,15 @@ export function GardenOptionsMenu({
                     </div>
 
                     <div
-                      className={`grid min-h-[220px] place-items-center rounded-2xl border-4 shadow-[inset_0_2px_8px_rgba(0,0,0,0.12)] ${
+                      className={`grid min-h-[140px] md:min-h-[220px] place-items-center rounded-2xl border-4 shadow-[inset_0_2px_8px_rgba(0,0,0,0.12)] ${
                         darkMode
                           ? "border-[#8b6f47]/35 bg-[linear-gradient(135deg,rgba(60,50,38,0.4)_0%,rgba(48,42,32,0.6)_100%)]"
                           : "border-[#c9a868]/45 bg-[linear-gradient(135deg,rgba(255,252,246,0.8)_0%,rgba(248,240,226,0.9)_100%)]"
                       }`}
                     >
-                      <div className="grid place-items-center gap-2 text-center">
+                      <div className="grid place-items-center gap-1 md:gap-2 text-center">
                         <div
-                          className={`grid h-28 w-28 place-items-center rounded-full border-4 shadow-[inset_0_1px_4px_rgba(0,0,0,0.15),0_4px_12px_rgba(0,0,0,0.2)] ${
+                          className={`grid h-20 w-20 md:h-28 md:w-28 place-items-center rounded-full border-4 shadow-[inset_0_1px_4px_rgba(0,0,0,0.15),0_4px_12px_rgba(0,0,0,0.2)] ${
                             darkMode
                               ? "border-[#6b5a41]/45 bg-[radial-gradient(circle,rgba(70,58,44,0.6)_0%,rgba(50,42,30,0.8)_100%)]"
                               : "border-[#b89968]/45 bg-[radial-gradient(circle,rgba(255,250,242,0.95)_0%,rgba(245,236,220,0.85)_100%)]"
@@ -1058,20 +1058,20 @@ export function GardenOptionsMenu({
                             alt={`${selectedCatalogEntry.name}の画像`}
                             width={96}
                             height={96}
-                            className={`h-24 w-24 rounded-full object-cover ${!isSelectedCatalogObjectOwned ? "brightness-0 opacity-45" : ""}`}
+                            className={`h-16 w-16 md:h-24 md:w-24 rounded-full object-cover ${!isSelectedCatalogObjectOwned ? "brightness-0 opacity-45" : ""}`}
                           />
                         </div>
-                        <p className="text-lg font-semibold leading-none">
+                        <p className="text-base md:text-lg font-semibold leading-none">
                           {isSelectedCatalogObjectOwned ? selectedCatalogEntry.name : "？？？"}
                         </p>
-                        <p className={`text-xs ${darkMode ? "text-wa-white/75" : "text-wa-black/65"}`}>
+                        <p className={`text-[10px] md:text-xs ${darkMode ? "text-wa-white/75" : "text-wa-black/65"}`}>
                           {isSelectedCatalogObjectOwned ? selectedCatalogEntry.ruby : "---"}
                         </p>
                       </div>
                     </div>
 
                     <div
-                      className={`rounded-xl border-2 p-3 text-sm leading-relaxed shadow-[inset_0_1px_4px_rgba(0,0,0,0.06)] ${
+                      className={`rounded-xl border-2 p-2.5 md:p-3 text-[11px] md:text-sm leading-relaxed shadow-[inset_0_1px_4px_rgba(0,0,0,0.06)] ${
                         darkMode
                           ? "border-[#6b5a41]/35 bg-[linear-gradient(135deg,rgba(60,50,38,0.4)_0%,rgba(52,44,32,0.3)_100%)] text-wa-white/90"
                           : "border-[#c9a868]/30 bg-[linear-gradient(135deg,rgba(255,252,246,0.6)_0%,rgba(248,240,226,0.5)_100%)] text-wa-black/85"
@@ -1083,7 +1083,7 @@ export function GardenOptionsMenu({
                       <button
                         type="button"
                         onClick={handleRerecordFromCatalog}
-                        className={`mt-auto inline-flex items-center justify-center rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+                        className={`mt-auto inline-flex items-center justify-center rounded-xl border px-3 py-2.5 md:px-4 md:py-3 text-xs md:text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
                           darkMode
                             ? "border-wa-white/40 bg-wa-white/10 hover:bg-wa-white/20"
                             : "border-wa-black/25 bg-wa-red/10 hover:bg-wa-red/20"
@@ -1096,7 +1096,7 @@ export function GardenOptionsMenu({
                         type="button"
                         onClick={handlePurchaseAndPlaceFromCatalog}
                         disabled={isPurchasingFromCatalog || isPurchaseSuccessPop}
-                        className={`mt-auto inline-flex items-center justify-center rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-150 ease-out ${
+                        className={`mt-auto inline-flex items-center justify-center rounded-xl border px-3 py-2.5 md:px-4 md:py-3 text-xs md:text-sm font-semibold transition-all duration-150 ease-out ${
                           isPurchasingFromCatalog || isPurchaseSuccessPop
                             ? "cursor-wait"
                             : "hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98]"
@@ -1152,7 +1152,7 @@ export function GardenOptionsMenu({
                     <button
                       type="button"
                       onClick={() => setIsCatalogListExpanded((value) => !value)}
-                      className={`inline-flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-all duration-150 md:hidden ${
+                      className={`inline-flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs md:text-sm font-semibold transition-all duration-150 md:hidden ${
                         darkMode
                           ? "border-wa-white/25 bg-wa-black/30 text-wa-white"
                           : "border-wa-black/20 bg-white/80 text-wa-black"
@@ -1161,7 +1161,7 @@ export function GardenOptionsMenu({
                       aria-controls={`${catalogPanelId}-mobile-list`}
                     >
                       <span>オブジェクト一覧</span>
-                      <span className="inline-flex items-center gap-1 text-xs">
+                      <span className="inline-flex items-center gap-1 text-[10px] md:text-xs">
                         {isCatalogListExpanded ? "閉じる" : "展開"}
                         <svg
                           aria-hidden="true"
