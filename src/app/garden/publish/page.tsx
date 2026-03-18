@@ -75,15 +75,14 @@ function GardenPublishContent() {
   );
   const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [previewPlacedObjects, setPreviewPlacedObjects] = useState<GardenPostPlacedObject[]>([]);
-  const [previewCharacterWorldPosition, setPreviewCharacterWorldPosition] = useState(
-    DEFAULT_PREVIEW_CHARACTER_WORLD_POSITION,
-  );
   const [previewBackgroundErrorState, setPreviewBackgroundErrorState] = useState<{
     sceneKey: string;
     index: number;
   }>({ sceneKey: "", index: 0 });
-  const [loadedPreviewBackgroundSrc, setLoadedPreviewBackgroundSrc] = useState<string | null>(null);
+  const [loadedPreviewBackgroundState, setLoadedPreviewBackgroundState] = useState<{
+    sceneKey: string;
+    src: string | null;
+  }>({ sceneKey: "", src: null });
 
   const defaultState = getDefaultGardenLocalState();
   const [draft, setDraft] = useState<GardenLocalState>(defaultState);
@@ -199,7 +198,9 @@ function GardenPublishContent() {
     previewBackgroundErrorState.sceneKey === previewSceneKey ? previewBackgroundErrorState.index : 0;
   const previewBackgroundSrc =
     previewBackgroundCandidates[Math.min(activePreviewBackgroundIndex, Math.max(0, previewBackgroundCandidates.length - 1))];
-  const isPreviewBackgroundLoading = loadedPreviewBackgroundSrc !== previewBackgroundSrc;
+  const isPreviewBackgroundLoading =
+    loadedPreviewBackgroundState.sceneKey !== previewSceneKey ||
+    loadedPreviewBackgroundState.src !== previewBackgroundSrc;
 
   const canPublish = useMemo(
     () => Boolean(userId) && !isGuestUser && !isAuthLoading && status !== "publishing",
@@ -210,10 +211,14 @@ function GardenPublishContent() {
     [deleteStatus, isAuthLoading, isGuestUser, userId],
   );
 
-  useEffect(() => {
-    const localStateStorageKey = userId
-      ? createGardenLocalStateStorageKey(userId)
-      : null;
+  const previewStorageSnapshot = useMemo(() => {
+    if (typeof window === "undefined") {
+      return {
+        placedObjects: [] as GardenPostPlacedObject[],
+        characterWorldPosition: DEFAULT_PREVIEW_CHARACTER_WORLD_POSITION,
+      };
+    }
+
     const storageValue = userId
       ? (window.localStorage.getItem(getGardenObjectsStorageKeyForOwner(userId)) ??
         window.localStorage.getItem(GARDEN_OBJECTS_STORAGE_KEY_ME))
@@ -221,26 +226,19 @@ function GardenPublishContent() {
     const characterPositionStorageKey = userId
       ? createGardenCharacterPositionStorageKey(userId)
       : null;
-
-    if (localStateStorageKey) {
-      const localState = parseGardenLocalState(window.localStorage.getItem(localStateStorageKey));
-      if (localState && !queryDraft) {
-        setDraft(localState);
-      }
-    }
-
     const storedCharacterWorldPosition = characterPositionStorageKey
       ? parseGardenCharacterPosition(window.localStorage.getItem(characterPositionStorageKey))
       : null;
-    setPreviewCharacterWorldPosition(storedCharacterWorldPosition ?? DEFAULT_PREVIEW_CHARACTER_WORLD_POSITION);
 
-    setPreviewPlacedObjects(parseGardenPostPlacedObjects(storageValue));
-  }, [queryDraft, userId]);
+    return {
+      placedObjects: parseGardenPostPlacedObjects(storageValue),
+      characterWorldPosition:
+        storedCharacterWorldPosition ?? DEFAULT_PREVIEW_CHARACTER_WORLD_POSITION,
+    };
+  }, [userId]);
 
-  useEffect(() => {
-    setPreviewBackgroundErrorState({ sceneKey: previewSceneKey, index: 0 });
-    setLoadedPreviewBackgroundSrc(null);
-  }, [previewSceneKey]);
+  const previewPlacedObjects = previewStorageSnapshot.placedObjects;
+  const previewCharacterWorldPosition = previewStorageSnapshot.characterWorldPosition;
 
   const handlePreviewBackgroundError = () => {
     setPreviewBackgroundErrorState((current) => {
@@ -256,7 +254,7 @@ function GardenPublishContent() {
   };
 
   const handlePreviewBackgroundLoad = () => {
-    setLoadedPreviewBackgroundSrc(previewBackgroundSrc);
+    setLoadedPreviewBackgroundState({ sceneKey: previewSceneKey, src: previewBackgroundSrc });
   };
 
   const handlePublish = async () => {
