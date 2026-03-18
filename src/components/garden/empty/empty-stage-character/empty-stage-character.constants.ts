@@ -135,6 +135,62 @@ export const OBJECT_VISUALS: Record<
     stageImageSize: 40,
     stageVideoSize: 48,
   },
+  huro: {
+    imageSrc: "/images/garden/objects/huro/catalog/huroe.png",
+    stageVideoSrc: "/videos/garden/objects/huro/stage/huro.webm",
+    label: "風呂",
+    stageImageSize: 58,
+    stageVideoSize: 66,
+  },
+  suzu: {
+    imageSrc: "/images/garden/objects/suzu/catalog/suzue.png",
+    stageVideoSrc: "/videos/garden/objects/suzu/stage/suzu.webm",
+    label: "鈴",
+    stageImageSize: 46,
+    stageVideoSize: 54,
+  },
+  haka: {
+    imageSrc: "/images/garden/objects/haka/catalog/hakae.png",
+    stageVideoSrc: "/videos/garden/objects/haka/stage/haka.webm",
+    label: "墓",
+    stageImageSize: 54,
+    stageVideoSize: 62,
+  },
+  hagoita: {
+    imageSrc: "/images/garden/objects/hagoita/catalog/hagoitae.png",
+    stageVideoSrc: "/videos/garden/objects/hagoita/stage/hagoita.webm",
+    label: "羽子板",
+    stageImageSize: 52,
+    stageVideoSize: 60,
+  },
+  youkai: {
+    imageSrc: "/images/garden/objects/youkai/catalog/youkoe.png",
+    stageVideoSrc: "/videos/garden/objects/youkai/stage/youko.webm",
+    label: "妖怪",
+    stageImageSize: 56,
+    stageVideoSize: 64,
+  },
+  kame: {
+    imageSrc: "/images/garden/objects/kame/catalog/kamee.png",
+    stageVideoSrc: "/videos/garden/objects/kame/stage/kame.webm",
+    label: "亀",
+    stageImageSize: 50,
+    stageVideoSize: 58,
+  },
+  saru: {
+    imageSrc: "/images/garden/objects/saru/catalog/sarue.png",
+    stageVideoSrc: "/videos/garden/objects/saru/stage/saru.webm",
+    label: "猿",
+    stageImageSize: 52,
+    stageVideoSize: 60,
+  },
+  tako: {
+    imageSrc: "/images/garden/objects/tako/catalog/takoe.png",
+    stageVideoSrc: "/videos/garden/objects/tako/stage/tako.webm",
+    label: "蛸",
+    stageImageSize: 52,
+    stageVideoSize: 60,
+  },
 };
 
 export const MOVEMENT_KEYS = [

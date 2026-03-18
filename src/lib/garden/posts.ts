@@ -48,7 +48,15 @@ function isObjectType(value: unknown): value is ObjectType {
     value === "semi" ||
     value === "takibi" ||
     value === "akimusi" ||
-    value === "ka"
+    value === "ka" ||
+    value === "huro" ||
+    value === "suzu" ||
+    value === "haka" ||
+    value === "hagoita" ||
+    value === "youkai" ||
+    value === "kame" ||
+    value === "saru" ||
+    value === "tako"
   );
 }
 
