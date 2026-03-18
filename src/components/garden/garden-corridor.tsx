@@ -106,13 +106,7 @@ function hashSeed(value: string) {
 }
 
 function resolveOwnerLabel(ownerDisplayName: string | null | undefined, userId: string) {
-  const rawLabel = ownerDisplayName?.trim() || userId;
-
-  if (rawLabel.length <= 12) {
-    return rawLabel;
-  }
-
-  return `${rawLabel.slice(0, 8)}...`;
+  return ownerDisplayName?.trim() || userId;
 }
 
 function resolveAtmosphere(post: GardenCorridorPost | null): Atmosphere {
@@ -538,8 +532,8 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
 
                           <div className="mx-2 mt-2 border-t border-[#b99d79]/55" />
 
-                          <div className="mt-2 flex flex-1 items-start px-3 text-[#3e3223] [text-orientation:upright] [writing-mode:vertical-rl]">
-                            <p className="text-[1.1rem] leading-[1.66] tracking-[0.13em]">{post.ownerLabel}の庭</p>
+                          <div className="mt-2 flex flex-1 items-center justify-center px-3 text-[#3e3223] [text-orientation:upright] [writing-mode:vertical-rl]">
+                            <p className="text-center text-[1.1rem] leading-[1.66] tracking-[0.13em]">{post.ownerLabel}の庭</p>
                           </div>
 
                           <p className="mx-2 mt-2 rounded-[0.45rem] border border-[#ba9f7a]/54 bg-[#f7ecd8]/84 px-2 py-1 text-center text-[11px] tracking-[0.08em] text-[#5f4a32]">
