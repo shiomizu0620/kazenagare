@@ -39,7 +39,16 @@ function parsePlacementObjectType(value: QueryValue): ObjectType | null {
     normalizedValue === "hanabi" ||
     normalizedValue === "kane" ||
     normalizedValue === "obake" ||
-    normalizedValue === "tyo-tyo"
+    normalizedValue === "tyo-tyo" ||
+    normalizedValue === "kaeru" ||
+    normalizedValue === "hue" ||
+    normalizedValue === "suzume" ||
+    normalizedValue === "sansin" ||
+    normalizedValue === "mattya" ||
+    normalizedValue === "semi" ||
+    normalizedValue === "takibi" ||
+    normalizedValue === "akimusi" ||
+    normalizedValue === "ka"
   ) {
     return normalizedValue;
   }

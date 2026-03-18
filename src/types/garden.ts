@@ -4,7 +4,16 @@ export type ObjectType =
   | "hanabi"
   | "kane"
   | "obake"
-  | "tyo-tyo";
+  | "tyo-tyo"
+  | "kaeru"
+  | "hue"
+  | "suzume"
+  | "sansin"
+  | "mattya"
+  | "semi"
+  | "takibi"
+  | "akimusi"
+  | "ka";
 
 export type GardenBackground = {
   id: string;
