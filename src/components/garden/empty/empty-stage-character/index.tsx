@@ -1869,10 +1869,12 @@ export function EmptyStageCharacter({
           ...recordingBlobByRecordingIdRef.current,
           [recordingId]: blob,
         };
-        setRecordingBlobByRecordingId((current) => ({
-          ...current,
-          [recordingId]: blob,
-        }));
+        void Promise.resolve().then(() => {
+          setRecordingBlobByRecordingId((current) => ({
+            ...current,
+            [recordingId]: blob,
+          }));
+        });
 
         return blob;
       } catch {
@@ -1924,9 +1926,21 @@ export function EmptyStageCharacter({
   }, [harmonyRecordingBlobByObjectId]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const setOwnerPreviewBlobDeferred = (nextBlob: Blob | null) => {
+      void Promise.resolve().then(() => {
+        if (!cancelled) {
+          setHarmonyPreviewOwnerBlob(nextBlob);
+        }
+      });
+    };
+
     if (!harmonyRecordingModal) {
-      setHarmonyPreviewOwnerBlob(null);
-      return;
+      setOwnerPreviewBlobDeferred(null);
+      return () => {
+        cancelled = true;
+      };
     }
 
     const targetObject =
@@ -1935,16 +1949,19 @@ export function EmptyStageCharacter({
       ) ?? null;
 
     if (!targetObject) {
-      setHarmonyPreviewOwnerBlob(null);
-      return;
+      setOwnerPreviewBlobDeferred(null);
+      return () => {
+        cancelled = true;
+      };
     }
 
-    let cancelled = false;
     const immediateBlob = resolveRecordingBlobForObject(targetObject);
 
     if (immediateBlob) {
-      setHarmonyPreviewOwnerBlob(immediateBlob);
-      return;
+      setOwnerPreviewBlobDeferred(immediateBlob);
+      return () => {
+        cancelled = true;
+      };
     }
 
     void ensureOwnerRecordingBlobForPlacedObject(targetObject).then((loadedBlob) => {
@@ -1952,7 +1969,7 @@ export function EmptyStageCharacter({
         return;
       }
 
-      setHarmonyPreviewOwnerBlob(loadedBlob);
+      setOwnerPreviewBlobDeferred(loadedBlob ?? null);
     });
 
     return () => {
@@ -1965,8 +1982,28 @@ export function EmptyStageCharacter({
   ]);
 
   useEffect(() => {
-    stopHarmonyDualPreviewPlayback();
-    stopHarmonyIndividualPreviewPlayback();
+    let cancelled = false;
+
+    const stopPreviewPlaybackDeferred = () => {
+      void Promise.resolve().then(() => {
+        if (cancelled) {
+          return;
+        }
+
+        stopHarmonyDualPreviewPlayback();
+        stopHarmonyIndividualPreviewPlayback();
+      });
+    };
+
+    const setOwnerPreviewAudioUrlDeferred = (nextUrl: string | null) => {
+      void Promise.resolve().then(() => {
+        if (!cancelled) {
+          setHarmonyPreviewOwnerAudioUrl(nextUrl);
+        }
+      });
+    };
+
+    stopPreviewPlaybackDeferred();
 
     const previousUrl = harmonyPreviewOwnerAudioUrlRef.current;
 
@@ -1976,15 +2013,19 @@ export function EmptyStageCharacter({
     }
 
     if (!harmonyPreviewOwnerBlob) {
-      setHarmonyPreviewOwnerAudioUrl(null);
-      return;
+      setOwnerPreviewAudioUrlDeferred(null);
+      return () => {
+        cancelled = true;
+      };
     }
 
     const nextUrl = URL.createObjectURL(harmonyPreviewOwnerBlob);
     harmonyPreviewOwnerAudioUrlRef.current = nextUrl;
-    setHarmonyPreviewOwnerAudioUrl(nextUrl);
+    setOwnerPreviewAudioUrlDeferred(nextUrl);
 
     return () => {
+      cancelled = true;
+
       if (harmonyPreviewOwnerAudioUrlRef.current === nextUrl) {
         URL.revokeObjectURL(nextUrl);
         harmonyPreviewOwnerAudioUrlRef.current = null;
@@ -1997,8 +2038,28 @@ export function EmptyStageCharacter({
   ]);
 
   useEffect(() => {
-    stopHarmonyDualPreviewPlayback();
-    stopHarmonyIndividualPreviewPlayback();
+    let cancelled = false;
+
+    const stopPreviewPlaybackDeferred = () => {
+      void Promise.resolve().then(() => {
+        if (cancelled) {
+          return;
+        }
+
+        stopHarmonyDualPreviewPlayback();
+        stopHarmonyIndividualPreviewPlayback();
+      });
+    };
+
+    const setLayerPreviewAudioUrlDeferred = (nextUrl: string | null) => {
+      void Promise.resolve().then(() => {
+        if (!cancelled) {
+          setHarmonyPreviewLayerAudioUrl(nextUrl);
+        }
+      });
+    };
+
+    stopPreviewPlaybackDeferred();
 
     const previousUrl = harmonyPreviewLayerAudioUrlRef.current;
 
@@ -2008,15 +2069,19 @@ export function EmptyStageCharacter({
     }
 
     if (!harmonyPreviewLayerBlob) {
-      setHarmonyPreviewLayerAudioUrl(null);
-      return;
+      setLayerPreviewAudioUrlDeferred(null);
+      return () => {
+        cancelled = true;
+      };
     }
 
     const nextUrl = URL.createObjectURL(harmonyPreviewLayerBlob);
     harmonyPreviewLayerAudioUrlRef.current = nextUrl;
-    setHarmonyPreviewLayerAudioUrl(nextUrl);
+    setLayerPreviewAudioUrlDeferred(nextUrl);
 
     return () => {
+      cancelled = true;
+
       if (harmonyPreviewLayerAudioUrlRef.current === nextUrl) {
         URL.revokeObjectURL(nextUrl);
         harmonyPreviewLayerAudioUrlRef.current = null;
@@ -2607,26 +2672,27 @@ export function EmptyStageCharacter({
   }, [audioOwnerId]);
 
   useEffect(() => {
+    const applySessionUserDeferred = (sessionUserId: string | undefined) => {
+      const resolvedUserId = sessionUserId || "local_guest";
+
+      void Promise.resolve().then(() => {
+        setViewerId(resolvedUserId);
+
+        if (!audioOwnerIdOverride) {
+          setAudioOwnerId(resolvedUserId);
+        }
+      });
+    };
+
     const supabase = getSupabaseClient();
 
     if (!supabase) {
-      setViewerId("local_guest");
-
-      if (!audioOwnerIdOverride) {
-        setAudioOwnerId("local_guest");
-      }
-
+      applySessionUserDeferred(undefined);
       return;
     }
 
     const applySessionUser = (sessionUserId: string | undefined) => {
-      const resolvedUserId = sessionUserId || "local_guest";
-
-      setViewerId(resolvedUserId);
-
-      if (!audioOwnerIdOverride) {
-        setAudioOwnerId(resolvedUserId);
-      }
+      applySessionUserDeferred(sessionUserId);
     };
 
     void getSupabaseSessionOrNull(supabase).then((session) => {
