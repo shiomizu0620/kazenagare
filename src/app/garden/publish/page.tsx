@@ -62,6 +62,50 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function normalizeDisplayNameCandidate(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+  return trimmedValue ? trimmedValue : null;
+}
+
+function resolveOwnerDisplayNameFromUser(currentUser: {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+}) {
+  const userMetadata = currentUser.user_metadata;
+  const candidateKeys = [
+    "display_name",
+    "displayName",
+    "full_name",
+    "fullName",
+    "name",
+    "user_name",
+    "username",
+  ];
+
+  for (const key of candidateKeys) {
+    const resolvedName = normalizeDisplayNameCandidate(userMetadata?.[key]);
+    if (resolvedName) {
+      return resolvedName;
+    }
+  }
+
+  if (typeof currentUser.email === "string") {
+    const emailLocalPart = normalizeDisplayNameCandidate(
+      currentUser.email.split("@")[0],
+    );
+    if (emailLocalPart) {
+      return emailLocalPart;
+    }
+  }
+
+  return currentUser.id;
+}
+
 function GardenPublishContent() {
   const supabase = useMemo(() => getSupabaseClient(), []);
   const searchParams = useSearchParams();
@@ -355,9 +399,11 @@ function GardenPublishContent() {
         : undefined,
     }));
 
-    // currentUser の display_name を取得
-    const userMetadata = currentUser.user_metadata as Record<string, unknown> | undefined;
-    const ownerDisplayName = userMetadata?.display_name ?? currentUser.id;
+    const ownerDisplayName = resolveOwnerDisplayNameFromUser({
+      id: currentUser.id,
+      email: currentUser.email,
+      user_metadata: currentUser.user_metadata as Record<string, unknown> | undefined,
+    });
 
     const { error } = await supabase.from("garden_posts").upsert(
       {
