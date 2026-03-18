@@ -978,7 +978,7 @@ export function GardenOptionsMenu({
               role="dialog"
               aria-modal="true"
               aria-label="図鑑"
-              className={`pointer-events-auto relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl shadow-[0_34px_90px_rgba(0,0,0,0.45),inset_0_0_40px_rgba(0,0,0,0.08)] [transform-style:preserve-3d] animate-[kazenagare-catalog-burst_220ms_cubic-bezier(0.2,1,0.36,1)] max-h-[88dvh] md:h-[min(88dvh,780px)] ${
+              className={`pointer-events-auto relative mx-auto h-[88svh] w-full max-w-5xl overflow-hidden rounded-3xl shadow-[0_34px_90px_rgba(0,0,0,0.45),inset_0_0_40px_rgba(0,0,0,0.08)] [transform-style:preserve-3d] animate-[kazenagare-catalog-burst_220ms_cubic-bezier(0.2,1,0.36,1)] md:h-[min(88dvh,780px)] ${
                 darkMode
                   ? "border-4 border-[#8b6f47]/35 bg-[linear-gradient(160deg,rgba(48,42,32,0.98)_0%,rgba(62,54,42,0.95)_52%,rgba(42,36,28,0.98)_100%)] text-wa-white"
                   : "border-4 border-[#c9a868]/40 bg-[linear-gradient(160deg,rgba(252,248,242,0.99)_0%,rgba(246,238,224,0.97)_54%,rgba(254,250,244,0.99)_100%)] text-wa-black"
@@ -1009,14 +1009,14 @@ export function GardenOptionsMenu({
               {selectedCatalogEntry ? (
                 <div className="min-h-0">
                   <div
-                    className={`relative grid min-h-0 overflow-hidden rounded-2xl border md:h-full md:grid-cols-[1.05fr_0.95fr] ${
+                    className={`relative grid min-h-0 overflow-visible rounded-2xl border md:h-full md:overflow-hidden md:grid-cols-[1.05fr_0.95fr] ${
                       darkMode
                         ? "border-wa-white/20 bg-wa-black/15"
                         : "border-wa-black/15 bg-white/55"
                     }`}
                   >
                   <div
-                    className={`relative grid min-h-0 gap-4 border-b p-4 md:border-b-0 md:border-r md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
+                    className={`relative grid min-h-0 max-h-[36svh] gap-4 overflow-y-auto overscroll-y-contain border-b p-4 md:max-h-none md:overflow-visible md:border-b-0 md:border-r md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
                       darkMode
                         ? "border-[#6b5a41]/40 bg-[linear-gradient(120deg,rgba(60,50,38,0.5)_0%,rgba(50,42,30,0.3)_100%)]"
                         : "border-[#d1a877]/30 bg-[linear-gradient(120deg,rgba(255,252,246,0.95)_0%,rgba(250,242,228,0.88)_100%)]"
@@ -1134,7 +1134,7 @@ export function GardenOptionsMenu({
                   </div>
 
                   <div
-                    className={`grid min-h-0 content-start gap-4 p-4 md:[transform-origin:left_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-right-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
+                    className={`grid min-h-0 max-h-[34svh] content-start gap-4 overflow-y-auto overscroll-y-contain p-4 md:max-h-none md:overflow-visible md:[transform-origin:left_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-right-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
                       darkMode
                         ? "bg-[linear-gradient(240deg,rgba(60,50,38,0.3)_0%,rgba(50,42,30,0.15)_100%)]"
                         : "bg-[linear-gradient(240deg,rgba(255,252,246,0.92)_0%,rgba(250,242,228,0.78)_100%)]"
@@ -1147,7 +1147,7 @@ export function GardenOptionsMenu({
                       <p className="text-sm font-semibold">サムネイルを押して詳細を切り替え</p>
                     </div>
 
-                    <div className="min-h-0 overflow-y-auto pr-1 md:max-h-[44dvh]">
+                    <div className="min-h-0 pr-1 md:max-h-[44dvh] md:overflow-y-auto md:overscroll-y-contain">
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                         {catalogSlots.map((entry) => {
                           const isSelected = entry.objectType === selectedCatalogEntry.objectType;
