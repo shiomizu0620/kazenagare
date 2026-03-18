@@ -16,6 +16,14 @@ export const VOICE_ZOO_SUPPORTED_OBJECT_TYPES: ObjectType[] = [
   "takibi",
   "akimusi",
   "ka",
+  "huro",
+  "suzu",
+  "haka",
+  "hagoita",
+  "youkai",
+  "kame",
+  "saru",
+  "tako",
 ];
 export const VOICE_ZOO_RECORDING_UPDATED_EVENT = "kazenagare:recording-updated";
 
@@ -47,7 +55,15 @@ function isObjectType(value: unknown): value is ObjectType {
     value === "semi" ||
     value === "takibi" ||
     value === "akimusi" ||
-    value === "ka"
+    value === "ka" ||
+    value === "huro" ||
+    value === "suzu" ||
+    value === "haka" ||
+    value === "hagoita" ||
+    value === "youkai" ||
+    value === "kame" ||
+    value === "saru" ||
+    value === "tako"
   );
 }
 
@@ -111,6 +127,14 @@ export function getLatestRecordingIdByObjectType(
     takibi: latestMap.takibi?.id,
     akimusi: latestMap.akimusi?.id,
     ka: latestMap.ka?.id,
+    huro: latestMap.huro?.id,
+    suzu: latestMap.suzu?.id,
+    haka: latestMap.haka?.id,
+    hagoita: latestMap.hagoita?.id,
+    youkai: latestMap.youkai?.id,
+    kame: latestMap.kame?.id,
+    saru: latestMap.saru?.id,
+    tako: latestMap.tako?.id,
   };
 }
 

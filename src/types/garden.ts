@@ -13,7 +13,15 @@ export type ObjectType =
   | "semi"
   | "takibi"
   | "akimusi"
-  | "ka";
+  | "ka"
+  | "huro"
+  | "suzu"
+  | "haka"
+  | "hagoita"
+  | "youkai"
+  | "kame"
+  | "saru"
+  | "tako";
 
 export type GardenBackground = {
   id: string;
