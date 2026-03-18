@@ -1136,7 +1136,7 @@ export function GardenOptionsMenu({
                   </div>
 
                   <div
-                    className={`absolute inset-x-0 bottom-0 ${isCatalogListExpanded ? "z-20" : "z-0"} grid min-h-0 content-start ${isCatalogListExpanded ? "gap-3 border-t p-3" : "gap-2 p-2 pt-0 border-t-0 bg-transparent"} md:static md:z-auto md:gap-4 md:border-t-0 md:p-4 md:[transform-origin:left_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-right-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
+                    className={`absolute inset-x-0 bottom-0 z-20 grid min-h-0 content-start ${isCatalogListExpanded ? "gap-3 border-t p-3" : "gap-2 p-2 pt-0 border-t-0 bg-transparent pb-[max(0.5rem,env(safe-area-inset-bottom))]"} md:static md:z-auto md:gap-4 md:border-t-0 md:p-4 md:[transform-origin:left_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-right-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
                       darkMode
                         ? "border-[#6b5a41]/45 bg-[linear-gradient(240deg,rgba(45,38,29,0.98)_0%,rgba(39,33,25,0.96)_100%)]"
                         : "border-[#d1a877]/35 bg-[linear-gradient(240deg,rgba(252,248,242,0.98)_0%,rgba(247,239,226,0.96)_100%)]"
@@ -1152,7 +1152,7 @@ export function GardenOptionsMenu({
                     <button
                       type="button"
                       onClick={() => setIsCatalogListExpanded((value) => !value)}
-                      className={`inline-flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs md:text-sm font-semibold transition-all duration-150 md:hidden ${
+                      className={`relative z-30 inline-flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs md:text-sm font-semibold transition-all duration-150 md:hidden ${
                         darkMode
                           ? "border-wa-white/25 bg-wa-black/30 text-wa-white"
                           : "border-wa-black/20 bg-white/80 text-wa-black"
