@@ -15,6 +15,7 @@ export type GardenPostRecord = {
   backgroundId: string;
   seasonId: string;
   timeSlotId: string;
+  allowHarmonyOverlays: boolean;
   ownerDisplayName?: string | null;
   publishedAt: string | null;
   updatedAt: string | null;
@@ -26,6 +27,7 @@ type SupabaseGardenPostRow = {
   background_id?: unknown;
   season_id?: unknown;
   time_slot_id?: unknown;
+  allow_harmony_overlays?: unknown;
   owner_display_name?: unknown;
   published_at?: unknown;
   updated_at?: unknown;
@@ -120,6 +122,10 @@ function normalizePostRow(row: SupabaseGardenPostRow): GardenPostRecord | null {
     backgroundId: row.background_id,
     seasonId: row.season_id,
     timeSlotId: row.time_slot_id,
+    allowHarmonyOverlays:
+      typeof row.allow_harmony_overlays === "boolean"
+        ? row.allow_harmony_overlays
+        : true,
     ownerDisplayName: typeof row.owner_display_name === "string" ? row.owner_display_name : undefined,
     publishedAt: typeof row.published_at === "string" ? row.published_at : null,
     updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
@@ -139,7 +145,7 @@ export async function fetchPublishedGardenPosts(limit = 24) {
   const staleThresholdIso = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   requestUrl.searchParams.set(
     "select",
-    "user_id,background_id,season_id,time_slot_id,owner_display_name,published_at,updated_at",
+    "user_id,background_id,season_id,time_slot_id,allow_harmony_overlays,owner_display_name,published_at,updated_at",
   );
   requestUrl.searchParams.set("published_at", "not.is.null");
   requestUrl.searchParams.set("updated_at", `gte.${staleThresholdIso}`);
@@ -186,7 +192,7 @@ export async function fetchPublishedGardenPostByUserId(userId: string) {
     const requestUrl = new URL(`${supabaseUrl}/rest/v1/garden_posts`);
     requestUrl.searchParams.set(
       "select",
-      "user_id,background_id,season_id,time_slot_id,owner_display_name,published_at,updated_at,placed_objects",
+      "user_id,background_id,season_id,time_slot_id,allow_harmony_overlays,owner_display_name,published_at,updated_at,placed_objects",
     );
     requestUrl.searchParams.set("user_id", `eq.${userId}`);
     requestUrl.searchParams.set("published_at", "not.is.null");

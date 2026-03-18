@@ -106,6 +106,12 @@ export function EmptyStageCharacterStage({
   const previewHalfImageSize = activePlacementObject
     ? activePlacementObject.stageImageSize * 0.5
     : 0;
+  const placementBlockedNoticeText = placementBlockedNotice?.message ?? "";
+  const placementBlockedNoticeWidth = Math.max(
+    128,
+    Math.min(360, placementBlockedNoticeText.length * 11 + 32),
+  );
+  const placementBlockedNoticeRectX = -placementBlockedNoticeWidth * 0.5;
   const effectiveHorizontalFacing =
     characterFacingDirection === "left" ||
     characterFacingDirection === "down-left" ||
@@ -260,9 +266,9 @@ export function EmptyStageCharacterStage({
               >
                 <g className="animate-[kazenagare-wallet-coin-pop_1.05s_ease-out_forwards]">
                   <rect
-                    x="-64"
+                    x={placementBlockedNoticeRectX}
                     y="-58"
-                    width="128"
+                    width={placementBlockedNoticeWidth}
                     height="20"
                     rx="10"
                     fill="rgba(127, 29, 29, 0.92)"
