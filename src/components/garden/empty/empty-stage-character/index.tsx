@@ -13,6 +13,10 @@ import {
   parseKazenagareAudioSettings,
 } from "@/lib/audio/settings";
 import {
+  KAZENAGARE_AUDIO_SUPPRESSION_EVENT,
+  type KazenagareAudioSuppressionDetail,
+} from "@/lib/audio/suppression";
+import {
   createGardenCharacterPositionStorageKey,
   parseGardenCharacterPosition,
 } from "@/lib/garden/character-position";
@@ -243,6 +247,7 @@ export function EmptyStageCharacter({
   const [characterVoiceVolume, setCharacterVoiceVolume] = useState(
     DEFAULT_KAZENAGARE_AUDIO_SETTINGS.characterVoiceVolume,
   );
+  const [isAudioSuppressed, setIsAudioSuppressed] = useState(false);
   const [recordingReloadNonce, setRecordingReloadNonce] = useState(0);
   const [recordingBlobByRecordingId, setRecordingBlobByRecordingId] = useState<
     Record<string, Blob>
@@ -269,6 +274,7 @@ export function EmptyStageCharacter({
   const recordingBlobByRecordingIdRef = useRef<Record<string, Blob>>({});
   const latestRecordingIdByObjectTypeRef = useRef<Partial<Record<ObjectType, string>>>({});
   const characterVoiceVolumeRef = useRef(characterVoiceVolume);
+  const isAudioSuppressedRef = useRef(false);
   const autoPlaybackSchedulerTimerRef = useRef<number | null>(null);
   const autoPlaybackNextAtByObjectIdRef = useRef<Record<string, number>>({});
   const autoPlaybackAudioByObjectIdRef = useRef<Record<string, HTMLAudioElement>>({});
@@ -874,6 +880,11 @@ export function EmptyStageCharacter({
 
   const playAutoPlaybackForObject = useCallback(
     (objectId: string) => {
+      if (isAudioSuppressedRef.current) {
+        autoPlaybackNextAtByObjectIdRef.current[objectId] = Date.now() + getRandomPlaybackDelayMs();
+        return;
+      }
+
       const selectedObject =
         placedObjectsRef.current.find((placedObject) => placedObject.id === objectId) ?? null;
 
@@ -1395,6 +1406,29 @@ export function EmptyStageCharacter({
     characterVoiceVolumeRef.current = characterVoiceVolume;
     updateActiveAutoPlaybackVolumes();
   }, [characterVoiceVolume, updateActiveAutoPlaybackVolumes]);
+
+  useEffect(() => {
+    isAudioSuppressedRef.current = isAudioSuppressed;
+  }, [isAudioSuppressed]);
+
+  useEffect(() => {
+    const handleAudioSuppression: EventListener = (event) => {
+      const customEvent = event as CustomEvent<KazenagareAudioSuppressionDetail>;
+      setIsAudioSuppressed(Boolean(customEvent.detail?.isSuppressed));
+    };
+
+    window.addEventListener(
+      KAZENAGARE_AUDIO_SUPPRESSION_EVENT,
+      handleAudioSuppression,
+    );
+
+    return () => {
+      window.removeEventListener(
+        KAZENAGARE_AUDIO_SUPPRESSION_EVENT,
+        handleAudioSuppression,
+      );
+    };
+  }, []);
 
   useEffect(() => {
     activeKeysRef.current.clear();
@@ -1931,6 +1965,11 @@ export function EmptyStageCharacter({
   }, [stopAutoPlaybackObject]);
 
   const runAutoPlaybackSchedulerTick = useCallback(() => {
+    if (isAudioSuppressedRef.current) {
+      stopAutoPlayback();
+      return;
+    }
+
     syncAutoPlaybackSchedules();
 
     const now = Date.now();
@@ -1951,9 +1990,13 @@ export function EmptyStageCharacter({
       autoPlaybackNextAtByObjectIdRef.current[objectId] = now + getRandomPlaybackDelayMs();
       playAutoPlaybackForObject(objectId);
     }
-  }, [playAutoPlaybackForObject, syncAutoPlaybackSchedules]);
+  }, [playAutoPlaybackForObject, stopAutoPlayback, syncAutoPlaybackSchedules]);
 
   const startAutoPlaybackScheduler = useCallback(() => {
+    if (isAudioSuppressedRef.current) {
+      return;
+    }
+
     clearAutoPlaybackScheduler();
     runAutoPlaybackSchedulerTick();
     autoPlaybackSchedulerTimerRef.current = window.setInterval(
@@ -1976,12 +2019,17 @@ export function EmptyStageCharacter({
       return;
     }
 
+    if (isAudioSuppressed) {
+      stopAutoPlayback();
+      return;
+    }
+
     startAutoPlaybackScheduler();
 
     return () => {
       stopAutoPlayback();
     };
-  }, [pathname, startAutoPlaybackScheduler, stopAutoPlayback]);
+  }, [isAudioSuppressed, pathname, startAutoPlaybackScheduler, stopAutoPlayback]);
 
   useEffect(() => {
     const handlePageHide = () => {
@@ -1994,7 +2042,7 @@ export function EmptyStageCharacter({
         return;
       }
 
-      if (pathname.startsWith("/garden")) {
+      if (pathname.startsWith("/garden") && !isAudioSuppressedRef.current) {
         ensureAutoPlaybackSchedulerRunning();
       }
     };
@@ -2016,6 +2064,10 @@ export function EmptyStageCharacter({
     }
 
     const handleInteraction = () => {
+      if (isAudioSuppressedRef.current) {
+        return;
+      }
+
       ensureAutoPlaybackSchedulerRunning();
       void resumeAutoPlaybackAudioContextIfNeeded();
     };
