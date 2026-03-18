@@ -59,7 +59,39 @@ type GardenOptionsMenuProps = {
   darkMode?: boolean;
   catalogLabel?: string;
   showCatalogButton?: boolean;
+  currentGardenName?: string;
+  useViewerGardenTitle?: boolean;
 };
+
+function resolveViewerDisplayName(sessionUser: {
+  id?: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+} | null | undefined) {
+  if (!sessionUser) {
+    return "あなた";
+  }
+
+  const metadata = sessionUser.user_metadata;
+  const displayName = metadata?.display_name;
+  if (typeof displayName === "string" && displayName.trim()) {
+    return displayName.trim();
+  }
+
+  const name = metadata?.name;
+  if (typeof name === "string" && name.trim()) {
+    return name.trim();
+  }
+
+  if (typeof sessionUser.email === "string" && sessionUser.email.includes("@")) {
+    const localPart = sessionUser.email.split("@")[0]?.trim();
+    if (localPart) {
+      return localPart;
+    }
+  }
+
+  return "あなた";
+}
 
 function catalogStatusLabel(status: VoiceZooEntryStatus) {
   if (status === "prototype") {
@@ -88,6 +120,8 @@ export function GardenOptionsMenu({
   darkMode = false,
   catalogLabel = "図鑑を開く",
   showCatalogButton = true,
+  currentGardenName,
+  useViewerGardenTitle = false,
 }: GardenOptionsMenuProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -98,6 +132,7 @@ export function GardenOptionsMenu({
   const [testingNotice, setTestingNotice] = useState<string | null>(null);
   const [ownedCatalogObjectTypes, setOwnedCatalogObjectTypes] = useState<ObjectType[]>([]);
   const [audioOwnerId, setAudioOwnerId] = useState<string>("local_guest");
+  const [viewerDisplayName, setViewerDisplayName] = useState<string>("あなた");
   const [recordingEntry, setRecordingEntry] = useState<VoiceZooEntry | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingCountdown, setRecordingCountdown] = useState(RECORDING_DURATION_SECONDS);
@@ -385,12 +420,14 @@ export function GardenOptionsMenu({
 
     void getSupabaseSessionOrNull(supabase).then((session) => {
       setAudioOwnerId(session?.user?.id || "local_guest");
+      setViewerDisplayName(resolveViewerDisplayName(session?.user));
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setAudioOwnerId(session?.user?.id || "local_guest");
+      setViewerDisplayName(resolveViewerDisplayName(session?.user));
     });
 
     return () => {
@@ -429,6 +466,11 @@ export function GardenOptionsMenu({
     setIsOpen(false);
     setIsCatalogOpen(false);
   };
+
+  const resolvedPanelTitle =
+    useViewerGardenTitle && currentGardenName
+      ? `${viewerDisplayName} -> ${currentGardenName}`
+      : title;
 
   const handlePurchaseAndPlaceFromCatalog = () => {
     if (!selectedCatalogEntry || typeof window === "undefined") {
@@ -682,7 +724,7 @@ export function GardenOptionsMenu({
         </div>
 
         <div id={panelId} className={`mt-2 w-[min(88vw,22rem)] ${panelClass}`}>
-          <p className="text-sm font-semibold">{title}</p>
+          <p className="text-sm font-semibold">{resolvedPanelTitle}</p>
 
           <div
             className={`grid gap-2 rounded-xl border p-3 ${
