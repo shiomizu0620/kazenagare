@@ -11,6 +11,7 @@ import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/clie
 
 const FIXED_BACKGROUND_ID = "garden-all";
 const FIXED_TIME_SLOT_ID = "daytime";
+const DISPLAY_NAME_MAX_LENGTH = 12;
 
 type GardenSetupFormProps = {
   nextPath?: string;
@@ -226,8 +227,8 @@ export function GardenSetupForm({
       return;
     }
 
-    if (trimmedDisplayName.length > 50) {
-      setSubmitError("お名前は50文字以内で入力してください。");
+    if (trimmedDisplayName.length > DISPLAY_NAME_MAX_LENGTH) {
+      setSubmitError(`お名前は${DISPLAY_NAME_MAX_LENGTH}文字以内で入力してください。`);
       return;
     }
 
@@ -321,11 +322,11 @@ export function GardenSetupForm({
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             placeholder="例: 壱萬ノ利休"
-            maxLength={50}
+            maxLength={DISPLAY_NAME_MAX_LENGTH}
             disabled={isSubmitting || isNameLoading}
             className="rounded-lg border border-wa-black/20 bg-white px-4 py-2 text-wa-black placeholder:text-wa-black/50 disabled:opacity-60"
           />
-          <p className="text-xs text-wa-black/60">{displayName.length}/50</p>
+          <p className="text-xs text-wa-black/60">{displayName.length}/{DISPLAY_NAME_MAX_LENGTH}</p>
         </section>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
