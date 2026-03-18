@@ -22,7 +22,6 @@ import {
 import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import {
   type VoiceZooEntry,
-  type VoiceZooEntryStatus,
   VOICE_ZOO_ENTRIES,
 } from "@/lib/voice-zoo/catalog";
 import { applyVoiceZooPlaybackEffect } from "@/lib/voice-zoo/playback-effects";
@@ -48,6 +47,8 @@ import {
 import type { ObjectType } from "@/types/garden";
 
 const RECORDING_DURATION_SECONDS = 3;
+const CATALOG_PURCHASE_SPINNER_MS = 360;
+const CATALOG_PURCHASE_POP_MS = 220;
 type RecordingModalMode = "purchase" | "rerecord";
 type RecordingModalCloseReason = "user" | "placement" | "force";
 
@@ -99,26 +100,6 @@ function resolveViewerDisplayName(sessionUser: {
   return "あなた";
 }
 
-function catalogStatusLabel(status: VoiceZooEntryStatus) {
-  if (status === "prototype") {
-    return "試作中";
-  }
-
-  return "企画中";
-}
-
-function catalogStatusClass(status: VoiceZooEntryStatus, darkMode: boolean) {
-  if (status === "prototype") {
-    return darkMode
-      ? "border-emerald-200/40 bg-emerald-300/15 text-emerald-100"
-      : "border-emerald-700/30 bg-emerald-100 text-emerald-900";
-  }
-
-  return darkMode
-    ? "border-amber-200/40 bg-amber-300/15 text-amber-100"
-    : "border-amber-700/30 bg-amber-100 text-amber-900";
-}
-
 export function GardenOptionsMenu({
   actions,
   buttonLabel = "オプション",
@@ -142,6 +123,8 @@ export function GardenOptionsMenu({
   const [viewerDisplayName, setViewerDisplayName] = useState<string>("あなた");
   const [recordingEntry, setRecordingEntry] = useState<VoiceZooEntry | null>(null);
   const [recordingModalMode, setRecordingModalMode] = useState<RecordingModalMode | null>(null);
+  const [isPurchasingFromCatalog, setIsPurchasingFromCatalog] = useState(false);
+  const [isPurchaseSuccessPop, setIsPurchaseSuccessPop] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingCountdown, setRecordingCountdown] = useState(RECORDING_DURATION_SECONDS);
   const [recordingNotice, setRecordingNotice] = useState<string | null>(null);
@@ -164,6 +147,7 @@ export function GardenOptionsMenu({
   const recordingChunksRef = useRef<Blob[]>([]);
   const recordingStopTimerRef = useRef<number | null>(null);
   const recordingCountdownTimerRef = useRef<number | null>(null);
+  const purchaseFeedbackTimerRef = useRef<number | null>(null);
   const recordingPreviewAudioUrlsRef = useRef<Partial<Record<ObjectType, string>>>({});
 
   const iconButtonClass = `grid h-11 w-11 place-items-center rounded-full border shadow-[0_12px_28px_rgba(0,0,0,0.24)] backdrop-blur-[2px] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(0,0,0,0.3)] active:translate-y-[1px] active:scale-[0.98] ${
@@ -205,7 +189,20 @@ export function GardenOptionsMenu({
     : null;
   const canPlaceFromRecordingModal = Boolean(recordingEntryAudioUrl) && !isRecording;
   const canCloseRecordingModal = !isRecording && recordingModalMode !== "purchase";
-  const catalogSlots = VOICE_ZOO_ENTRIES;
+  const catalogSlots = [...VOICE_ZOO_ENTRIES].sort((a, b) => a.price - b.price);
+  
+  // ロック状態判定
+  const getIsUnlocked = (objectType: ObjectType): boolean => {
+    if (ownedCatalogObjectTypes.includes(objectType)) return true;
+    let lastOwnedIndex = -1;
+    for (let i = 0; i < catalogSlots.length; i++) {
+      if (ownedCatalogObjectTypes.includes(catalogSlots[i].objectType)) {
+        lastOwnedIndex = i;
+      }
+    }
+    const currentIndex = catalogSlots.findIndex((e) => e.objectType === objectType);
+    return currentIndex === lastOwnedIndex + 1;
+  };
 
   const clearRecordingTimers = useCallback(() => {
     if (recordingStopTimerRef.current !== null) {
@@ -591,6 +588,11 @@ export function GardenOptionsMenu({
 
   useEffect(() => {
     return () => {
+      if (purchaseFeedbackTimerRef.current !== null) {
+        window.clearTimeout(purchaseFeedbackTimerRef.current);
+        purchaseFeedbackTimerRef.current = null;
+      }
+
       window.dispatchEvent(
         new CustomEvent<KazenagareAudioSuppressionDetail>(
           KAZENAGARE_AUDIO_SUPPRESSION_EVENT,
@@ -634,6 +636,10 @@ export function GardenOptionsMenu({
       return;
     }
 
+    if (isPurchasingFromCatalog || isPurchaseSuccessPop) {
+      return;
+    }
+
     const targetObjectType = selectedCatalogEntry.objectType;
     const currentWallet = loadVoiceZooWallet(audioOwnerId);
 
@@ -654,18 +660,36 @@ export function GardenOptionsMenu({
       return;
     }
 
-    const nextWallet = {
-      coins: currentWallet.coins - selectedCatalogEntry.price,
-      ownedObjectTypes: [...currentWallet.ownedObjectTypes, targetObjectType],
-    };
+    setCatalogActionNotice(null);
+    setIsPurchasingFromCatalog(true);
 
-    saveVoiceZooWallet(nextWallet, audioOwnerId);
-    setOwnedCatalogObjectTypes(nextWallet.ownedObjectTypes);
-    openRecordingModalForEntry(
-      selectedCatalogEntry,
-      `${selectedCatalogEntry.name}を購入しました。3秒録音を開始してください。`,
-      "purchase",
-    );
+    if (purchaseFeedbackTimerRef.current !== null) {
+      window.clearTimeout(purchaseFeedbackTimerRef.current);
+      purchaseFeedbackTimerRef.current = null;
+    }
+
+    purchaseFeedbackTimerRef.current = window.setTimeout(() => {
+      setIsPurchasingFromCatalog(false);
+      setIsPurchaseSuccessPop(true);
+
+      purchaseFeedbackTimerRef.current = window.setTimeout(() => {
+        setIsPurchaseSuccessPop(false);
+        purchaseFeedbackTimerRef.current = null;
+
+        const nextWallet = {
+          coins: currentWallet.coins - selectedCatalogEntry.price,
+          ownedObjectTypes: [...currentWallet.ownedObjectTypes, targetObjectType],
+        };
+
+        saveVoiceZooWallet(nextWallet, audioOwnerId);
+        setOwnedCatalogObjectTypes(nextWallet.ownedObjectTypes);
+        openRecordingModalForEntry(
+          selectedCatalogEntry,
+          `${selectedCatalogEntry.name}を購入しました。3秒録音を開始してください。`,
+          "purchase",
+        );
+      }, CATALOG_PURCHASE_POP_MS);
+    }, CATALOG_PURCHASE_SPINNER_MS);
   };
 
   const handleRerecordFromCatalog = () => {
@@ -948,17 +972,18 @@ export function GardenOptionsMenu({
 
       {isCatalogOpen ? (
         <div className="fixed inset-0 z-[130] overflow-y-auto p-3 md:grid md:place-items-center md:p-6">
-          <section
-            id={catalogPanelId}
-            role="dialog"
-            aria-modal="true"
-            aria-label="図鑑"
-            className={`pointer-events-auto relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl border shadow-[0_34px_90px_rgba(0,0,0,0.45)] [transform-style:preserve-3d] animate-[kazenagare-catalog-burst_220ms_cubic-bezier(0.2,1,0.36,1)] max-h-[88dvh] md:min-w-[46rem] md:h-[min(88dvh,780px)] ${
-              darkMode
-                ? "border-wa-white/35 bg-[linear-gradient(160deg,rgba(23,23,23,0.98)_0%,rgba(35,35,35,0.95)_52%,rgba(15,15,15,0.98)_100%)] text-wa-white"
-                : "border-wa-black/25 bg-[linear-gradient(160deg,rgba(255,250,242,0.99)_0%,rgba(248,236,220,0.96)_54%,rgba(255,249,240,0.99)_100%)] text-wa-black"
-            }`}
-          >
+          <div className="relative mx-auto w-full max-w-5xl md:min-w-[46rem] md:h-[min(88dvh,780px)]">
+            <section
+              id={catalogPanelId}
+              role="dialog"
+              aria-modal="true"
+              aria-label="図鑑"
+              className={`pointer-events-auto relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl shadow-[0_34px_90px_rgba(0,0,0,0.45),inset_0_0_40px_rgba(0,0,0,0.08)] [transform-style:preserve-3d] animate-[kazenagare-catalog-burst_220ms_cubic-bezier(0.2,1,0.36,1)] max-h-[88dvh] md:h-[min(88dvh,780px)] ${
+                darkMode
+                  ? "border-4 border-[#8b6f47]/35 bg-[linear-gradient(160deg,rgba(48,42,32,0.98)_0%,rgba(62,54,42,0.95)_52%,rgba(42,36,28,0.98)_100%)] text-wa-white"
+                  : "border-4 border-[#c9a868]/40 bg-[linear-gradient(160deg,rgba(252,248,242,0.99)_0%,rgba(246,238,224,0.97)_54%,rgba(254,250,244,0.99)_100%)] text-wa-black"
+              }`}
+            >
             <div className="grid h-full min-h-0 gap-4 p-5 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-wa-black/10 pb-3 dark:border-wa-white/15">
                 <div>
@@ -990,13 +1015,13 @@ export function GardenOptionsMenu({
                   }`}
                 >
                   <div
-                    className={`grid min-h-0 gap-4 border-b p-4 md:border-b-0 md:border-r md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
+                    className={`relative grid min-h-0 gap-4 border-b p-4 md:border-b-0 md:border-r md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
                       darkMode
-                        ? "border-wa-white/20 bg-[linear-gradient(120deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_100%)]"
-                        : "border-wa-black/15 bg-[linear-gradient(120deg,rgba(255,255,255,0.88)_0%,rgba(255,255,255,0.62)_100%)]"
+                        ? "border-[#6b5a41]/40 bg-[linear-gradient(120deg,rgba(60,50,38,0.5)_0%,rgba(50,42,30,0.3)_100%)]"
+                        : "border-[#d1a877]/30 bg-[linear-gradient(120deg,rgba(255,252,246,0.95)_0%,rgba(250,242,228,0.88)_100%)]"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
                       <div>
                         <p className={`text-xs ${darkMode ? "text-wa-white/75" : "text-wa-black/65"}`}>
                           1回の再生報酬
@@ -1008,27 +1033,21 @@ export function GardenOptionsMenu({
                           </span>
                         </p>
                       </div>
-
-                      <span
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${catalogStatusClass(selectedCatalogEntry.status, darkMode)}`}
-                      >
-                        {catalogStatusLabel(selectedCatalogEntry.status)}
-                      </span>
                     </div>
 
                     <div
-                      className={`grid min-h-[220px] place-items-center rounded-2xl border ${
+                      className={`grid min-h-[220px] place-items-center rounded-2xl border-4 shadow-[inset_0_2px_8px_rgba(0,0,0,0.12)] ${
                         darkMode
-                          ? "border-wa-white/20 bg-wa-black/35"
-                          : "border-wa-black/15 bg-white/80"
+                          ? "border-[#8b6f47]/35 bg-[linear-gradient(135deg,rgba(60,50,38,0.4)_0%,rgba(48,42,32,0.6)_100%)]"
+                          : "border-[#c9a868]/45 bg-[linear-gradient(135deg,rgba(255,252,246,0.8)_0%,rgba(248,240,226,0.9)_100%)]"
                       }`}
                     >
                       <div className="grid place-items-center gap-2 text-center">
                         <div
-                          className={`grid h-28 w-28 place-items-center rounded-full border text-6xl ${
+                          className={`grid h-28 w-28 place-items-center rounded-full border-4 shadow-[inset_0_1px_4px_rgba(0,0,0,0.15),0_4px_12px_rgba(0,0,0,0.2)] ${
                             darkMode
-                              ? "border-wa-white/35 bg-wa-black/55"
-                              : "border-wa-black/20 bg-white"
+                              ? "border-[#6b5a41]/45 bg-[radial-gradient(circle,rgba(70,58,44,0.6)_0%,rgba(50,42,30,0.8)_100%)]"
+                              : "border-[#b89968]/45 bg-[radial-gradient(circle,rgba(255,250,242,0.95)_0%,rgba(245,236,220,0.85)_100%)]"
                           }`}
                         >
                           <Image
@@ -1049,13 +1068,12 @@ export function GardenOptionsMenu({
                     </div>
 
                     <div
-                      className={`rounded-xl border p-3 text-sm leading-relaxed ${
+                      className={`rounded-xl border-2 p-3 text-sm leading-relaxed shadow-[inset_0_1px_4px_rgba(0,0,0,0.06)] ${
                         darkMode
-                          ? "border-wa-white/20 bg-wa-black/35 text-wa-white/85"
-                          : "border-wa-black/15 bg-white/80 text-wa-black/80"
+                          ? "border-[#6b5a41]/35 bg-[linear-gradient(135deg,rgba(60,50,38,0.4)_0%,rgba(52,44,32,0.3)_100%)] text-wa-white/90"
+                          : "border-[#c9a868]/30 bg-[linear-gradient(135deg,rgba(255,252,246,0.6)_0%,rgba(248,240,226,0.5)_100%)] text-wa-black/85"
                       }`}
-                    >
-                      {selectedCatalogEntry.soundDesign}
+                    >{selectedCatalogEntry.soundDesign}
                     </div>
 
                     {isSelectedCatalogObjectOwned ? (
@@ -1074,13 +1092,30 @@ export function GardenOptionsMenu({
                       <button
                         type="button"
                         onClick={handlePurchaseAndPlaceFromCatalog}
-                        className={`mt-auto inline-flex items-center justify-center rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+                        disabled={isPurchasingFromCatalog || isPurchaseSuccessPop}
+                        className={`mt-auto inline-flex items-center justify-center rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-150 ease-out ${
+                          isPurchasingFromCatalog || isPurchaseSuccessPop
+                            ? "cursor-wait"
+                            : "hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98]"
+                        } ${
+                          isPurchaseSuccessPop ? "scale-[1.04]" : ""
+                        } ${
                           darkMode
                             ? "border-wa-gold/55 bg-wa-gold/20 text-wa-white hover:bg-wa-gold/30"
                             : "border-wa-gold/50 bg-wa-gold/20 text-wa-black hover:bg-wa-gold/30"
                         }`}
                       >
-                        {`購入する（${selectedCatalogEntry.price}コイン）`}
+                        {isPurchasingFromCatalog ? (
+                          <span className="inline-flex items-center gap-2">
+                            <span
+                              aria-hidden
+                              className="h-4 w-4 rounded-full border-2 border-current border-r-transparent animate-spin"
+                            />
+                            購入中...
+                          </span>
+                        ) : (
+                          `購入する（${selectedCatalogEntry.price}コイン）`
+                        )}
                       </button>
                     )}
 
@@ -1100,8 +1135,8 @@ export function GardenOptionsMenu({
                   <div
                     className={`grid min-h-0 content-start gap-4 p-4 md:[transform-origin:left_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-right-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
                       darkMode
-                        ? "bg-[linear-gradient(240deg,rgba(255,255,255,0.05)_0%,rgba(255,255,255,0.01)_100%)]"
-                        : "bg-[linear-gradient(240deg,rgba(255,255,255,0.84)_0%,rgba(255,255,255,0.58)_100%)]"
+                        ? "bg-[linear-gradient(240deg,rgba(60,50,38,0.3)_0%,rgba(50,42,30,0.15)_100%)]"
+                        : "bg-[linear-gradient(240deg,rgba(255,252,246,0.92)_0%,rgba(250,242,228,0.78)_100%)]"
                     }`}
                   >
                     <div>
@@ -1116,23 +1151,34 @@ export function GardenOptionsMenu({
                         {catalogSlots.map((entry) => {
                           const isSelected = entry.objectType === selectedCatalogEntry.objectType;
                           const isOwned = ownedCatalogObjectTypes.includes(entry.objectType);
+                          const isUnlocked = getIsUnlocked(entry.objectType);
+                          const isLocked = !isOwned && !isUnlocked;
 
                           return (
                             <button
                               key={entry.objectType}
                               type="button"
+                              disabled={isLocked}
                               onClick={() => {
                                 setSelectedCatalogObjectType(entry.objectType);
                                 setCatalogActionNotice(null);
                               }}
-                              className={`grid min-h-24 place-items-center gap-1 rounded-xl border px-2 py-2 text-center transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+                              className={`grid min-h-24 place-items-center gap-1 rounded-lg border-2 px-2 py-2 text-center transition-all duration-150 ease-out shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)] ${
+                                isLocked
+                                  ? darkMode
+                                    ? "cursor-not-allowed border-[#6b5a41]/15 bg-[rgba(50,42,30,0.25)] opacity-35"
+                                    : "cursor-not-allowed border-[#c9a868]/15 bg-[rgba(255,252,246,0.35)] opacity-35"
+                                  : "hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98]"
+                              } ${
                                 isSelected
                                   ? darkMode
-                                    ? "border-wa-gold/65 bg-wa-gold/20"
-                                    : "border-wa-red/45 bg-wa-red/12"
-                                  : darkMode
-                                    ? "border-wa-white/20 bg-wa-white/5 hover:bg-wa-white/10"
-                                    : "border-wa-black/15 bg-white/70 hover:bg-wa-red/8"
+                                    ? "border-[#c9a868]/65 bg-[rgba(201,168,104,0.25)] shadow-[inset_0_0_10px_rgba(201,168,104,0.2)]"
+                                    : "border-[#c9a868]/55 bg-[rgba(201,168,104,0.2)] shadow-[inset_0_0_10px_rgba(201,168,104,0.15)]"
+                                  : !isLocked && (
+                                      darkMode
+                                        ? "border-[#6b5a41]/35 bg-[linear-gradient(135deg,rgba(70,58,44,0.3)_0%,rgba(52,44,32,0.15)_100%)] hover:bg-[linear-gradient(135deg,rgba(80,68,54,0.35)_0%,rgba(62,54,42,0.2)_100%)]"
+                                        : "border-[#c9a868]/35 bg-[linear-gradient(135deg,rgba(255,252,246,0.75)_0%,rgba(250,242,228,0.55)_100%)] hover:bg-[linear-gradient(135deg,rgba(255,252,246,0.85)_0%,rgba(250,242,228,0.7)_100%)]"
+                                    )
                               }`}
                             >
                               <Image
@@ -1140,10 +1186,10 @@ export function GardenOptionsMenu({
                                 alt={`${entry.name}の画像`}
                                 width={36}
                                 height={36}
-                                className={`h-9 w-9 rounded-full object-cover ${!isOwned ? "brightness-0 opacity-45" : ""}`}
+                                className={`h-9 w-9 rounded-full object-cover ${isLocked ? "brightness-0 opacity-30" : !isOwned ? "brightness-0 opacity-45" : ""}`}
                               />
                               <span className="text-[11px] font-semibold leading-tight">
-                                {isOwned ? entry.name : "？？？"}
+                                {isOwned ? entry.name : isLocked ? "ロック中" : "？？？"}
                               </span>
                             </button>
                           );
@@ -1230,7 +1276,30 @@ export function GardenOptionsMenu({
                 横にスワイプすると見開き全体を確認できます。
               </p>
             </div>
-          </section>
+            </section>
+
+            {/* 巻物の左右巻き端 */}
+            <div className="pointer-events-none absolute inset-y-0 left-0 right-0">
+              <div className={`absolute bottom-[7%] top-[7%] -left-3 w-6 rounded-full border shadow-[inset_0_1px_2px_rgba(255,255,255,0.22),inset_0_-2px_3px_rgba(0,0,0,0.3),0_6px_12px_rgba(0,0,0,0.25)] ${
+                darkMode
+                  ? "border-[#5a4530]/75 bg-[linear-gradient(90deg,rgba(66,52,36,0.98)_0%,rgba(114,90,62,0.92)_45%,rgba(78,60,40,0.98)_100%)]"
+                  : "border-[#a87c42]/60 bg-[linear-gradient(90deg,rgba(154,120,72,0.94)_0%,rgba(220,183,124,0.9)_45%,rgba(170,132,80,0.94)_100%)]"
+              }`}>
+                <span className={`absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border ${
+                  darkMode ? "border-[#cdb084]/70" : "border-[#6d4f26]/50"
+                }`} />
+              </div>
+              <div className={`absolute bottom-[7%] top-[7%] -right-3 w-6 rounded-full border shadow-[inset_0_1px_2px_rgba(255,255,255,0.22),inset_0_-2px_3px_rgba(0,0,0,0.3),0_6px_12px_rgba(0,0,0,0.25)] ${
+                darkMode
+                  ? "border-[#5a4530]/75 bg-[linear-gradient(90deg,rgba(66,52,36,0.98)_0%,rgba(114,90,62,0.92)_45%,rgba(78,60,40,0.98)_100%)]"
+                  : "border-[#a87c42]/60 bg-[linear-gradient(90deg,rgba(154,120,72,0.94)_0%,rgba(220,183,124,0.9)_45%,rgba(170,132,80,0.94)_100%)]"
+              }`}>
+                <span className={`absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border ${
+                  darkMode ? "border-[#cdb084]/70" : "border-[#6d4f26]/50"
+                }`} />
+              </div>
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -1243,22 +1312,23 @@ export function GardenOptionsMenu({
             onClick={canCloseRecordingModal ? () => closeRecordingModal("user") : undefined}
           />
 
-          <section
+          <div className="relative w-full max-w-xl">
+            <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="catalog-recording-title"
-            className={`relative z-10 grid w-full max-w-xl gap-4 rounded-2xl border p-5 shadow-[0_40px_110px_rgba(0,0,0,0.55)] ${
+              className={`relative z-10 grid w-full gap-4 rounded-2xl border-4 p-5 shadow-[0_40px_110px_rgba(0,0,0,0.55),inset_0_0_30px_rgba(0,0,0,0.08)] ${
               darkMode
-                ? "border-wa-white/35 bg-[#111111] text-wa-white"
-                : "border-wa-black/35 bg-[#fffdf9] text-wa-black"
+                ? "border-[#8b6f47]/35 bg-[linear-gradient(160deg,rgba(48,42,32,0.98)_0%,rgba(62,54,42,0.95)_52%,rgba(42,36,28,0.98)_100%)] text-wa-white"
+                : "border-[#c9a868]/40 bg-[linear-gradient(160deg,rgba(252,248,242,0.99)_0%,rgba(246,238,224,0.97)_54%,rgba(254,250,244,0.99)_100%)] text-wa-black"
             }`}
-          >
+            >
             <div className="flex items-start gap-3">
               <div
-                className={`grid h-12 w-12 place-items-center rounded-full border text-2xl ${
+                className={`grid h-12 w-12 place-items-center rounded-full border-2 shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)] ${
                   darkMode
-                    ? "border-wa-white/25 bg-[#1a1a1a]"
-                    : "border-wa-black/20 bg-[#ffffff]"
+                    ? "border-[#6b5a41]/45 bg-[radial-gradient(circle,rgba(70,58,44,0.5)_0%,rgba(50,42,30,0.7)_100%)]"
+                    : "border-[#b89968]/45 bg-[radial-gradient(circle,rgba(255,250,242,0.95)_0%,rgba(245,236,220,0.85)_100%)]"
                 }`}
               >
                 <Image
@@ -1280,10 +1350,10 @@ export function GardenOptionsMenu({
             </div>
 
             <div
-              className={`grid gap-2 rounded-xl border p-4 ${
+              className={`grid gap-2 rounded-xl border-2 p-4 shadow-[inset_0_1px_4px_rgba(0,0,0,0.06)] ${
                 darkMode
-                  ? "border-wa-white/25 bg-[#1a1a1a]"
-                  : "border-wa-black/15 bg-[#f8f4ed]"
+                  ? "border-[#6b5a41]/35 bg-[linear-gradient(135deg,rgba(60,50,38,0.4)_0%,rgba(52,44,32,0.3)_100%)]"
+                  : "border-[#c9a868]/30 bg-[linear-gradient(135deg,rgba(255,252,246,0.6)_0%,rgba(248,240,226,0.5)_100%)]"
               }`}
             >
               <p className={`text-xs ${darkMode ? "text-wa-white/70" : "text-wa-black/65"}`}>
@@ -1294,7 +1364,11 @@ export function GardenOptionsMenu({
               </p>
             </div>
 
-            <div className="mb-1 rounded-xl border border-wa-black/10 bg-wa-black/[0.03] p-3">
+            <div className={`mb-1 rounded-xl border-2 p-3 shadow-[inset_0_1px_4px_rgba(0,0,0,0.06)] ${
+              darkMode
+                ? "border-[#6b5a41]/35 bg-[linear-gradient(135deg,rgba(60,50,38,0.35)_0%,rgba(52,44,32,0.25)_100%)]"
+                : "border-[#c9a868]/30 bg-[linear-gradient(135deg,rgba(255,252,246,0.55)_0%,rgba(248,240,226,0.45)_100%)]"
+            }`}>
               <canvas
                 ref={recordingWaveformCanvasRef}
                 className={`h-16 w-full rounded-lg transition-opacity ${isRecording ? "opacity-100" : "opacity-45"}`}
@@ -1312,14 +1386,14 @@ export function GardenOptionsMenu({
                   void startThreeSecondRecording();
                 }}
                 disabled={isRecording}
-                className={`rounded-md border px-4 py-2 text-sm font-semibold transition-all duration-150 ease-out ${
+                className={`rounded-lg border-2 px-4 py-2 text-sm font-semibold transition-all duration-150 ease-out shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] ${
                   isRecording
                     ? darkMode
-                      ? "cursor-not-allowed border-wa-white/20 bg-wa-white/10 text-wa-white/45"
-                      : "cursor-not-allowed border-wa-black/20 bg-wa-black/10 text-wa-black/50"
+                      ? "cursor-not-allowed border-[#6b5a41]/15 bg-[rgba(50,42,30,0.25)] text-wa-white/45"
+                      : "cursor-not-allowed border-[#c9a868]/15 bg-[rgba(255,252,246,0.35)] text-wa-black/45"
                     : darkMode
-                      ? "border-wa-red/35 bg-wa-red/20 hover:-translate-y-0.5 hover:bg-wa-red/30 active:translate-y-[1px] active:scale-[0.98]"
-                      : "border-wa-red/35 bg-wa-red/10 hover:-translate-y-0.5 hover:bg-wa-red/20 active:translate-y-[1px] active:scale-[0.98]"
+                      ? "border-[#d97757]/45 bg-[linear-gradient(135deg,rgba(217,119,87,0.3)_0%,rgba(195,95,63,0.2)_100%)] hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,rgba(217,119,87,0.4)_0%,rgba(195,95,63,0.3)_100%)] active:translate-y-[1px] active:scale-[0.98]"
+                      : "border-[#d97757]/40 bg-[linear-gradient(135deg,rgba(217,119,87,0.2)_0%,rgba(195,95,63,0.12)_100%)] hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,rgba(217,119,87,0.28)_0%,rgba(195,95,63,0.2)_100%)] active:translate-y-[1px] active:scale-[0.98]"
                 }`}
               >
                 {isRecording ? "録音中..." : "3秒録音を開始"}
@@ -1329,10 +1403,10 @@ export function GardenOptionsMenu({
                 <button
                   type="button"
                   onClick={handlePlacementFromRecordingModal}
-                  className={`rounded-md border px-4 py-2 text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+                  className={`rounded-lg border-2 px-4 py-2 text-sm font-semibold transition-all duration-150 ease-out shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
                     darkMode
-                      ? "border-wa-white/45 bg-wa-white/10 hover:bg-wa-white/20"
-                      : "border-wa-black/45 bg-wa-red/10 hover:bg-wa-red/20"
+                      ? "border-[#7fa357]/50 bg-[linear-gradient(135deg,rgba(127,163,87,0.3)_0%,rgba(99,135,62,0.2)_100%)] hover:bg-[linear-gradient(135deg,rgba(127,163,87,0.4)_0%,rgba(99,135,62,0.3)_100%)]"
+                      : "border-[#8bb04a]/45 bg-[linear-gradient(135deg,rgba(139,176,74,0.2)_0%,rgba(110,145,55,0.12)_100%)] hover:bg-[linear-gradient(135deg,rgba(139,176,74,0.28)_0%,rgba(110,145,55,0.2)_100%)]"
                   }`}
                 >
                   録音し終わって配置する
@@ -1341,10 +1415,10 @@ export function GardenOptionsMenu({
                 <button
                   type="button"
                   disabled
-                  className={`cursor-not-allowed rounded-md border px-4 py-2 text-sm font-semibold ${
+                  className={`cursor-not-allowed rounded-lg border-2 px-4 py-2 text-sm font-semibold shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] ${
                     darkMode
-                      ? "border-wa-white/20 bg-wa-white/10 text-wa-white/45"
-                      : "border-wa-black/20 bg-wa-black/10 text-wa-black/50"
+                      ? "border-[#6b5a41]/15 bg-[rgba(50,42,30,0.25)] text-wa-white/45"
+                      : "border-[#c9a868]/15 bg-[rgba(255,252,246,0.35)] text-wa-black/45"
                   }`}
                 >
                   録音し終わって配置する
@@ -1355,14 +1429,14 @@ export function GardenOptionsMenu({
                 type="button"
                 onClick={() => closeRecordingModal("user")}
                 disabled={!canCloseRecordingModal}
-                className={`rounded-md border px-4 py-2 text-sm transition-all duration-150 ease-out ${
+                className={`rounded-lg border-2 px-4 py-2 text-sm transition-all duration-150 ease-out shadow-[inset_0_1px_2px_rgba(0,0,0,0.06)] ${
                   !canCloseRecordingModal
                     ? darkMode
-                      ? "cursor-not-allowed border-wa-white/20 bg-wa-white/10 text-wa-white/45"
-                      : "cursor-not-allowed border-wa-black/20 bg-wa-black/10 text-wa-black/50"
+                      ? "cursor-not-allowed border-[#6b5a41]/15 bg-[rgba(50,42,30,0.25)] text-wa-white/45"
+                      : "cursor-not-allowed border-[#c9a868]/15 bg-[rgba(255,252,246,0.35)] text-wa-black/45"
                     : darkMode
-                      ? "border-wa-white/40 hover:-translate-y-0.5 hover:bg-wa-white/10 active:translate-y-[1px] active:scale-[0.98]"
-                      : "border-wa-black/40 hover:-translate-y-0.5 hover:bg-wa-black/5 active:translate-y-[1px] active:scale-[0.98]"
+                      ? "border-[#6b5a41]/40 bg-[linear-gradient(135deg,rgba(70,58,44,0.25)_0%,rgba(52,44,32,0.15)_100%)] hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,rgba(80,68,54,0.32)_0%,rgba(62,54,42,0.22)_100%)] active:translate-y-[1px] active:scale-[0.98]"
+                      : "border-[#c9a868]/40 bg-[linear-gradient(135deg,rgba(255,252,246,0.5)_0%,rgba(250,242,228,0.35)_100%)] hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,rgba(255,252,246,0.65)_0%,rgba(250,242,228,0.5)_100%)] active:translate-y-[1px] active:scale-[0.98]"
                 }`}
               >
                 閉じる
@@ -1381,10 +1455,10 @@ export function GardenOptionsMenu({
 
             {recordingNotice ? (
               <p
-                className={`rounded-lg border px-3 py-2 text-xs ${
+                className={`rounded-lg border-2 px-3 py-2 text-xs ${
                   darkMode
-                    ? "border-wa-white/20 bg-[#171717] text-wa-white/90"
-                    : "border-wa-black/20 bg-wa-white text-wa-black"
+                    ? "border-[#6b5a41]/35 bg-[linear-gradient(135deg,rgba(60,50,38,0.4)_0%,rgba(52,44,32,0.3)_100%)] text-wa-white/90"
+                    : "border-[#c9a868]/30 bg-[linear-gradient(135deg,rgba(255,252,246,0.6)_0%,rgba(248,240,226,0.5)_100%)] text-wa-black"
                 }`}
               >
                 {recordingNotice}
@@ -1393,10 +1467,10 @@ export function GardenOptionsMenu({
 
             {!recordingEntryAudioUrl ? (
               <p
-                className={`rounded-lg border px-3 py-2 text-xs ${
+                className={`rounded-lg border-2 px-3 py-2 text-xs ${
                   darkMode
-                    ? "border-wa-gold/40 bg-[#2b2412] text-wa-white"
-                    : "border-wa-gold/35 bg-wa-gold/10 text-wa-black"
+                    ? "border-[#8b6f47]/40 bg-[linear-gradient(135deg,rgba(85,67,45,0.4)_0%,rgba(75,58,40,0.3)_100%)] text-wa-white"
+                    : "border-[#c9a868]/40 bg-[linear-gradient(135deg,rgba(201,168,104,0.15)_0%,rgba(180,145,85,0.08)_100%)] text-wa-black"
                 }`}
               >
                 配置するには先に3秒録音を完了してください。
@@ -1405,16 +1479,39 @@ export function GardenOptionsMenu({
 
             {recordingModalMode === "purchase" ? (
               <p
-                className={`rounded-lg border px-3 py-2 text-xs ${
+                className={`rounded-lg border-2 px-3 py-2 text-xs ${
                   darkMode
-                    ? "border-wa-red/45 bg-[#2a1414] text-wa-white"
-                    : "border-wa-red/30 bg-wa-red/10 text-wa-black"
+                    ? "border-[#8b4a4a]/40 bg-[linear-gradient(135deg,rgba(110,60,60,0.4)_0%,rgba(90,50,50,0.3)_100%)] text-wa-white"
+                    : "border-[#d97757]/35 bg-[linear-gradient(135deg,rgba(217,119,87,0.15)_0%,rgba(195,95,63,0.08)_100%)] text-wa-black"
                 }`}
               >
                 初回購入時は「録音し終わって配置する」まで閉じることはできません。
               </p>
             ) : null}
-          </section>
+            </section>
+
+            {/* 巻物の左右巻き端 */}
+            <div className="pointer-events-none absolute inset-y-0 left-0 right-0 z-20">
+              <div className={`absolute bottom-[8%] top-[8%] -left-3 w-6 rounded-full border shadow-[inset_0_1px_2px_rgba(255,255,255,0.22),inset_0_-2px_3px_rgba(0,0,0,0.3),0_6px_12px_rgba(0,0,0,0.25)] ${
+                darkMode
+                  ? "border-[#5a4530]/75 bg-[linear-gradient(90deg,rgba(66,52,36,0.98)_0%,rgba(114,90,62,0.92)_45%,rgba(78,60,40,0.98)_100%)]"
+                  : "border-[#a87c42]/60 bg-[linear-gradient(90deg,rgba(154,120,72,0.94)_0%,rgba(220,183,124,0.9)_45%,rgba(170,132,80,0.94)_100%)]"
+              }`}>
+                <span className={`absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border ${
+                  darkMode ? "border-[#cdb084]/70" : "border-[#6d4f26]/50"
+                }`} />
+              </div>
+              <div className={`absolute bottom-[8%] top-[8%] -right-3 w-6 rounded-full border shadow-[inset_0_1px_2px_rgba(255,255,255,0.22),inset_0_-2px_3px_rgba(0,0,0,0.3),0_6px_12px_rgba(0,0,0,0.25)] ${
+                darkMode
+                  ? "border-[#5a4530]/75 bg-[linear-gradient(90deg,rgba(66,52,36,0.98)_0%,rgba(114,90,62,0.92)_45%,rgba(78,60,40,0.98)_100%)]"
+                  : "border-[#a87c42]/60 bg-[linear-gradient(90deg,rgba(154,120,72,0.94)_0%,rgba(220,183,124,0.9)_45%,rgba(170,132,80,0.94)_100%)]"
+              }`}>
+                <span className={`absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border ${
+                  darkMode ? "border-[#cdb084]/70" : "border-[#6d4f26]/50"
+                }`} />
+              </div>
+            </div>
+          </div>
         </div>
       ) : null}
     </>

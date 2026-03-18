@@ -206,7 +206,7 @@ export const VOICE_ZOO_ENTRIES: VoiceZooEntry[] = [
     icon: "ka",
     catalogImageSrc: "/images/garden/objects/ka/catalog/kae.png",
     stageVideoSrc: "/videos/garden/objects/ka/stage/ka.webm",
-    price: 160,
+    price: 9999,
     status: "planned",
     soundDesign: "高周波寄りの揺らぎで羽音の存在感を演出",
     visualReaction: "再生時に素早く動く動画を再生",
