@@ -823,6 +823,8 @@ export function EmptyStageCharacter({
   const awardPlaybackReward = useCallback(
     (placedObject: PlacedStageObject) => {
       if (audioOwnerIdOverride) {
+        // 他人の庭ではコイン報酬は付与しないが、再生演出動画は表示する。
+        triggerRewardVideoPlayback(placedObject);
         return;
       }
 
