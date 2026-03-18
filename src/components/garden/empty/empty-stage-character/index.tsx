@@ -99,6 +99,11 @@ const AUTO_PLAYBACK_DISTANCE_NEAR_PX = 130;
 const AUTO_PLAYBACK_DISTANCE_FAR_PX = 760;
 const AUTO_PLAYBACK_DISTANCE_MIN_GAIN = 0.04;
 const CHARACTER_POSITION_SAVE_INTERVAL_MS = 900;
+const CHARACTER_WALK_FRAME_INTERVAL_MS = 220;
+const CHARACTER_IDLE_IMAGE_SRC = "/images/garden/characters/猫1.png";
+const CHARACTER_WALK_IMAGE_SRC = "/images/garden/characters/猫2.png";
+const CHARACTER_IDLE_IMAGE_SIZE_PX = 80;
+const CHARACTER_WALK_IMAGE_SIZE_PX = 64;
 
 type CompatibleAudioContextWindow = Window & typeof globalThis & {
   webkitAudioContext?: typeof AudioContext;
@@ -111,6 +116,45 @@ type PlacementBlockedNotice = {
   message: string;
   position: Vector2;
 };
+
+type CharacterFacingDirection =
+  | "right"
+  | "down-right"
+  | "down"
+  | "down-left"
+  | "left"
+  | "up-left"
+  | "up"
+  | "up-right";
+
+type CharacterHorizontalFacing = "left" | "right";
+
+const HORIZONTAL_FACING_EPSILON = 0.5;
+
+function resolveCharacterFacingDirection(velocity: Vector2): CharacterFacingDirection {
+  const angle = Math.atan2(velocity.y, velocity.x);
+  const normalized = (angle + Math.PI * 2) % (Math.PI * 2);
+  const octant = Math.round(normalized / (Math.PI / 4)) % 8;
+
+  switch (octant) {
+    case 0:
+      return "right";
+    case 1:
+      return "down-right";
+    case 2:
+      return "down";
+    case 3:
+      return "down-left";
+    case 4:
+      return "left";
+    case 5:
+      return "up-left";
+    case 6:
+      return "up";
+    default:
+      return "up-right";
+  }
+}
 
 function getAudioContextConstructor() {
   if (typeof window === "undefined") {
@@ -238,6 +282,11 @@ export function EmptyStageCharacter({
     ? `${objectStorageKey}_${audioOwnerId}`
     : null;
   const [isWalking, setIsWalking] = useState(false);
+  const [isCharacterWalkFrame, setIsCharacterWalkFrame] = useState(false);
+  const [characterFacingDirection, setCharacterFacingDirection] =
+    useState<CharacterFacingDirection>("right");
+  const [characterHorizontalFacing, setCharacterHorizontalFacing] =
+    useState<CharacterHorizontalFacing>("right");
   const [placedObjects, setPlacedObjects] = useState<PlacedStageObject[]>(() =>
     resolvedStorageKey ? [] : initialPlacedObjects,
   );
@@ -274,6 +323,8 @@ export function EmptyStageCharacter({
   const stickPadRef = useRef<HTMLDivElement | null>(null);
   const stickKnobRef = useRef<HTMLDivElement | null>(null);
   const walkingRef = useRef(false);
+  const characterFacingDirectionRef = useRef<CharacterFacingDirection>("right");
+  const characterHorizontalFacingRef = useRef<CharacterHorizontalFacing>("right");
   const stickPointerIdRef = useRef<number | null>(null);
   const stageSizeRef = useRef<Vector2>({ x: 0, y: 0 });
   const cameraOffsetRef = useRef<Vector2>(initialCharacterOffset);
@@ -332,6 +383,16 @@ export function EmptyStageCharacter({
   useEffect(() => {
     onGrabbedObjectIdChange?.(grabbedObjectId);
   }, [grabbedObjectId, onGrabbedObjectIdChange]);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      setIsCharacterWalkFrame((current) => !current);
+    }, CHARACTER_WALK_FRAME_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, []);
 
   const getListenerWorldPosition = useCallback(() => {
     return {
@@ -645,6 +706,27 @@ export function EmptyStageCharacter({
     if (walkingRef.current !== nextIsWalking) {
       walkingRef.current = nextIsWalking;
       setIsWalking(nextIsWalking);
+    }
+
+    if (nextIsWalking) {
+      const nextFacingDirection = resolveCharacterFacingDirection(velocity);
+
+      if (characterFacingDirectionRef.current !== nextFacingDirection) {
+        characterFacingDirectionRef.current = nextFacingDirection;
+        setCharacterFacingDirection(nextFacingDirection);
+      }
+    }
+
+    if (velocity.x > HORIZONTAL_FACING_EPSILON) {
+      if (characterHorizontalFacingRef.current !== "right") {
+        characterHorizontalFacingRef.current = "right";
+        setCharacterHorizontalFacing("right");
+      }
+    } else if (velocity.x < -HORIZONTAL_FACING_EPSILON) {
+      if (characterHorizontalFacingRef.current !== "left") {
+        characterHorizontalFacingRef.current = "left";
+        setCharacterHorizontalFacing("left");
+      }
     }
   }, []);
 
@@ -2422,6 +2504,14 @@ export function EmptyStageCharacter({
   const shouldRenderObjectLocator =
     isObjectLocatorVisible &&
     Boolean(objectLocatorIndicator);
+  const characterImageSrc =
+    isWalking && isCharacterWalkFrame
+      ? CHARACTER_WALK_IMAGE_SRC
+      : CHARACTER_IDLE_IMAGE_SRC;
+  const characterImageSizePx =
+    characterImageSrc === CHARACTER_IDLE_IMAGE_SRC
+      ? CHARACTER_IDLE_IMAGE_SIZE_PX
+      : CHARACTER_WALK_IMAGE_SIZE_PX;
 
   const mobileStickPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] right-3 z-40 rounded-2xl border p-2 backdrop-blur-sm sm:hidden ${
     darkMode
@@ -2434,6 +2524,10 @@ export function EmptyStageCharacter({
       <EmptyStageCharacterStage
         darkMode={darkMode}
         isWalking={isWalking}
+        characterImageSrc={characterImageSrc}
+        characterImageSizePx={characterImageSizePx}
+        characterFacingDirection={characterFacingDirection}
+        characterHorizontalFacing={characterHorizontalFacing}
         isPlacementBlocked={isPlacementBlocked}
         placementBlockedNotice={placementBlockedNotice}
         stageRef={stageRef}

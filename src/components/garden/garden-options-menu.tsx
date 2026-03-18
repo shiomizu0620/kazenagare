@@ -158,6 +158,9 @@ export function GardenOptionsMenu({
   const recordingPreviewAudioRef = useRef<HTMLAudioElement | null>(null);
   const recordingMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingStreamRef = useRef<MediaStream | null>(null);
+  const recordingWaveformCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const recordingWaveformAudioContextRef = useRef<AudioContext | null>(null);
+  const recordingWaveformAnimationFrameRef = useRef<number | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const recordingStopTimerRef = useRef<number | null>(null);
   const recordingCountdownTimerRef = useRef<number | null>(null);
@@ -190,6 +193,7 @@ export function GardenOptionsMenu({
   const selectedCatalogEntry =
     VOICE_ZOO_ENTRIES.find((entry) => entry.objectType === selectedCatalogObjectType) ??
     VOICE_ZOO_ENTRIES[0];
+  const isDevelopment = process.env.NODE_ENV === "development";
   const selectedEntryPlaybackReward = selectedCatalogEntry
     ? calculatePlaybackRewardCoins(selectedCatalogEntry.price)
     : 0;
@@ -221,6 +225,107 @@ export function GardenOptionsMenu({
       recordingStreamRef.current = null;
     }
   }, []);
+
+  const stopWaveformAnimation = useCallback(() => {
+    if (recordingWaveformAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(recordingWaveformAnimationFrameRef.current);
+      recordingWaveformAnimationFrameRef.current = null;
+    }
+
+    if (recordingWaveformAudioContextRef.current) {
+      void recordingWaveformAudioContextRef.current.close();
+      recordingWaveformAudioContextRef.current = null;
+    }
+
+    const canvas = recordingWaveformCanvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (canvas && context) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }, []);
+
+  const startWaveformAnimation = useCallback((stream: MediaStream) => {
+    stopWaveformAnimation();
+
+    const canvas = recordingWaveformCanvasRef.current;
+
+    if (!canvas) {
+      return;
+    }
+
+    const AudioContextConstructor =
+      window.AudioContext ??
+      (window as Window & {
+        webkitAudioContext?: typeof AudioContext;
+      }).webkitAudioContext;
+
+    if (!AudioContextConstructor) {
+      return;
+    }
+
+    const audioContext = new AudioContextConstructor();
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+
+    analyser.fftSize = 128;
+    analyser.smoothingTimeConstant = 0.82;
+    source.connect(analyser);
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    recordingWaveformAudioContextRef.current = audioContext;
+
+    const draw = () => {
+      const renderCanvas = recordingWaveformCanvasRef.current;
+
+      if (!renderCanvas) {
+        return;
+      }
+
+      const renderContext = renderCanvas.getContext("2d");
+
+      if (!renderContext) {
+        return;
+      }
+
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      const width = Math.floor(renderCanvas.clientWidth * devicePixelRatio);
+      const height = Math.floor(renderCanvas.clientHeight * devicePixelRatio);
+
+      if (renderCanvas.width !== width || renderCanvas.height !== height) {
+        renderCanvas.width = width;
+        renderCanvas.height = height;
+      }
+
+      renderContext.clearRect(0, 0, width, height);
+      analyser.getByteFrequencyData(dataArray);
+
+      const bars = 28;
+      const gap = 3 * devicePixelRatio;
+      const totalGap = gap * (bars - 1);
+      const barWidth = Math.max(2 * devicePixelRatio, (width - totalGap) / bars);
+      const gradient = renderContext.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, "rgba(196, 72, 48, 0.95)");
+      gradient.addColorStop(1, "rgba(210, 173, 94, 0.7)");
+      renderContext.fillStyle = gradient;
+
+      for (let index = 0; index < bars; index += 1) {
+        const dataIndex = Math.floor((index / bars) * dataArray.length);
+        const amplitude = dataArray[dataIndex] / 255;
+        const barHeight = Math.max(4 * devicePixelRatio, amplitude * height * 0.95);
+        const x = index * (barWidth + gap);
+        const y = (height - barHeight) / 2;
+
+        renderContext.beginPath();
+        renderContext.roundRect(x, y, barWidth, barHeight, 10 * devicePixelRatio);
+        renderContext.fill();
+      }
+
+      recordingWaveformAnimationFrameRef.current = window.requestAnimationFrame(draw);
+    };
+
+    draw();
+  }, [stopWaveformAnimation]);
 
   const updatePreviewAudioUrl = useCallback((objectType: ObjectType, nextBlob: Blob) => {
     setRecordingPreviewAudioUrls((current) => {
@@ -266,13 +371,14 @@ export function GardenOptionsMenu({
     }
 
     clearRecordingTimers();
+    stopWaveformAnimation();
     stopRecordingStream();
     setIsRecording(false);
     setRecordingCountdown(RECORDING_DURATION_SECONDS);
     setRecordingNotice(null);
     setRecordingEntry(null);
     setRecordingModalMode(null);
-  }, [clearRecordingTimers, recordingModalMode, stopRecordingStream]);
+  }, [clearRecordingTimers, recordingModalMode, stopRecordingStream, stopWaveformAnimation]);
 
   const openRecordingModalForEntry = useCallback(
     (entry: VoiceZooEntry, noticeMessage: string, mode: RecordingModalMode) => {
@@ -299,6 +405,7 @@ export function GardenOptionsMenu({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recordingStreamRef.current = stream;
       recordingChunksRef.current = [];
+      startWaveformAnimation(stream);
 
       let recorder: MediaRecorder;
 
@@ -322,6 +429,7 @@ export function GardenOptionsMenu({
 
         clearRecordingTimers();
         setIsRecording(false);
+        stopWaveformAnimation();
         stopRecordingStream();
 
         const nextBlob = new Blob(recordingChunksRef.current, {
@@ -382,6 +490,7 @@ export function GardenOptionsMenu({
       }, RECORDING_DURATION_SECONDS * 1000);
     } catch {
       clearRecordingTimers();
+      stopWaveformAnimation();
       stopRecordingStream();
       setIsRecording(false);
       setRecordingNotice("マイクの利用を許可してください。");
@@ -391,7 +500,9 @@ export function GardenOptionsMenu({
     isRecording,
     recordingEntry,
     resolveCurrentRecordingOwnerId,
+    startWaveformAnimation,
     stopRecordingStream,
+    stopWaveformAnimation,
     updatePreviewAudioUrl,
   ]);
 
@@ -453,6 +564,7 @@ export function GardenOptionsMenu({
   useEffect(() => {
     return () => {
       clearRecordingTimers();
+      stopWaveformAnimation();
       stopRecordingStream();
 
       for (const url of Object.values(recordingPreviewAudioUrlsRef.current)) {
@@ -461,7 +573,7 @@ export function GardenOptionsMenu({
         }
       }
     };
-  }, [clearRecordingTimers, stopRecordingStream]);
+  }, [clearRecordingTimers, stopRecordingStream, stopWaveformAnimation]);
 
   useEffect(() => {
     window.dispatchEvent(
@@ -841,13 +953,13 @@ export function GardenOptionsMenu({
             role="dialog"
             aria-modal="true"
             aria-label="図鑑"
-            className={`pointer-events-auto relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl border shadow-[0_34px_90px_rgba(0,0,0,0.45)] [transform-style:preserve-3d] animate-[kazenagare-catalog-burst_220ms_cubic-bezier(0.2,1,0.36,1)] md:min-w-[46rem] ${
+            className={`pointer-events-auto relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl border shadow-[0_34px_90px_rgba(0,0,0,0.45)] [transform-style:preserve-3d] animate-[kazenagare-catalog-burst_220ms_cubic-bezier(0.2,1,0.36,1)] max-h-[88dvh] md:min-w-[46rem] md:h-[min(88dvh,780px)] ${
               darkMode
                 ? "border-wa-white/35 bg-[linear-gradient(160deg,rgba(23,23,23,0.98)_0%,rgba(35,35,35,0.95)_52%,rgba(15,15,15,0.98)_100%)] text-wa-white"
                 : "border-wa-black/25 bg-[linear-gradient(160deg,rgba(255,250,242,0.99)_0%,rgba(248,236,220,0.96)_54%,rgba(255,249,240,0.99)_100%)] text-wa-black"
             }`}
           >
-            <div className="grid gap-4 p-5 sm:p-6">
+            <div className="grid h-full min-h-0 gap-4 p-5 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-wa-black/10 pb-3 dark:border-wa-white/15">
                 <div>
                   <p className={`text-xs ${darkMode ? "text-wa-white/75" : "text-wa-black/65"}`}>
@@ -871,14 +983,14 @@ export function GardenOptionsMenu({
 
               {selectedCatalogEntry ? (
                 <div
-                  className={`relative grid overflow-hidden rounded-2xl border md:grid-cols-[1.05fr_0.95fr] ${
+                  className={`relative grid min-h-0 overflow-hidden rounded-2xl border md:h-full md:grid-cols-[1.05fr_0.95fr] ${
                     darkMode
                       ? "border-wa-white/20 bg-wa-black/15"
                       : "border-wa-black/15 bg-white/55"
                   }`}
                 >
                   <div
-                    className={`grid gap-4 border-b p-4 md:border-b-0 md:border-r md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
+                    className={`grid min-h-0 gap-4 border-b p-4 md:border-b-0 md:border-r md:[transform-origin:right_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-left-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
                       darkMode
                         ? "border-wa-white/20 bg-[linear-gradient(120deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_100%)]"
                         : "border-wa-black/15 bg-[linear-gradient(120deg,rgba(255,255,255,0.88)_0%,rgba(255,255,255,0.62)_100%)]"
@@ -924,12 +1036,14 @@ export function GardenOptionsMenu({
                             alt={`${selectedCatalogEntry.name}の画像`}
                             width={96}
                             height={96}
-                            className="h-24 w-24 rounded-full object-cover"
+                            className={`h-24 w-24 rounded-full object-cover ${!isSelectedCatalogObjectOwned ? "brightness-0 opacity-45" : ""}`}
                           />
                         </div>
-                        <p className="text-lg font-semibold leading-none">{selectedCatalogEntry.name}</p>
+                        <p className="text-lg font-semibold leading-none">
+                          {isSelectedCatalogObjectOwned ? selectedCatalogEntry.name : "？？？"}
+                        </p>
                         <p className={`text-xs ${darkMode ? "text-wa-white/75" : "text-wa-black/65"}`}>
-                          {selectedCatalogEntry.ruby}
+                          {isSelectedCatalogObjectOwned ? selectedCatalogEntry.ruby : "---"}
                         </p>
                       </div>
                     </div>
@@ -984,7 +1098,7 @@ export function GardenOptionsMenu({
                   </div>
 
                   <div
-                    className={`grid content-start gap-4 p-4 md:[transform-origin:left_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-right-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
+                    className={`grid min-h-0 content-start gap-4 p-4 md:[transform-origin:left_center] md:[transform-style:preserve-3d] md:animate-[kazenagare-catalog-right-open_360ms_cubic-bezier(0.18,1,0.32,1)] ${
                       darkMode
                         ? "bg-[linear-gradient(240deg,rgba(255,255,255,0.05)_0%,rgba(255,255,255,0.01)_100%)]"
                         : "bg-[linear-gradient(240deg,rgba(255,255,255,0.84)_0%,rgba(255,255,255,0.58)_100%)]"
@@ -997,104 +1111,111 @@ export function GardenOptionsMenu({
                       <p className="text-sm font-semibold">サムネイルを押して詳細を切り替え</p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {catalogSlots.map((entry) => {
-                        const isSelected = entry.objectType === selectedCatalogEntry.objectType;
+                    <div className="min-h-0 overflow-y-auto pr-1 md:max-h-[44dvh]">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {catalogSlots.map((entry) => {
+                          const isSelected = entry.objectType === selectedCatalogEntry.objectType;
+                          const isOwned = ownedCatalogObjectTypes.includes(entry.objectType);
 
-                        return (
-                          <button
-                            key={entry.objectType}
-                            type="button"
-                            onClick={() => {
-                              setSelectedCatalogObjectType(entry.objectType);
-                              setCatalogActionNotice(null);
-                            }}
-                            className={`grid min-h-24 place-items-center gap-1 rounded-xl border px-2 py-2 text-center transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
-                              isSelected
-                                ? darkMode
-                                  ? "border-wa-gold/65 bg-wa-gold/20"
-                                  : "border-wa-red/45 bg-wa-red/12"
-                                : darkMode
-                                  ? "border-wa-white/20 bg-wa-white/5 hover:bg-wa-white/10"
-                                  : "border-wa-black/15 bg-white/70 hover:bg-wa-red/8"
-                            }`}
-                          >
-                            <Image
-                              src={entry.catalogImageSrc}
-                              alt={`${entry.name}の画像`}
-                              width={36}
-                              height={36}
-                              className="h-9 w-9 rounded-full object-cover"
-                            />
-                            <span className="text-[11px] font-semibold leading-tight">{entry.name}</span>
-                          </button>
-                        );
-                      })}
+                          return (
+                            <button
+                              key={entry.objectType}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCatalogObjectType(entry.objectType);
+                                setCatalogActionNotice(null);
+                              }}
+                              className={`grid min-h-24 place-items-center gap-1 rounded-xl border px-2 py-2 text-center transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+                                isSelected
+                                  ? darkMode
+                                    ? "border-wa-gold/65 bg-wa-gold/20"
+                                    : "border-wa-red/45 bg-wa-red/12"
+                                  : darkMode
+                                    ? "border-wa-white/20 bg-wa-white/5 hover:bg-wa-white/10"
+                                    : "border-wa-black/15 bg-white/70 hover:bg-wa-red/8"
+                              }`}
+                            >
+                              <Image
+                                src={entry.catalogImageSrc}
+                                alt={`${entry.name}の画像`}
+                                width={36}
+                                height={36}
+                                className={`h-9 w-9 rounded-full object-cover ${!isOwned ? "brightness-0 opacity-45" : ""}`}
+                              />
+                              <span className="text-[11px] font-semibold leading-tight">
+                                {isOwned ? entry.name : "？？？"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
-                    <details
-                      className={`rounded-xl border p-3 text-xs ${
-                        darkMode
-                          ? "border-wa-white/20 bg-wa-black/35 text-wa-white/85"
-                          : "border-wa-black/15 bg-white/80 text-wa-black/80"
-                      }`}
-                    >
-                      <summary className="cursor-pointer select-none font-semibold">
-                        テスト用ツール
-                      </summary>
+                    {isDevelopment ? (
+                      <details
+                        className={`rounded-xl border p-3 text-xs ${
+                          darkMode
+                            ? "border-wa-white/20 bg-wa-black/35 text-wa-white/85"
+                            : "border-wa-black/15 bg-white/80 text-wa-black/80"
+                        }`}
+                      >
+                        <summary className="cursor-pointer select-none font-semibold">
+                          テスト用ツール
+                        </summary>
 
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={handleResetWalletForTesting}
-                          className={`rounded-md border px-3 py-2 transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
-                            darkMode
-                              ? "border-wa-white/35 bg-wa-black/30 hover:bg-wa-black/45"
-                              : "border-wa-black/25 bg-white/90 hover:bg-wa-black/5"
-                          }`}
-                        >
-                          購入状態をリセット
-                        </button>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={handleResetWalletForTesting}
+                            className={`rounded-md border px-3 py-2 transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+                              darkMode
+                                ? "border-wa-white/35 bg-wa-black/30 hover:bg-wa-black/45"
+                                : "border-wa-black/25 bg-white/90 hover:bg-wa-black/5"
+                            }`}
+                          >
+                            購入状態をリセット
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleAddTestCoins(500)}
-                          className={`rounded-md border px-3 py-2 transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
-                            darkMode
-                              ? "border-wa-white/35 bg-wa-black/30 hover:bg-wa-black/45"
-                              : "border-wa-black/25 bg-white/90 hover:bg-wa-black/5"
-                          }`}
-                        >
-                          +500 コイン
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAddTestCoins(500)}
+                            className={`rounded-md border px-3 py-2 transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+                              darkMode
+                                ? "border-wa-white/35 bg-wa-black/30 hover:bg-wa-black/45"
+                                : "border-wa-black/25 bg-white/90 hover:bg-wa-black/5"
+                            }`}
+                          >
+                            +500 コイン
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void handleClearSavedRecordingForTesting();
-                          }}
-                          className={`rounded-md border px-3 py-2 transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
-                            darkMode
-                              ? "border-wa-white/35 bg-wa-black/30 hover:bg-wa-black/45"
-                              : "border-wa-black/25 bg-white/90 hover:bg-wa-black/5"
-                          }`}
-                        >
-                          録音データを削除
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleClearSavedRecordingForTesting();
+                            }}
+                            className={`rounded-md border px-3 py-2 transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.98] ${
+                              darkMode
+                                ? "border-wa-white/35 bg-wa-black/30 hover:bg-wa-black/45"
+                                : "border-wa-black/25 bg-white/90 hover:bg-wa-black/5"
+                            }`}
+                          >
+                            録音データを削除
+                          </button>
+                        </div>
 
-                      {testingNotice ? (
-                        <p
-                          className={`mt-2 rounded-md border px-3 py-2 ${
-                            darkMode
-                              ? "border-wa-white/25 bg-wa-black/30"
-                              : "border-wa-black/20 bg-wa-white"
-                          }`}
-                        >
-                          {testingNotice}
-                        </p>
-                      ) : null}
-                    </details>
+                        {testingNotice ? (
+                          <p
+                            className={`mt-2 rounded-md border px-3 py-2 ${
+                              darkMode
+                                ? "border-wa-white/25 bg-wa-black/30"
+                                : "border-wa-black/20 bg-wa-white"
+                            }`}
+                          >
+                            {testingNotice}
+                          </p>
+                        ) : null}
+                      </details>
+                    ) : null}
                   </div>
 
                   <div
@@ -1170,6 +1291,17 @@ export function GardenOptionsMenu({
               </p>
               <p className="text-4xl font-bold leading-none">
                 {isRecording ? `${recordingCountdown}s` : `${RECORDING_DURATION_SECONDS}s`}
+              </p>
+            </div>
+
+            <div className="mb-1 rounded-xl border border-wa-black/10 bg-wa-black/[0.03] p-3">
+              <canvas
+                ref={recordingWaveformCanvasRef}
+                className={`h-16 w-full rounded-lg transition-opacity ${isRecording ? "opacity-100" : "opacity-45"}`}
+                aria-hidden
+              />
+              <p className={`mt-2 text-center text-[11px] font-medium tracking-wide ${darkMode ? "text-wa-white/60" : "text-wa-black/55"}`}>
+                {isRecording ? "音声を検出中..." : "録音を開始すると波形が動きます"}
               </p>
             </div>
 
