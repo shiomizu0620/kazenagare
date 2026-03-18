@@ -66,6 +66,7 @@ type GardenOptionsMenuProps = {
   showCatalogButton?: boolean;
   currentGardenName?: string;
   useViewerGardenTitle?: boolean;
+  disableModals?: boolean;
 };
 
 function resolveViewerDisplayName(sessionUser: {
@@ -127,6 +128,7 @@ export function GardenOptionsMenu({
   showCatalogButton = true,
   currentGardenName,
   useViewerGardenTitle = false,
+  disableModals = false,
 }: GardenOptionsMenuProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -663,7 +665,7 @@ export function GardenOptionsMenu({
         />
       ) : null}
 
-      <div className="pointer-events-none absolute right-4 top-4 z-[120]">
+      <div className="pointer-events-none absolute right-4 top-4 z-[140]">
         <div className="flex items-center justify-end gap-2">
           {showCatalogButton ? (
             <button
@@ -671,8 +673,10 @@ export function GardenOptionsMenu({
               aria-controls={catalogPanelId}
               aria-label={catalogLabel}
               title={catalogLabel}
+              disabled={disableModals}
               className={`pointer-events-auto ${iconButtonClass}`}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 if (typeof window !== "undefined") {
                   const storedWallet = parseVoiceZooWallet(
                     window.localStorage.getItem(getVoiceZooWalletStorageKey(audioOwnerId)),
@@ -708,6 +712,7 @@ export function GardenOptionsMenu({
             aria-controls={panelId}
             aria-label={buttonLabel}
             title={buttonLabel}
+            disabled={disableModals}
             onClick={() => {
               if (!isOpen) {
                 setAudioSettings(loadKazenagareAudioSettings());

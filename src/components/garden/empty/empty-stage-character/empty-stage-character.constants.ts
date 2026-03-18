@@ -14,6 +14,8 @@ export const MAX_PLACED_OBJECTS = 120;
 export const OBJECT_PICKUP_HIT_RADIUS = 72;
 export const OBJECT_PLACEMENT_HIT_RADIUS = 22;
 export const CHARACTER_HITBOX_RADIUS = 16; // ~half of 32px-wide character sprite
+export const MAX_CONCURRENT_COIN_POPUPS = 30;
+export const MAX_CONCURRENT_AUTOPLAY_AUDIO = 8;
 
 export const SHISHI_ODOSHI_STAGE_IMAGE_SIZE = 80;
 export const OBJECT_REWARD_VIDEO_DURATION_MS = 2400;
