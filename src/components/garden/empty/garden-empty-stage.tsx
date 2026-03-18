@@ -43,6 +43,7 @@ type GardenEmptyStageProps = {
   resolveCurrentUserIdentity?: boolean;
   hideHeaderChips?: boolean;
   hideStageNote?: boolean;
+  onGrabbedObjectIdChange?: (id: string | null) => void;
 };
 
 const DEFAULT_CHARACTER_START_POSITION = {
@@ -200,6 +201,7 @@ export function GardenEmptyStage({
   resolveCurrentUserIdentity = false,
   hideHeaderChips = false,
   hideStageNote = false,
+  onGrabbedObjectIdChange,
 }: GardenEmptyStageProps) {
   const [resolvedOwnerName, setResolvedOwnerName] = useState<string | null>(
     normalizeLabel(ownerName),
@@ -285,6 +287,7 @@ export function GardenEmptyStage({
         initialCharacterWorldPosition={initialCharacterWorldPosition}
         movementBounds={movementBounds}
         collisionZones={COLLISION_ZONES[backgroundId] ?? COLLISION_ZONES["garden-all"] ?? []}
+        onGrabbedObjectIdChange={onGrabbedObjectIdChange}
       >
         <SeasonTimeBackgroundLayer
           key={`${backgroundId}-${seasonId}-${timeSlotId}`}

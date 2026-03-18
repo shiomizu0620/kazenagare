@@ -51,6 +51,8 @@ import {
   JOYSTICK_DEAD_ZONE,
   MAX_DELTA_SECONDS,
   MAX_PLACED_OBJECTS,
+  MAX_CONCURRENT_COIN_POPUPS,
+  MAX_CONCURRENT_AUTOPLAY_AUDIO,
   OBJECT_PLACEMENT_HIT_RADIUS,
   MOVE_MAX_SPEED,
   MOVEMENT_KEYS,
@@ -255,13 +257,25 @@ export function EmptyStageCharacter({
   movementBounds = DEFAULT_WORLD_BOUNDS,
   collisionZones = [],
   hitmapUrl,
+  onGrabbedObjectIdChange,
 }: EmptyStageCharacterProps) {
   const initialCharacterOffset = useMemo(
     () => toCharacterOffset(initialCharacterWorldPosition, movementBounds),
     [initialCharacterWorldPosition, movementBounds],
   );
   const pathname = usePathname();
-  const hitmapData = useHitmap(hitmapUrl, WORLD_WIDTH, WORLD_HEIGHT);
+  const [isCoarsePointer, setIsCoarsePointer] = useState(() =>
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches,
+  );
+  const isReadonlyVisitorGarden = !allowObjectPlacement && Boolean(audioOwnerIdOverride);
+  const shouldUseMobileLightweightMode = isReadonlyVisitorGarden && isCoarsePointer;
+  const hitmapData = useHitmap(
+    shouldUseMobileLightweightMode ? undefined : hitmapUrl,
+    WORLD_WIDTH,
+    WORLD_HEIGHT,
+  );
   const hitmapRef = useRef<HitmapData | null>(null);
   const [audioOwnerId, setAudioOwnerId] = useState<string>("local_guest");
   const resolvedStorageKey = objectStorageKey
@@ -282,7 +296,6 @@ export function EmptyStageCharacter({
   const [isTouchPlacementArmed, setIsTouchPlacementArmed] = useState(false);
   const [isMousePlacementArmed, setIsMousePlacementArmed] = useState(false);
   const [stageViewportSize, setStageViewportSize] = useState<Vector2>({ x: 0, y: 0 });
-  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
   const [coinRewardPopups, setCoinRewardPopups] = useState<CoinRewardPopup[]>([]);
   const [walletCoins, setWalletCoins] = useState(0);
   const [walletGainPopup, setWalletGainPopup] = useState<{ id: string; coins: number } | null>(
@@ -366,6 +379,10 @@ export function EmptyStageCharacter({
   useEffect(() => {
     hitmapRef.current = hitmapData;
   }, [hitmapData]);
+
+  useEffect(() => {
+    onGrabbedObjectIdChange?.(grabbedObjectId);
+  }, [grabbedObjectId, onGrabbedObjectIdChange]);
 
   useEffect(() => {
     const timerId = window.setInterval(() => {
@@ -750,6 +767,39 @@ export function EmptyStageCharacter({
     }
   }, []);
 
+  const cleanupUnusedRecordingBlobs = useCallback(() => {
+    // 配置されていないオブジェクトタイプの録音Blobをクリア
+    const usedObjectTypes = new Set(
+      placedObjectsRef.current.map((obj) => obj.objectType),
+    );
+
+    setRecordingBlobByRecordingId((current) => {
+      const nextRecordingBlobs = { ...current };
+      let hasChanges = false;
+
+      for (const recordingId of Object.keys(nextRecordingBlobs)) {
+        // 最新の録音ID以外は削除
+        let isLatest = false;
+        for (const objectType of usedObjectTypes) {
+          if (
+            latestRecordingIdByObjectTypeRef.current[objectType] === recordingId
+          ) {
+            isLatest = true;
+            break;
+          }
+        }
+
+        if (!isLatest && Math.random() < 0.3) {
+          // 30%の確率で古いBlobをクリア
+          delete nextRecordingBlobs[recordingId];
+          hasChanges = true;
+        }
+      }
+
+      return hasChanges ? nextRecordingBlobs : current;
+    });
+  }, []);
+
   const revokeAutoPlaybackAudioUrl = useCallback((objectId: string) => {
     const currentAudioUrl = autoPlaybackAudioUrlByObjectIdRef.current[objectId];
 
@@ -837,17 +887,24 @@ export function EmptyStageCharacter({
       .toString(36)
       .slice(2, 8)}`;
 
-    setCoinRewardPopups((current) => [
-      ...current,
-      {
-        id: popupId,
-        objectId: placedObject.id,
-        objectLabel,
-        x: placedObject.x,
-        y: placedObject.y - 56,
-        coins,
-      },
-    ]);
+    setCoinRewardPopups((current) => {
+      const nextPopups = [
+        ...current,
+        {
+          id: popupId,
+          objectId: placedObject.id,
+          objectLabel,
+          x: placedObject.x,
+          y: placedObject.y - 56,
+          coins,
+        },
+      ];
+      // 同時表示ポップアップ数を制限
+      if (nextPopups.length > MAX_CONCURRENT_COIN_POPUPS) {
+        return nextPopups.slice(-MAX_CONCURRENT_COIN_POPUPS);
+      }
+      return nextPopups;
+    });
 
     const removalTimerId = window.setTimeout(() => {
       setCoinRewardPopups((current) =>
@@ -944,6 +1001,15 @@ export function EmptyStageCharacter({
   const playAutoPlaybackForObject = useCallback(
     (objectId: string) => {
       if (isAudioSuppressedRef.current) {
+        autoPlaybackNextAtByObjectIdRef.current[objectId] = Date.now() + getRandomPlaybackDelayMs();
+        return;
+      }
+
+      // 同時再生オーディオ数を制限
+      if (
+        autoPlaybackInFlightObjectIdsRef.current.size >= MAX_CONCURRENT_AUTOPLAY_AUDIO &&
+        !autoPlaybackInFlightObjectIdsRef.current.has(objectId)
+      ) {
         autoPlaybackNextAtByObjectIdRef.current[objectId] = Date.now() + getRandomPlaybackDelayMs();
         return;
       }
@@ -1822,6 +1888,10 @@ export function EmptyStageCharacter({
   }, [effectiveAudioOwnerId]);
 
   useEffect(() => {
+    if (shouldUseMobileLightweightMode) {
+      return;
+    }
+
     let cancelled = false;
 
     const loadRecordingCatalogAndBlobs = async () => {
@@ -1915,9 +1985,13 @@ export function EmptyStageCharacter({
     return () => {
       cancelled = true;
     };
-  }, [effectiveAudioOwnerId, recordingReloadNonce]);
+  }, [effectiveAudioOwnerId, recordingReloadNonce, shouldUseMobileLightweightMode]);
 
   useEffect(() => {
+    if (shouldUseMobileLightweightMode) {
+      return;
+    }
+
     let cancelled = false;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const publicBucketBaseUrl = supabaseUrl
@@ -2006,7 +2080,11 @@ export function EmptyStageCharacter({
     return () => {
       cancelled = true;
     };
-  }, [effectiveAudioOwnerId, placedObjects]);
+  }, [
+    effectiveAudioOwnerId,
+    placedObjects,
+    shouldUseMobileLightweightMode,
+  ]);
 
   const syncAutoPlaybackSchedules = useCallback(() => {
     const activeObjectIds = new Set(
@@ -2035,6 +2113,11 @@ export function EmptyStageCharacter({
 
     syncAutoPlaybackSchedules();
 
+    // 定期的にメモリクリーンアップを実行（5分ごと）
+    if (!autoPlaybackSchedulerTimerRef.current || Date.now() % 30000 < AUTO_PLAYBACK_SCHEDULER_TICK_MS) {
+      cleanupUnusedRecordingBlobs();
+    }
+
     const now = Date.now();
 
     for (const placedObject of placedObjectsRef.current) {
@@ -2053,7 +2136,7 @@ export function EmptyStageCharacter({
       autoPlaybackNextAtByObjectIdRef.current[objectId] = now + getRandomPlaybackDelayMs();
       playAutoPlaybackForObject(objectId);
     }
-  }, [playAutoPlaybackForObject, stopAutoPlayback, syncAutoPlaybackSchedules]);
+  }, [playAutoPlaybackForObject, stopAutoPlayback, syncAutoPlaybackSchedules, cleanupUnusedRecordingBlobs]);
 
   const startAutoPlaybackScheduler = useCallback(() => {
     if (isAudioSuppressedRef.current) {
@@ -2082,6 +2165,11 @@ export function EmptyStageCharacter({
       return;
     }
 
+    if (shouldUseMobileLightweightMode) {
+      stopAutoPlayback();
+      return;
+    }
+
     if (isAudioSuppressed) {
       stopAutoPlayback();
       return;
@@ -2092,7 +2180,13 @@ export function EmptyStageCharacter({
     return () => {
       stopAutoPlayback();
     };
-  }, [isAudioSuppressed, pathname, startAutoPlaybackScheduler, stopAutoPlayback]);
+  }, [
+    isAudioSuppressed,
+    pathname,
+    shouldUseMobileLightweightMode,
+    startAutoPlaybackScheduler,
+    stopAutoPlayback,
+  ]);
 
   useEffect(() => {
     const handlePageHide = () => {
@@ -2105,7 +2199,11 @@ export function EmptyStageCharacter({
         return;
       }
 
-      if (pathname.startsWith("/garden") && !isAudioSuppressedRef.current) {
+      if (
+        pathname.startsWith("/garden") &&
+        !shouldUseMobileLightweightMode &&
+        !isAudioSuppressedRef.current
+      ) {
         ensureAutoPlaybackSchedulerRunning();
       }
     };
@@ -2119,10 +2217,15 @@ export function EmptyStageCharacter({
       window.removeEventListener("beforeunload", handlePageHide);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [ensureAutoPlaybackSchedulerRunning, pathname, stopAutoPlayback]);
+  }, [
+    ensureAutoPlaybackSchedulerRunning,
+    pathname,
+    shouldUseMobileLightweightMode,
+    stopAutoPlayback,
+  ]);
 
   useEffect(() => {
-    if (!pathname.startsWith("/garden")) {
+    if (!pathname.startsWith("/garden") || shouldUseMobileLightweightMode) {
       return;
     }
 
@@ -2147,6 +2250,7 @@ export function EmptyStageCharacter({
   }, [
     ensureAutoPlaybackSchedulerRunning,
     pathname,
+    shouldUseMobileLightweightMode,
     resumeAutoPlaybackAudioContextIfNeeded,
   ]);
 

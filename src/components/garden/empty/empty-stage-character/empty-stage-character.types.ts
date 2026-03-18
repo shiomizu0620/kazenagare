@@ -23,6 +23,7 @@ export type EmptyStageCharacterProps = {
   hitmapUrl?: string; // ヒットマップ画像URL
   initialCharacterWorldPosition?: Vector2;
   movementBounds?: WorldBounds;
+  onGrabbedObjectIdChange?: (id: string | null) => void;
 };
 
 export type Vector2 = {

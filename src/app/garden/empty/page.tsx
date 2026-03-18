@@ -1,9 +1,7 @@
-import { GardenEmptyStage } from "@/components/garden/empty/garden-empty-stage";
-import {
-  GardenOptionsMenu,
-  type GardenOptionAction,
+﻿import { GardenEmptyPageClient } from "./garden-empty-page-client";
+import type {
+  GardenOptionAction,
 } from "@/components/garden/garden-options-menu";
-import { GardenLocalStateSync } from "@/components/garden/garden-local-state-sync";
 import {
   GARDEN_BACKGROUNDS,
   GARDEN_SEASONS,
@@ -111,31 +109,14 @@ export default async function GardenEmptyPage({ searchParams }: GardenEmptyPageP
   ];
 
   return (
-    <main className="relative h-[100dvh] overflow-hidden bg-wa-white text-wa-black font-serif">
-      <GardenLocalStateSync
-        backgroundId={selectedBackground.id}
-        seasonId={selectedSeason.id}
-        timeSlotId={selectedTimeSlot.id}
-      />
-
-      <GardenEmptyStage
-        backgroundId={selectedBackground.id}
-        seasonId={selectedSeason.id}
-        seasonName={selectedSeason.name}
-        timeSlotId={selectedTimeSlot.id}
-        fullscreen
-        allowObjectPlacement
-        placementObjectType={selectedPlacementObjectType}
-        objectStorageKey="kazenagare_objects_me"
-        ownerName="あなた"
-        resolveCurrentUserIdentity
-      />
-
-      <GardenOptionsMenu
-        actions={optionActions}
-        title="自分の庭オプション"
-        darkMode={isNight}
-      />
-    </main>
+    <GardenEmptyPageClient
+      backgroundId={selectedBackground.id}
+      seasonId={selectedSeason.id}
+      seasonName={selectedSeason.name}
+      timeSlotId={selectedTimeSlot.id}
+      placementObjectType={selectedPlacementObjectType}
+      optionActions={optionActions}
+      darkMode={isNight}
+    />
   );
 }

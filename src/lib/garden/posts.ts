@@ -174,19 +174,26 @@ export async function fetchPublishedGardenPostByUserId(userId: string) {
     return null;
   }
 
-  const requestUrl = new URL(`${supabaseUrl}/rest/v1/garden_posts`);
-  const staleThresholdIso = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-  requestUrl.searchParams.set(
-    "select",
-    "user_id,background_id,season_id,time_slot_id,owner_display_name,published_at,updated_at,placed_objects",
-  );
-  requestUrl.searchParams.set("user_id", `eq.${userId}`);
-  requestUrl.searchParams.set("published_at", "not.is.null");
-  requestUrl.searchParams.set("updated_at", `gte.${staleThresholdIso}`);
-  requestUrl.searchParams.set("order", "published_at.desc");
-  requestUrl.searchParams.set("limit", "1");
+  const buildRequestUrl = (staleThresholdIso: string | null) => {
+    const requestUrl = new URL(`${supabaseUrl}/rest/v1/garden_posts`);
+    requestUrl.searchParams.set(
+      "select",
+      "user_id,background_id,season_id,time_slot_id,owner_display_name,published_at,updated_at,placed_objects",
+    );
+    requestUrl.searchParams.set("user_id", `eq.${userId}`);
+    requestUrl.searchParams.set("published_at", "not.is.null");
+    if (staleThresholdIso) {
+      requestUrl.searchParams.set("updated_at", `gte.${staleThresholdIso}`);
+    }
+    requestUrl.searchParams.set("order", "published_at.desc");
+    requestUrl.searchParams.set("limit", "1");
 
-  try {
+    return requestUrl;
+  };
+
+  const fetchRow = async (staleThresholdIso: string | null) => {
+    const requestUrl = buildRequestUrl(staleThresholdIso);
+
     const response = await fetch(requestUrl.toString(), {
       headers: {
         apikey: supabaseAnonKey,
@@ -207,6 +214,18 @@ export async function fetchPublishedGardenPostByUserId(userId: string) {
     }
 
     return normalizePostRow(data[0] as SupabaseGardenPostRow);
+  };
+
+  try {
+    const staleThresholdIso = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const freshPost = await fetchRow(staleThresholdIso);
+    if (freshPost) {
+      return freshPost;
+    }
+
+    // Fallback: if cleanup cron is not enabled, older published rows can remain.
+    // Allow direct QR access to such posts instead of showing an empty default scene.
+    return await fetchRow(null);
   } catch {
     return null;
   }
