@@ -86,6 +86,11 @@ export default async function GardenUserPage({
   const selectedPlacementObjectType = parsePlacementObjectType(query.place);
   const isNight = timeSlot.id === "night";
   const currentGardenQuery = `background=${encodeURIComponent(background.id)}&season=${encodeURIComponent(season.id)}&time=${encodeURIComponent(timeSlot.id)}`;
+  const visitedGardenOwnerName =
+    typeof publishedPost?.ownerDisplayName === "string" && publishedPost.ownerDisplayName.trim()
+      ? publishedPost.ownerDisplayName.trim()
+      : userId;
+  const visitorGardenName = `${visitedGardenOwnerName}の庭`;
 
   if (isMe) {
     const optionActions: GardenOptionAction[] = [
@@ -180,8 +185,9 @@ export default async function GardenUserPage({
         fullscreen
         initialPlacedObjects={publishedPost?.placedObjects ?? []}
         audioOwnerIdOverride={userId}
-        ownerName={userId}
-        gardenName={`${userId}の庭`}
+        ownerName="あなた"
+        gardenName={visitorGardenName}
+        resolveCurrentUserIdentity
       />
 
       {!publishedPost ? (
@@ -194,7 +200,9 @@ export default async function GardenUserPage({
 
       <GardenOptionsMenu
         actions={visitorActions}
-        title={`${userId} の庭オプション`}
+        title={visitorGardenName}
+        currentGardenName={visitorGardenName}
+        useViewerGardenTitle
         darkMode={isNight}
         showCatalogButton={false}
       />
