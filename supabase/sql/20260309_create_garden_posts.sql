@@ -8,6 +8,7 @@ create table if not exists public.garden_posts (
 	background_id text not null,
 	season_id text not null,
 	time_slot_id text not null,
+	allow_harmony_overlays boolean not null default true,
 	placed_objects jsonb not null default '[]'::jsonb,
 	published_at timestamptz not null default now(),
 	created_at timestamptz not null default now(),
@@ -19,6 +20,7 @@ alter table public.garden_posts add column if not exists user_id uuid;
 alter table public.garden_posts add column if not exists background_id text;
 alter table public.garden_posts add column if not exists season_id text;
 alter table public.garden_posts add column if not exists time_slot_id text;
+alter table public.garden_posts add column if not exists allow_harmony_overlays boolean;
 alter table public.garden_posts add column if not exists placed_objects jsonb;
 alter table public.garden_posts add column if not exists published_at timestamptz;
 alter table public.garden_posts add column if not exists created_at timestamptz;
@@ -72,6 +74,7 @@ $$;
 update public.garden_posts set background_id = 'bamboo-forest' where background_id is null;
 update public.garden_posts set season_id = 'spring' where season_id is null;
 update public.garden_posts set time_slot_id = 'daytime' where time_slot_id is null;
+update public.garden_posts set allow_harmony_overlays = true where allow_harmony_overlays is null;
 update public.garden_posts set placed_objects = '[]'::jsonb where placed_objects is null;
 
 update public.garden_posts set published_at = now() where published_at is null;
@@ -108,6 +111,7 @@ $$;
 alter table public.garden_posts alter column published_at set default now();
 alter table public.garden_posts alter column created_at set default now();
 alter table public.garden_posts alter column updated_at set default now();
+alter table public.garden_posts alter column allow_harmony_overlays set default true;
 alter table public.garden_posts alter column placed_objects set default '[]'::jsonb;
 
 alter table public.garden_posts alter column user_id set not null;
@@ -117,6 +121,7 @@ alter table public.garden_posts alter column updated_at set not null;
 alter table public.garden_posts alter column background_id set not null;
 alter table public.garden_posts alter column season_id set not null;
 alter table public.garden_posts alter column time_slot_id set not null;
+alter table public.garden_posts alter column allow_harmony_overlays set not null;
 alter table public.garden_posts alter column placed_objects set not null;
 
 create index if not exists garden_posts_published_at_idx

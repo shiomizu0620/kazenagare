@@ -37,6 +37,7 @@ type GardenEmptyStageProps = {
   objectStorageKey?: string;
   initialPlacedObjects?: PlacedStageObject[];
   audioOwnerIdOverride?: string | null;
+  allowHarmonyFromVisitors?: boolean;
   showDevelopmentPlaceholder?: boolean;
   ownerName?: string | null;
   gardenName?: string | null;
@@ -195,6 +196,7 @@ export function GardenEmptyStage({
   objectStorageKey,
   initialPlacedObjects = [],
   audioOwnerIdOverride = null,
+  allowHarmonyFromVisitors = true,
   showDevelopmentPlaceholder = false,
   ownerName = null,
   gardenName = null,
@@ -284,6 +286,7 @@ export function GardenEmptyStage({
         objectStorageKey={objectStorageKey}
         initialPlacedObjects={initialPlacedObjects}
         audioOwnerIdOverride={audioOwnerIdOverride}
+        allowHarmonyFromVisitors={allowHarmonyFromVisitors}
         initialCharacterWorldPosition={initialCharacterWorldPosition}
         movementBounds={movementBounds}
         collisionZones={COLLISION_ZONES[backgroundId] ?? COLLISION_ZONES["garden-all"] ?? []}

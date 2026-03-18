@@ -273,6 +273,7 @@ export function EmptyStageCharacter({
   objectStorageKey,
   initialPlacedObjects = [],
   audioOwnerIdOverride = null,
+  allowHarmonyFromVisitors = true,
   initialCharacterWorldPosition,
   movementBounds = DEFAULT_WORLD_BOUNDS,
   collisionZones = [],
@@ -290,6 +291,8 @@ export function EmptyStageCharacter({
     window.matchMedia("(pointer: coarse)").matches,
   );
   const isReadonlyVisitorGarden = !allowObjectPlacement && Boolean(audioOwnerIdOverride);
+  const canAcceptHarmonyFromVisitors =
+    isReadonlyVisitorGarden && allowHarmonyFromVisitors;
   const shouldUseMobileLightweightMode = isReadonlyVisitorGarden && isCoarsePointer;
   const hitmapData = useHitmap(
     shouldUseMobileLightweightMode ? undefined : hitmapUrl,
@@ -807,10 +810,10 @@ export function EmptyStageCharacter({
     setGrabbedObjectType(null);
   }, []);
 
-  const showPlacementBlockedMessage = useCallback((position: Vector2) => {
+  const showPlacementBlockedMessage = useCallback((position: Vector2, message = "ここには配置できません") => {
     setPlacementBlockedNotice({
       id: `placement-blocked-${Date.now()}`,
-      message: "ここには配置できません",
+      message,
       position,
     });
 
@@ -1160,7 +1163,12 @@ export function EmptyStageCharacter({
   const startHarmonyObjectRecording = useCallback(async () => {
     const target = harmonyRecordingModal;
 
-    if (!target || isHarmonyRecording || !isReadonlyVisitorGarden) {
+    if (
+      !target ||
+      isHarmonyRecording ||
+      !isReadonlyVisitorGarden ||
+      !allowHarmonyFromVisitors
+    ) {
       return;
     }
 
@@ -1221,6 +1229,23 @@ export function EmptyStageCharacter({
           createdAt: new Date().toISOString(),
         };
 
+        const supabaseSyncResult = await saveHarmonyRecordingToSupabase({
+          blob: nextBlob,
+          recordingId: nextRecordingId,
+          objectId: target.objectId,
+          objectType: target.objectType,
+          gardenOwnerId: recordingGardenOwnerId,
+          uploaderId: recordingOwnerId,
+        });
+
+        if (supabaseSyncResult === "disabled") {
+          setHasCompletedHarmonyRecording(false);
+          setHarmonyRecordingNotice(
+            `${target.objectLabel}へのハーモニー受付は停止中です。庭主の公開設定をご確認ください。`,
+          );
+          return;
+        }
+
         // 訪問者本人向けと庭主向けの双方にハーモニーを保存する。
         const storageTargets = [
           {
@@ -1265,15 +1290,6 @@ export function EmptyStageCharacter({
           window.localStorage.setItem(catalogStorageKey, JSON.stringify(nextCatalog));
         }
 
-        const syncedToSupabase = await saveHarmonyRecordingToSupabase({
-          blob: nextBlob,
-          recordingId: nextRecordingId,
-          objectId: target.objectId,
-          objectType: target.objectType,
-          gardenOwnerId: recordingGardenOwnerId,
-          uploaderId: recordingOwnerId,
-        });
-
         setHarmonyRecordingIdByObjectId((current) => ({
           ...current,
           [target.objectId]: nextRecordingId,
@@ -1283,7 +1299,7 @@ export function EmptyStageCharacter({
           [target.objectId]: nextBlob,
         }));
         setHasCompletedHarmonyRecording(true);
-        if (!syncedToSupabase && isUuidLike(recordingGardenOwnerId)) {
+        if (supabaseSyncResult === "error" && isUuidLike(recordingGardenOwnerId)) {
           setHarmonyRecordingNotice(
             `${target.objectLabel}に音を重ねました。同期に失敗したため、この端末内でのみ反映されます。`,
           );
@@ -1319,6 +1335,7 @@ export function EmptyStageCharacter({
       setHarmonyRecordingNotice("マイクの利用を許可してください。");
     }
   }, [
+    allowHarmonyFromVisitors,
     clearHarmonyRecordingTimers,
     effectiveAudioOwnerId,
     harmonyRecordingModal,
@@ -2336,6 +2353,14 @@ export function EmptyStageCharacter({
         const tappedObject = findPlacedObjectAtPosition(targetPosition);
 
         if (tappedObject) {
+          if (!allowHarmonyFromVisitors) {
+            showPlacementBlockedMessage(
+              targetPosition,
+              "この庭ではハーモニー受付を停止しています",
+            );
+            return;
+          }
+
           openHarmonyRecordingModal(tappedObject);
         }
 
@@ -2461,6 +2486,7 @@ export function EmptyStageCharacter({
     },
     [
       activePlacementObjectType,
+      allowHarmonyFromVisitors,
       allowObjectPlacement,
       canPlaceObject,
       findPlacedObjectAtPosition,
@@ -3747,7 +3773,7 @@ export function EmptyStageCharacter({
         onStickPointerEnd={handleStickPointerEnd}
       />
 
-      {isReadonlyVisitorGarden && harmonyRecordingModal ? (
+      {canAcceptHarmonyFromVisitors && harmonyRecordingModal ? (
         <div className="fixed inset-0 z-[210] isolate grid place-items-center p-4 sm:p-6">
           <button
             type="button"
@@ -4104,6 +4130,8 @@ function resolveHarmonyRecordingStoragePath(
   return `${uploaderSegment}/harmony/${objectSegment}/${recordingSegment}.webm`;
 }
 
+type SaveHarmonyRecordingResult = "synced" | "disabled" | "error";
+
 async function saveHarmonyRecordingToSupabase({
   blob,
   recordingId,
@@ -4118,11 +4146,29 @@ async function saveHarmonyRecordingToSupabase({
   objectType: ObjectType;
   gardenOwnerId: string;
   uploaderId: string;
-}) {
+}): Promise<SaveHarmonyRecordingResult> {
   const supabase = getSupabaseClient();
 
   if (!supabase || !isUuidLike(gardenOwnerId) || !isUuidLike(uploaderId)) {
-    return false;
+    return "error";
+  }
+
+  const { data: postRow, error: postRowError } = await supabase
+    .from("garden_posts")
+    .select("allow_harmony_overlays")
+    .eq("user_id", gardenOwnerId)
+    .maybeSingle();
+
+  if (postRowError) {
+    console.warn("Failed to check harmony permission:", postRowError.message);
+    return "error";
+  }
+
+  if (
+    typeof postRow?.allow_harmony_overlays === "boolean" &&
+    !postRow.allow_harmony_overlays
+  ) {
+    return "disabled";
   }
 
   const recordingPath = resolveHarmonyRecordingStoragePath(
@@ -4139,7 +4185,7 @@ async function saveHarmonyRecordingToSupabase({
 
   if (uploadResult.error) {
     console.warn("Failed to upload harmony recording:", uploadResult.error.message);
-    return false;
+    return "error";
   }
 
   const upsertResult = await supabase.from("garden_harmony_recordings").upsert(
@@ -4161,10 +4207,10 @@ async function saveHarmonyRecordingToSupabase({
       "Failed to upsert harmony recording metadata:",
       upsertResult.error.message,
     );
-    return false;
+    return "error";
   }
 
-  return true;
+  return "synced";
 }
 
 async function fetchHarmonyRecordingsFromSupabase(
