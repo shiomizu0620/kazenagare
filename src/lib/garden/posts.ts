@@ -39,7 +39,16 @@ function isObjectType(value: unknown): value is ObjectType {
     value === "hanabi" ||
     value === "kane" ||
     value === "obake" ||
-    value === "tyo-tyo"
+    value === "tyo-tyo" ||
+    value === "kaeru" ||
+    value === "hue" ||
+    value === "suzume" ||
+    value === "sansin" ||
+    value === "mattya" ||
+    value === "semi" ||
+    value === "takibi" ||
+    value === "akimusi" ||
+    value === "ka"
   );
 }
 
