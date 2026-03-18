@@ -12,6 +12,10 @@ import {
   saveKazenagareAudioSettings,
 } from "@/lib/audio/settings";
 import {
+  KAZENAGARE_AUDIO_SUPPRESSION_EVENT,
+  type KazenagareAudioSuppressionDetail,
+} from "@/lib/audio/suppression";
+import {
   GARDEN_OBJECTS_STORAGE_KEY_ME,
   resetGardenPlacedObjects,
 } from "@/lib/garden/placed-objects-storage";
@@ -457,6 +461,36 @@ export function GardenOptionsMenu({
       }
     };
   }, [clearRecordingTimers, stopRecordingStream]);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent<KazenagareAudioSuppressionDetail>(
+        KAZENAGARE_AUDIO_SUPPRESSION_EVENT,
+        {
+          detail: {
+            isSuppressed: isCatalogOpen,
+            reason: "catalog",
+          },
+        },
+      ),
+    );
+  }, [isCatalogOpen]);
+
+  useEffect(() => {
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent<KazenagareAudioSuppressionDetail>(
+          KAZENAGARE_AUDIO_SUPPRESSION_EVENT,
+          {
+            detail: {
+              isSuppressed: false,
+              reason: "catalog",
+            },
+          },
+        ),
+      );
+    };
+  }, []);
 
   const updateAudioSetting = (
     key: keyof KazenagareAudioSettings,
