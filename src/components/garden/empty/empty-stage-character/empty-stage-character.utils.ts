@@ -13,6 +13,15 @@ import type {
   Vector2,
 } from "./empty-stage-character.types";
 
+const MOVEMENT_HIT_RADIUS_MARGIN_PX = 1;
+const MOVEMENT_HYSTERESIS_PX = 0.75;
+const ANGLED_SLIDE_ANGLES_RAD = [
+  Math.PI / 12,
+  -Math.PI / 12,
+  Math.PI / 8,
+  -Math.PI / 8,
+];
+
 /**
  * キャラクター（円）とコリジョンゾーンが重なっているか判定する
  */
@@ -112,18 +121,41 @@ export function resolveMovement(
 
   const cx = WORLD_WIDTH / 2;
   const cy = WORLD_HEIGHT / 2;
+  const movementHitRadius = Math.max(1, characterRadius - MOVEMENT_HIT_RADIUS_MARGIN_PX);
+  const enterHitRadius = movementHitRadius;
+  const releaseHitRadius = Math.max(1, movementHitRadius - MOVEMENT_HYSTERESIS_PX);
 
-  const isBlocked = (ox: number, oy: number) => {
+  const isBlockedWithRadius = (ox: number, oy: number, hitRadius: number) => {
     const worldX = cx + ox;
     const worldY = cy + oy;
-    if (isBlockedByHitmap(worldX, worldY, characterRadius, hitmap)) {
+    if (isBlockedByHitmap(worldX, worldY, hitRadius, hitmap)) {
       return true;
     }
-    return isBlockedByCollisionZones(worldX, worldY, characterRadius, zones);
+    return isBlockedByCollisionZones(worldX, worldY, hitRadius, zones);
+  };
+
+  const isBlocked = (
+    ox: number,
+    oy: number,
+    referenceOffset: Vector2,
+  ) => {
+    const blockedAtEnter = isBlockedWithRadius(ox, oy, enterHitRadius);
+    if (blockedAtEnter) {
+      return true;
+    }
+
+    // Release radius is slightly smaller to prevent rapid blocked/unblocked jitter.
+    const blockedAtRelease = isBlockedWithRadius(ox, oy, releaseHitRadius);
+    if (!blockedAtRelease) {
+      return false;
+    }
+
+    // Keep previous state in the narrow band between enter/release thresholds.
+    return isBlockedWithRadius(referenceOffset.x, referenceOffset.y, enterHitRadius);
   };
 
   // そもそも現在地が衝突中なら制限しない（はまり防止）
-  if (isBlocked(currentDesiredOffset.x, currentDesiredOffset.y)) {
+  if (isBlocked(currentDesiredOffset.x, currentDesiredOffset.y, currentDesiredOffset)) {
     return nextDesiredOffset;
   }
 
@@ -134,16 +166,17 @@ export function resolveMovement(
   // 1フレーム移動を分割して判定することで壁際の引っ掛かりを減らす
   const maxStepDistance = Math.max(2, characterRadius * 0.35);
   const stepCount = Math.max(1, Math.ceil(totalDistance / maxStepDistance));
+  const incrementalDeltaX = totalDeltaX / stepCount;
+  const incrementalDeltaY = totalDeltaY / stepCount;
 
   let resolved = { x: currentDesiredOffset.x, y: currentDesiredOffset.y };
 
-  for (let stepIndex = 1; stepIndex <= stepCount; stepIndex += 1) {
-    const t = stepIndex / stepCount;
-    const targetX = currentDesiredOffset.x + totalDeltaX * t;
-    const targetY = currentDesiredOffset.y + totalDeltaY * t;
+  for (let stepIndex = 0; stepIndex < stepCount; stepIndex += 1) {
+    const targetX = resolved.x + incrementalDeltaX;
+    const targetY = resolved.y + incrementalDeltaY;
 
     // 全軸移動を優先
-    if (!isBlocked(targetX, targetY)) {
+    if (!isBlocked(targetX, targetY, resolved)) {
       resolved = { x: targetX, y: targetY };
       continue;
     }
@@ -154,24 +187,48 @@ export function resolveMovement(
 
     // 主軸→副軸の順でスライドを試し、通る方を採用
     if (prioritizeX) {
-      if (!isBlocked(targetX, resolved.y)) {
+      if (!isBlocked(targetX, resolved.y, resolved)) {
         resolved = { x: targetX, y: resolved.y };
         continue;
       }
 
-      if (!isBlocked(resolved.x, targetY)) {
+      if (!isBlocked(resolved.x, targetY, resolved)) {
         resolved = { x: resolved.x, y: targetY };
       }
       continue;
     }
 
-    if (!isBlocked(resolved.x, targetY)) {
+    if (!isBlocked(resolved.x, targetY, resolved)) {
       resolved = { x: resolved.x, y: targetY };
       continue;
     }
 
-    if (!isBlocked(targetX, resolved.y)) {
+    if (!isBlocked(targetX, resolved.y, resolved)) {
       resolved = { x: targetX, y: resolved.y };
+      continue;
+    }
+
+    const stepMagnitude = Math.hypot(stepDeltaX, stepDeltaY);
+    if (stepMagnitude <= 0.0001) {
+      continue;
+    }
+
+    // 斜め境界に対しては入力方向を少し回転させた候補を試し、単方向入力でも壁沿いに滑りやすくする
+    const baseStepX = stepDeltaX / stepMagnitude;
+    const baseStepY = stepDeltaY / stepMagnitude;
+
+    for (const angleRad of ANGLED_SLIDE_ANGLES_RAD) {
+      const cos = Math.cos(angleRad);
+      const sin = Math.sin(angleRad);
+      const rotatedStepX = (baseStepX * cos - baseStepY * sin) * stepMagnitude;
+      const rotatedStepY = (baseStepX * sin + baseStepY * cos) * stepMagnitude;
+      const rotatedTargetX = resolved.x + rotatedStepX;
+      const rotatedTargetY = resolved.y + rotatedStepY;
+
+      if (!isBlocked(rotatedTargetX, rotatedTargetY, resolved)) {
+        resolved = { x: rotatedTargetX, y: rotatedTargetY };
+        break;
+      }
     }
   }
 

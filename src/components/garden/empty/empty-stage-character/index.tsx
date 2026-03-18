@@ -1683,9 +1683,35 @@ export function EmptyStageCharacter({
     const handleRecordingUpdate: EventListener = (event) => {
       const customEvent = event as CustomEvent<VoiceZooRecordingUpdatedEventDetail>;
       const ownerId = customEvent.detail?.ownerId;
+      const objectType = customEvent.detail?.objectType;
+      const recordingId = customEvent.detail?.recordingId;
 
       if (ownerId && ownerId !== effectiveAudioOwnerId) {
         return;
+      }
+
+      if (objectType && recordingId) {
+        setPlacedObjects((current) => {
+          let didChange = false;
+
+          const nextObjects = current.map((placedObject) => {
+            if (placedObject.objectType !== objectType) {
+              return placedObject;
+            }
+
+            if (placedObject.recordingId === recordingId) {
+              return placedObject;
+            }
+
+            didChange = true;
+            return {
+              ...placedObject,
+              recordingId,
+            };
+          });
+
+          return didChange ? nextObjects : current;
+        });
       }
 
       setRecordingReloadNonce((current) => current + 1);

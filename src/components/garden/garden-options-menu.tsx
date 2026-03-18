@@ -45,6 +45,8 @@ import type { ObjectType } from "@/types/garden";
 
 const RECORDING_DURATION_SECONDS = 3;
 const LOCAL_STORAGE_PREFIX = "kazenagare_";
+type RecordingModalMode = "purchase" | "rerecord";
+type RecordingModalCloseReason = "user" | "placement" | "force";
 
 export type GardenOptionAction = {
   href: string;
@@ -134,6 +136,7 @@ export function GardenOptionsMenu({
   const [audioOwnerId, setAudioOwnerId] = useState<string>("local_guest");
   const [viewerDisplayName, setViewerDisplayName] = useState<string>("あなた");
   const [recordingEntry, setRecordingEntry] = useState<VoiceZooEntry | null>(null);
+  const [recordingModalMode, setRecordingModalMode] = useState<RecordingModalMode | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingCountdown, setRecordingCountdown] = useState(RECORDING_DURATION_SECONDS);
   const [recordingNotice, setRecordingNotice] = useState<string | null>(null);
@@ -192,6 +195,7 @@ export function GardenOptionsMenu({
     ? (recordingPreviewAudioUrls[recordingEntry.objectType] ?? null)
     : null;
   const canPlaceFromRecordingModal = Boolean(recordingEntryAudioUrl) && !isRecording;
+  const canCloseRecordingModal = !isRecording && recordingModalMode !== "purchase";
   const catalogSlots = VOICE_ZOO_ENTRIES;
 
   const clearRecordingTimers = useCallback(() => {
@@ -244,7 +248,11 @@ export function GardenOptionsMenu({
     return resolvedOwnerId;
   }, [audioOwnerId]);
 
-  const closeRecordingModal = useCallback(() => {
+  const closeRecordingModal = useCallback((reason: RecordingModalCloseReason = "user") => {
+    if (reason === "user" && recordingModalMode === "purchase") {
+      return;
+    }
+
     if (
       recordingMediaRecorderRef.current &&
       recordingMediaRecorderRef.current.state !== "inactive"
@@ -258,12 +266,14 @@ export function GardenOptionsMenu({
     setRecordingCountdown(RECORDING_DURATION_SECONDS);
     setRecordingNotice(null);
     setRecordingEntry(null);
-  }, [clearRecordingTimers, stopRecordingStream]);
+    setRecordingModalMode(null);
+  }, [clearRecordingTimers, recordingModalMode, stopRecordingStream]);
 
   const openRecordingModalForEntry = useCallback(
-    (entry: VoiceZooEntry, noticeMessage: string) => {
+    (entry: VoiceZooEntry, noticeMessage: string, mode: RecordingModalMode) => {
       setCatalogActionNotice(null);
       setRecordingEntry(entry);
+      setRecordingModalMode(mode);
       setIsRecording(false);
       setRecordingCountdown(RECORDING_DURATION_SECONDS);
       setRecordingNotice(noticeMessage);
@@ -401,7 +411,7 @@ export function GardenOptionsMenu({
     const nextSearch = nextSearchParams.toString();
     const nextHref = nextSearch.length > 0 ? `${pathname}?${nextSearch}` : pathname;
 
-    closeRecordingModal();
+    closeRecordingModal("placement");
     setIsCatalogOpen(false);
     setIsOpen(false);
     router.replace(nextHref, { scroll: false });
@@ -485,6 +495,7 @@ export function GardenOptionsMenu({
       openRecordingModalForEntry(
         selectedCatalogEntry,
         `${selectedCatalogEntry.name}は購入済みです。3秒録音を開始してください。`,
+        "rerecord",
       );
       return;
     }
@@ -506,6 +517,7 @@ export function GardenOptionsMenu({
     openRecordingModalForEntry(
       selectedCatalogEntry,
       `${selectedCatalogEntry.name}を購入しました。3秒録音を開始してください。`,
+      "purchase",
     );
   };
 
@@ -517,6 +529,7 @@ export function GardenOptionsMenu({
     openRecordingModalForEntry(
       selectedCatalogEntry,
       `${selectedCatalogEntry.name}の録音を更新できます。3秒録音を開始してください。`,
+      "rerecord",
     );
   };
 
@@ -1107,7 +1120,7 @@ export function GardenOptionsMenu({
             type="button"
             aria-label="録音モーダルを閉じる"
             className="absolute inset-0 bg-wa-black/85 backdrop-blur-md"
-            onClick={isRecording ? undefined : closeRecordingModal}
+            onClick={canCloseRecordingModal ? () => closeRecordingModal("user") : undefined}
           />
 
           <section
@@ -1209,10 +1222,10 @@ export function GardenOptionsMenu({
 
               <button
                 type="button"
-                onClick={closeRecordingModal}
-                disabled={isRecording}
+                onClick={() => closeRecordingModal("user")}
+                disabled={!canCloseRecordingModal}
                 className={`rounded-md border px-4 py-2 text-sm transition-all duration-150 ease-out ${
-                  isRecording
+                  !canCloseRecordingModal
                     ? darkMode
                       ? "cursor-not-allowed border-wa-white/20 bg-wa-white/10 text-wa-white/45"
                       : "cursor-not-allowed border-wa-black/20 bg-wa-black/10 text-wa-black/50"
@@ -1256,6 +1269,18 @@ export function GardenOptionsMenu({
                 }`}
               >
                 配置するには先に3秒録音を完了してください。
+              </p>
+            ) : null}
+
+            {recordingModalMode === "purchase" ? (
+              <p
+                className={`rounded-lg border px-3 py-2 text-xs ${
+                  darkMode
+                    ? "border-wa-red/45 bg-[#2a1414] text-wa-white"
+                    : "border-wa-red/30 bg-wa-red/10 text-wa-black"
+                }`}
+              >
+                初回購入時は「録音し終わって配置する」まで閉じることはできません。
               </p>
             ) : null}
           </section>

@@ -23,6 +23,7 @@ import {
   getVoiceZooRecordingCatalogStorageKey,
   parseVoiceZooRecordingCatalog,
   type VoiceZooRecordingMeta,
+  VOICE_ZOO_RECORDING_UPDATED_EVENT,
   VOICE_ZOO_SUPPORTED_OBJECT_TYPES,
 } from "@/lib/voice-zoo/recordings";
 import {
@@ -55,6 +56,8 @@ function statusClass(status: "prototype" | "planned") {
 
 const coinFormatter = new Intl.NumberFormat("ja-JP");
 const RECORDING_DURATION_SECONDS = 3;
+type RecordingModalMode = "purchase" | "rerecord";
+type RecordingModalCloseReason = "user" | "placement" | "force";
 const PROGRESS_WIDTH_CLASSES = [
   "w-0",
   "w-[10%]",
@@ -80,6 +83,7 @@ export default function VoiceZooPage() {
     Partial<Record<ObjectType, string>>
   >({});
   const [recordingEntry, setRecordingEntry] = useState<VoiceZooEntry | null>(null);
+  const [recordingModalMode, setRecordingModalMode] = useState<RecordingModalMode | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingCountdown, setRecordingCountdown] = useState(RECORDING_DURATION_SECONDS);
   const [recordingNotice, setRecordingNotice] = useState<string | null>(null);
@@ -335,7 +339,11 @@ export default function VoiceZooPage() {
     }
   }, []);
 
-  const closeRecordingModal = useCallback(() => {
+  const closeRecordingModal = useCallback((reason: RecordingModalCloseReason = "user") => {
+    if (reason === "user" && recordingModalMode === "purchase") {
+      return;
+    }
+
     if (
       recordingMediaRecorderRef.current &&
       recordingMediaRecorderRef.current.state !== "inactive"
@@ -349,7 +357,8 @@ export default function VoiceZooPage() {
     setRecordingCountdown(RECORDING_DURATION_SECONDS);
     setRecordingNotice(null);
     setRecordingEntry(null);
-  }, [clearRecordingTimers, stopRecordingStream]);
+    setRecordingModalMode(null);
+  }, [clearRecordingTimers, recordingModalMode, stopRecordingStream]);
 
   const resolveCurrentRecordingOwnerId = useCallback(async () => {
     const supabase = getSupabaseClient();
@@ -434,6 +443,15 @@ export default function VoiceZooPage() {
           getVoiceZooRecordingCatalogStorageKey(recordingOwnerId),
           JSON.stringify(nextRecordingCatalog),
         );
+        window.dispatchEvent(
+          new CustomEvent(VOICE_ZOO_RECORDING_UPDATED_EVENT, {
+            detail: {
+              ownerId: recordingOwnerId,
+              objectType: recordingObjectType,
+              recordingId: nextRecordingId,
+            },
+          }),
+        );
         setRecordingCatalog(nextRecordingCatalog);
 
         updateRecordingAudioUrlForObject(recordingObjectType, playableBlob);
@@ -501,12 +519,14 @@ export default function VoiceZooPage() {
       return;
     }
 
+    const canCloseByEscape = !isRecording && recordingModalMode !== "purchase";
+
     const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isRecording) {
-        closeRecordingModal();
+      if (event.key === "Escape" && canCloseByEscape) {
+        closeRecordingModal("user");
       }
     };
 
@@ -516,7 +536,7 @@ export default function VoiceZooPage() {
       document.body.style.overflow = previousBodyOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [closeRecordingModal, isRecording, recordingEntry]);
+  }, [closeRecordingModal, isRecording, recordingEntry, recordingModalMode]);
 
   useEffect(() => {
     return () => {
@@ -531,7 +551,11 @@ export default function VoiceZooPage() {
   };
 
   const openRecordingModalForEntry = useCallback(
-    (entry: VoiceZooEntry, noticeMessage: string) => {
+    (
+      entry: VoiceZooEntry,
+      noticeMessage: string,
+      mode: RecordingModalMode,
+    ) => {
       if (rewardAudioRef.current) {
         rewardAudioRef.current.pause();
         rewardAudioRef.current.currentTime = 0;
@@ -542,6 +566,7 @@ export default function VoiceZooPage() {
       setPurchaseNotice(null);
       setSelectedEntry(null);
       setRecordingEntry(entry);
+      setRecordingModalMode(mode);
       setRecordingNotice(noticeMessage);
       setRecordingCountdown(RECORDING_DURATION_SECONDS);
     },
@@ -581,6 +606,7 @@ export default function VoiceZooPage() {
     openRecordingModalForEntry(
       purchasedEntry,
       `${purchasedEntry.name}を購入しました。3秒録音を開始してください。`,
+      "purchase",
     );
   };
 
@@ -592,6 +618,7 @@ export default function VoiceZooPage() {
     openRecordingModalForEntry(
       selectedEntry,
       `${selectedEntry.name}の録音を更新できます。3秒録音を開始してください。`,
+      "rerecord",
     );
   };
 
@@ -664,7 +691,7 @@ export default function VoiceZooPage() {
     const resolvedObjectStorageKey = `${GARDEN_OBJECTS_STORAGE_KEY_ME}_${audioOwnerId}`;
 
     closeModal();
-    closeRecordingModal();
+    closeRecordingModal("force");
     setWallet(createInitialVoiceZooWallet());
     resetGardenPlacedObjects(resolvedObjectStorageKey);
     resetGardenPlacedObjects(GARDEN_OBJECTS_STORAGE_KEY_ME);
@@ -726,6 +753,7 @@ export default function VoiceZooPage() {
   const selectedEntryOwned = selectedEntry
     ? wallet.ownedObjectTypes.includes(selectedEntry.objectType)
     : false;
+  const canCloseRecordingModal = !isRecording && recordingModalMode !== "purchase";
   const selectedEntryAffordable = selectedEntry
     ? wallet.coins >= selectedEntry.price
     : false;
@@ -1044,7 +1072,7 @@ export default function VoiceZooPage() {
             type="button"
             aria-label="録音モーダルを閉じる"
             className="absolute inset-0 bg-wa-black/70 backdrop-blur-sm"
-            onClick={isRecording ? undefined : closeRecordingModal}
+            onClick={canCloseRecordingModal ? () => closeRecordingModal("user") : undefined}
           />
 
           <section
@@ -1097,7 +1125,7 @@ export default function VoiceZooPage() {
               {canPlaceFromRecordingModal ? (
                 <Link
                   href={`/garden/me?place=${recordingEntry.objectType}`}
-                  onClick={closeRecordingModal}
+                  onClick={() => closeRecordingModal("placement")}
                   className="rounded-md border border-wa-black px-4 py-2 text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-wa-red/10 active:translate-y-[1px] active:scale-[0.98]"
                 >
                   録音し終わって配置する
@@ -1114,10 +1142,10 @@ export default function VoiceZooPage() {
 
               <button
                 type="button"
-                onClick={closeRecordingModal}
-                disabled={isRecording}
+                onClick={() => closeRecordingModal("user")}
+                disabled={!canCloseRecordingModal}
                 className={`rounded-md border border-wa-black/40 px-4 py-2 text-sm transition-all duration-150 ease-out ${
-                  isRecording
+                  !canCloseRecordingModal
                     ? "cursor-not-allowed bg-wa-black/10 text-wa-black/50"
                     : "hover:-translate-y-0.5 hover:bg-wa-black/5 active:translate-y-[1px] active:scale-[0.98]"
                 }`}
@@ -1145,6 +1173,12 @@ export default function VoiceZooPage() {
             {!recordingEntryAudioUrl ? (
               <p className="rounded-lg border border-wa-gold/35 bg-wa-gold/10 px-3 py-2 text-xs text-wa-black">
                 配置するには先に3秒録音を完了してください。
+              </p>
+            ) : null}
+
+            {recordingModalMode === "purchase" ? (
+              <p className="rounded-lg border border-wa-red/30 bg-wa-red/10 px-3 py-2 text-xs text-wa-black">
+                初回購入時は「録音し終わって配置する」まで閉じることはできません。
               </p>
             ) : null}
           </section>
