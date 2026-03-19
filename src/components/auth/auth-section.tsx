@@ -17,7 +17,7 @@ const OAUTH_PENDING_GUEST_USER_ID_KEY = "kazenagare.oauthPendingGuestUserId";
 const LEGACY_LOCAL_GUEST_USER_ID = "local_guest";
 const AUDIO_CATALOG_STORAGE_PREFIX = "kazenagare_audio_catalog_";
 const AUDIO_BLOB_STORAGE_PREFIX = "kazenagare_audio_blob_";
-type OAuthProvider = "google" | "twitter";
+type OAuthProvider = "google" | "x" | "twitter";
 
 type AuthCompletedPayload = {
   userId: string | null;
@@ -127,7 +127,7 @@ function resolveOAuthErrorMessage(rawMessage: string, provider: OAuthProvider) {
   const normalized = rawMessage.toLowerCase();
 
   if (normalized.includes("unsupported provider") || normalized.includes("provider is not enabled")) {
-    if (provider === "twitter") {
+    if (provider === "twitter" || provider === "x") {
       return "Xログインが無効です。Supabaseダッシュボードの Auth > Providers で X (Twitter) を有効化し、Client ID / Secret を設定してください。";
     }
 
@@ -378,13 +378,30 @@ export function AuthSection({
 
     window.sessionStorage.setItem(OAUTH_REDIRECT_PENDING_KEY, "1");
 
-    const { error } = await supabase.auth.signInWithOAuth({
+    let { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         // Return to the current page so pending OAuth state can be consumed reliably.
         redirectTo: window.location.href,
       },
     });
+
+    const oauthErrorMessage = error?.message?.toLowerCase() ?? "";
+    const shouldRetryWithLegacyTwitter =
+      provider === "x" &&
+      Boolean(error) &&
+      (oauthErrorMessage.includes("unsupported provider") ||
+        oauthErrorMessage.includes("provider is not enabled"));
+
+    if (shouldRetryWithLegacyTwitter) {
+      const retryResult = await supabase.auth.signInWithOAuth({
+        provider: "twitter",
+        options: {
+          redirectTo: window.location.href,
+        },
+      });
+      error = retryResult.error;
+    }
 
     if (error) {
       window.sessionStorage.removeItem(OAUTH_REDIRECT_PENDING_KEY);
@@ -547,7 +564,7 @@ export function AuthSection({
           Google
         </button>
         <button
-          onClick={() => handleOAuthLogin('twitter')}
+          onClick={() => handleOAuthLogin('x')}
           disabled={isLoggingIn}
           className={
             isMistVariant
