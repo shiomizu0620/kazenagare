@@ -2937,12 +2937,31 @@ export function EmptyStageCharacter({
       const ownerId = customEvent.detail?.ownerId;
       const objectType = customEvent.detail?.objectType;
       const recordingId = customEvent.detail?.recordingId;
+      const resolvedEventOwnerId =
+        typeof ownerId === "string" && ownerId.length > 0 ? ownerId : null;
+      const shouldAdoptEventOwnerId =
+        !audioOwnerIdOverride &&
+        effectiveAudioOwnerId === "local_guest" &&
+        Boolean(resolvedEventOwnerId) &&
+        resolvedEventOwnerId !== effectiveAudioOwnerId;
 
-      if (ownerId && ownerId !== effectiveAudioOwnerId) {
-        return;
+      if (resolvedEventOwnerId && resolvedEventOwnerId !== effectiveAudioOwnerId) {
+        if (!shouldAdoptEventOwnerId) {
+          return;
+        }
+
+        setAudioOwnerId(resolvedEventOwnerId);
+        setViewerId(resolvedEventOwnerId);
       }
 
+      const recordingOwnerId = resolvedEventOwnerId ?? effectiveAudioOwnerId;
+
       if (objectType && recordingId) {
+        latestRecordingIdByObjectTypeRef.current = {
+          ...latestRecordingIdByObjectTypeRef.current,
+          [objectType]: recordingId,
+        };
+
         setLatestRecordingIdByObjectType((current) => {
           if (current[objectType] === recordingId) {
             return current;
@@ -2955,11 +2974,16 @@ export function EmptyStageCharacter({
         });
 
         void get(
-          getVoiceZooRecordingBlobStorageKey(effectiveAudioOwnerId, recordingId),
+          getVoiceZooRecordingBlobStorageKey(recordingOwnerId, recordingId),
         ).then((blob) => {
           if (!(blob instanceof Blob) || blob.size <= 0) {
             return;
           }
+
+          recordingBlobByRecordingIdRef.current = {
+            ...recordingBlobByRecordingIdRef.current,
+            [recordingId]: blob,
+          };
 
           setRecordingBlobByRecordingId((current) => {
             const existingBlob = current[recordingId];
@@ -3012,7 +3036,7 @@ export function EmptyStageCharacter({
     return () => {
       window.removeEventListener(VOICE_ZOO_RECORDING_UPDATED_EVENT, handleRecordingUpdate);
     };
-  }, [effectiveAudioOwnerId]);
+  }, [audioOwnerIdOverride, effectiveAudioOwnerId]);
 
   useEffect(() => {
     let cancelled = false;
