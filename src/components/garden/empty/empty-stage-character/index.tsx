@@ -364,6 +364,9 @@ export function EmptyStageCharacter({
     window.matchMedia("(pointer: coarse)").matches,
   );
   const isReadonlyVisitorGarden = !allowObjectPlacement && Boolean(audioOwnerIdOverride);
+  const [hasVisitorPlaybackUnlocked, setHasVisitorPlaybackUnlocked] = useState(
+    () => !isReadonlyVisitorGarden,
+  );
   const canAcceptHarmonyFromVisitors =
     isReadonlyVisitorGarden && allowHarmonyFromVisitors;
   const hitmapData = useHitmap(
@@ -565,7 +568,11 @@ export function EmptyStageCharacter({
     }
 
     if (!autoPlaybackAudioContextRef.current) {
-      autoPlaybackAudioContextRef.current = new AudioContextConstructor();
+      try {
+        autoPlaybackAudioContextRef.current = new AudioContextConstructor();
+      } catch {
+        return null;
+      }
     }
 
     return autoPlaybackAudioContextRef.current;
@@ -1723,15 +1730,34 @@ export function EmptyStageCharacter({
       }
 
       const recordingBlob = resolveRecordingBlobForObject(selectedObject);
+      const resolvedRecordingId =
+        selectedObject.recordingId ??
+        latestRecordingIdByObjectTypeRef.current[selectedObject.objectType] ??
+        null;
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const publicBucketBaseUrl = supabaseUrl
+        ? `${supabaseUrl}/storage/v1/object/public/garden-voices`
+        : null;
+      const remoteRecordingUrlCandidates = buildRemoteRecordingUrlCandidates({
+        recordingUrl:
+          typeof selectedObject.recordingUrl === "string" &&
+          selectedObject.recordingUrl.length > 0
+            ? selectedObject.recordingUrl
+            : undefined,
+        publicBucketBaseUrl,
+        ownerId: effectiveAudioOwnerId,
+        recordingId: resolvedRecordingId,
+      });
+      const remoteRecordingUrl = remoteRecordingUrlCandidates[0] ?? null;
       const harmonyRecordingBlob = resolveHarmonyRecordingBlobForObject(objectId);
 
       // ハーモニーは庭主音声に重ねて鳴らす前提のため、単体再生は行わない。
-      if (!recordingBlob && harmonyRecordingBlob) {
+      if (!recordingBlob && !remoteRecordingUrl && harmonyRecordingBlob) {
         autoPlaybackNextAtByObjectIdRef.current[objectId] = Date.now() + getRandomPlaybackDelayMs();
         return;
       }
 
-      if (!recordingBlob && !harmonyRecordingBlob) {
+      if (!recordingBlob && !remoteRecordingUrl && !harmonyRecordingBlob) {
         autoPlaybackNextAtByObjectIdRef.current[objectId] = Date.now() + getRandomPlaybackDelayMs();
         return;
       }
@@ -1774,6 +1800,11 @@ export function EmptyStageCharacter({
         const nextAudioUrl = URL.createObjectURL(recordingBlob);
         autoPlaybackAudioUrlByObjectIdRef.current[objectId] = nextAudioUrl;
         objectAudio.src = nextAudioUrl;
+        objectAudio.currentTime = 0;
+        setAutoPlaybackVolume(objectId, objectAudio, nextVolume);
+        applyVoiceZooPlaybackEffect(objectAudio, selectedObject.objectType);
+      } else if (remoteRecordingUrl) {
+        objectAudio.src = remoteRecordingUrl;
         objectAudio.currentTime = 0;
         setAutoPlaybackVolume(objectId, objectAudio, nextVolume);
         applyVoiceZooPlaybackEffect(objectAudio, selectedObject.objectType);
@@ -1913,7 +1944,7 @@ export function EmptyStageCharacter({
           });
       };
 
-      if (recordingBlob) {
+      if (recordingBlob || remoteRecordingUrl) {
         attachPlaybackLayer(objectAudio);
       }
 
@@ -1927,6 +1958,7 @@ export function EmptyStageCharacter({
     },
     [
       awardPlaybackReward,
+      effectiveAudioOwnerId,
       getAutoPlaybackVolumeForObject,
       resolveRecordingBlobForObject,
       resolveHarmonyRecordingBlobForObject,
@@ -2533,11 +2565,22 @@ export function EmptyStageCharacter({
           return;
         }
 
+        if (!hasVisitorPlaybackUnlocked) {
+          return;
+        }
+
         const tappedObject =
           findPlacedObjectAtClientPosition(event.clientX, event.clientY) ??
           findPlacedObjectAtPosition(targetPosition);
 
         if (tappedObject) {
+          autoPlaybackNextAtByObjectIdRef.current[tappedObject.id] = Date.now();
+          playAutoPlaybackForObject(tappedObject.id);
+
+          if (isCoarsePointer) {
+            return;
+          }
+
           if (!allowHarmonyFromVisitors) {
             showPlacementBlockedMessage(
               targetPosition,
@@ -2680,6 +2723,7 @@ export function EmptyStageCharacter({
       grabbedObjectId,
       hasPlacedActiveObject,
       hasPlacedSelectedObject,
+      hasVisitorPlaybackUnlocked,
       isCoarsePointer,
       isHarmonyRecording,
       isMousePlacementArmed,
@@ -2687,6 +2731,7 @@ export function EmptyStageCharacter({
       isNearSelectedObject,
       isTouchPlacementArmed,
       openHarmonyRecordingModal,
+      playAutoPlaybackForObject,
       placeObjectAtWorldPosition,
       showPlacementBlockedMessage,
     ],
@@ -2794,12 +2839,16 @@ export function EmptyStageCharacter({
       initializeStage();
     };
 
-    const observer = new ResizeObserver(() => {
-      initializeStage();
-    });
+    let observer: ResizeObserver | null = null;
 
-    if (stageRef.current) {
-      observer.observe(stageRef.current);
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(() => {
+        initializeStage();
+      });
+
+      if (stageRef.current) {
+        observer.observe(stageRef.current);
+      }
     }
 
     window.addEventListener("resize", handleViewportLayoutChange);
@@ -2810,7 +2859,7 @@ export function EmptyStageCharacter({
     visualViewport?.addEventListener("scroll", handleViewportLayoutChange);
 
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
       window.removeEventListener("resize", handleViewportLayoutChange);
       window.removeEventListener("orientationchange", handleViewportLayoutChange);
       visualViewport?.removeEventListener("resize", handleViewportLayoutChange);
@@ -3558,6 +3607,11 @@ export function EmptyStageCharacter({
       return;
     }
 
+    if (isReadonlyVisitorGarden && !hasVisitorPlaybackUnlocked) {
+      stopAutoPlayback();
+      return;
+    }
+
     if (isAudioSuppressedRef.current) {
       return;
     }
@@ -3570,7 +3624,9 @@ export function EmptyStageCharacter({
     );
   }, [
     clearAutoPlaybackScheduler,
+    hasVisitorPlaybackUnlocked,
     harmonyRecordingModal,
+    isReadonlyVisitorGarden,
     runAutoPlaybackSchedulerTick,
     stopAutoPlayback,
   ]);
@@ -3585,6 +3641,11 @@ export function EmptyStageCharacter({
 
   useEffect(() => {
     if (harmonyRecordingModal) {
+      stopAutoPlayback();
+      return;
+    }
+
+    if (isReadonlyVisitorGarden && !hasVisitorPlaybackUnlocked) {
       stopAutoPlayback();
       return;
     }
@@ -3605,8 +3666,10 @@ export function EmptyStageCharacter({
       stopAutoPlayback();
     };
   }, [
+    hasVisitorPlaybackUnlocked,
     harmonyRecordingModal,
     isAudioSuppressed,
+    isReadonlyVisitorGarden,
     pathname,
     startAutoPlaybackScheduler,
     stopAutoPlayback,
@@ -3625,6 +3688,7 @@ export function EmptyStageCharacter({
 
       if (
         pathname.startsWith("/garden") &&
+        (!isReadonlyVisitorGarden || hasVisitorPlaybackUnlocked) &&
         !isAudioSuppressedRef.current &&
         !harmonyRecordingModal
       ) {
@@ -3643,7 +3707,9 @@ export function EmptyStageCharacter({
     };
   }, [
     ensureAutoPlaybackSchedulerRunning,
+    hasVisitorPlaybackUnlocked,
     harmonyRecordingModal,
+    isReadonlyVisitorGarden,
     pathname,
     stopAutoPlayback,
   ]);
@@ -3655,6 +3721,10 @@ export function EmptyStageCharacter({
 
     const handleInteraction = () => {
       if (isAudioSuppressedRef.current || harmonyRecordingModal) {
+        return;
+      }
+
+      if (isReadonlyVisitorGarden && !hasVisitorPlaybackUnlocked) {
         return;
       }
 
@@ -3681,8 +3751,31 @@ export function EmptyStageCharacter({
     };
   }, [
     ensureAutoPlaybackSchedulerRunning,
+    hasVisitorPlaybackUnlocked,
     harmonyRecordingModal,
+    isReadonlyVisitorGarden,
     pathname,
+    runAutoPlaybackSchedulerTick,
+    resumeAutoPlaybackAudioContextIfNeeded,
+  ]);
+
+  const enableVisitorPlayback = useCallback(() => {
+    setHasVisitorPlaybackUnlocked(true);
+
+    if (isAudioSuppressedRef.current || harmonyRecordingModal) {
+      return;
+    }
+
+    ensureAutoPlaybackSchedulerRunning();
+    const now = Date.now();
+    for (const placedObject of placedObjectsRef.current) {
+      autoPlaybackNextAtByObjectIdRef.current[placedObject.id] = now;
+    }
+    runAutoPlaybackSchedulerTick();
+    void resumeAutoPlaybackAudioContextIfNeeded();
+  }, [
+    ensureAutoPlaybackSchedulerRunning,
+    harmonyRecordingModal,
     runAutoPlaybackSchedulerTick,
     resumeAutoPlaybackAudioContextIfNeeded,
   ]);
@@ -4054,6 +4147,33 @@ export function EmptyStageCharacter({
         onStickPointerMove={handleStickPointerMove}
         onStickPointerEnd={handleStickPointerEnd}
       />
+
+      {isReadonlyVisitorGarden && !hasVisitorPlaybackUnlocked ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-[190] flex justify-center px-4 sm:bottom-6">
+          <div
+            className={`pointer-events-auto rounded-2xl border px-4 py-3 shadow-[0_16px_36px_rgba(0,0,0,0.34)] backdrop-blur-sm ${
+              darkMode
+                ? "border-[#f2dfc3]/30 bg-[#2b2118]/86 text-[#fff8ea]"
+                : "border-[#b7874d]/35 bg-[#fff8ea]/92 text-[#2f2319]"
+            }`}
+          >
+            <p className={`text-xs ${darkMode ? "text-[#f9e9cf]/78" : "text-[#6b5039]/80"}`}>
+              初回のみ、音と演出の再生を許可してください。
+            </p>
+            <button
+              type="button"
+              onClick={enableVisitorPlayback}
+              className={`mt-2 w-full rounded-lg border px-4 py-2 text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-[1px] ${
+                darkMode
+                  ? "border-[#f2dfc3]/40 bg-[#8a5c34]/45 hover:bg-[#9d6b3f]/55"
+                  : "border-[#b05f48]/35 bg-[#c8674c]/14 hover:bg-[#c8674c]/22"
+              }`}
+            >
+              音と演出を開始する
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {canAcceptHarmonyFromVisitors && harmonyRecordingModal ? (
         <div className="fixed inset-0 z-[210] isolate grid place-items-center p-4 sm:p-6">
