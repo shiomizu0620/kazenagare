@@ -2162,6 +2162,57 @@ export function EmptyStageCharacter({
     [isCoarsePointer, isReadonlyVisitorGarden, placedObjects],
   );
 
+  const findPlacedObjectAtClientPosition = useCallback(
+    (clientX: number, clientY: number): PlacedStageObject | null => {
+      if (!stageRef.current) {
+        return null;
+      }
+
+      const rect = stageRef.current.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return null;
+      }
+
+      const localX = clamp(clientX - rect.left, 0, rect.width);
+      const localY = clamp(clientY - rect.top, 0, rect.height);
+      const stageWidth = stageSizeRef.current.x > 0 ? stageSizeRef.current.x : rect.width;
+      const stageHeight = stageSizeRef.current.y > 0 ? stageSizeRef.current.y : rect.height;
+      const viewCenterWorldX = WORLD_WIDTH * 0.5 + cameraOffsetRef.current.x;
+      const viewCenterWorldY = WORLD_HEIGHT * 0.5 + cameraOffsetRef.current.y;
+
+      let nearestCandidate: PlacedStageObject | null = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
+      for (let index = placedObjects.length - 1; index >= 0; index -= 1) {
+        const candidate = placedObjects[index];
+        const objectVisual = OBJECT_VISUALS[candidate.objectType];
+        const screenX = stageWidth * 0.5 + (candidate.x - viewCenterWorldX);
+        const screenY = stageHeight * 0.5 + (candidate.y - viewCenterWorldY);
+        const baseHitRadius = Math.max(
+          objectVisual.stageImageSize * 0.85,
+          OBJECT_PICKUP_HIT_RADIUS * 0.65,
+        );
+        const hitRadius =
+          isReadonlyVisitorGarden && isCoarsePointer
+            ? baseHitRadius * 1.45
+            : baseHitRadius;
+        const distance = Math.hypot(localX - screenX, localY - screenY);
+
+        if (distance > hitRadius) {
+          continue;
+        }
+
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestCandidate = candidate;
+        }
+      }
+
+      return nearestCandidate;
+    },
+    [isCoarsePointer, isReadonlyVisitorGarden, placedObjects],
+  );
+
   const getWorldPositionFromClient = useCallback((clientX: number, clientY: number) => {
     if (!stageRef.current) {
       return null;
@@ -2383,7 +2434,9 @@ export function EmptyStageCharacter({
           return;
         }
 
-        const tappedObject = findPlacedObjectAtPosition(targetPosition);
+        const tappedObject =
+          findPlacedObjectAtClientPosition(event.clientX, event.clientY) ??
+          findPlacedObjectAtPosition(targetPosition);
 
         if (tappedObject) {
           if (!allowHarmonyFromVisitors) {
@@ -2522,6 +2575,7 @@ export function EmptyStageCharacter({
       allowHarmonyFromVisitors,
       allowObjectPlacement,
       canPlaceObject,
+      findPlacedObjectAtClientPosition,
       findPlacedObjectAtPosition,
       getWorldPositionFromClient,
       grabbedObjectId,
@@ -3763,6 +3817,7 @@ export function EmptyStageCharacter({
   const canPreviewOwnerAudio = Boolean(harmonyPreviewOwnerAudioUrl);
   const canPreviewLayerAudio = Boolean(harmonyPreviewLayerAudioUrl);
   const canPlayCombinedPreview = canPreviewOwnerAudio || canPreviewLayerAudio;
+  const useRewardPlaybackFallbackVisual = isReadonlyVisitorGarden && isCoarsePointer;
 
   const mobileStickPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] right-3 z-40 rounded-2xl border p-2 backdrop-blur-sm sm:hidden ${
     darkMode
@@ -3809,6 +3864,7 @@ export function EmptyStageCharacter({
         objectLocatorIndicator={objectLocatorIndicator}
         locatorArrowFillColor={locatorArrowFillColor}
         locatorArrowChipFillColor={locatorArrowChipFillColor}
+        useRewardPlaybackFallbackVisual={useRewardPlaybackFallbackVisual}
       >
         {children}
       </EmptyStageCharacterStage>
