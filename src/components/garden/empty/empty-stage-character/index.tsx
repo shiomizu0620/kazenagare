@@ -3741,12 +3741,10 @@ export function EmptyStageCharacter({
     };
 
     window.addEventListener("pointerdown", handleInteraction);
-    window.addEventListener("keydown", handleInteraction);
     window.addEventListener("touchstart", handleInteraction);
 
     return () => {
       window.removeEventListener("pointerdown", handleInteraction);
-      window.removeEventListener("keydown", handleInteraction);
       window.removeEventListener("touchstart", handleInteraction);
     };
   }, [
