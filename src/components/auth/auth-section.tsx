@@ -17,6 +17,7 @@ const OAUTH_PENDING_GUEST_USER_ID_KEY = "kazenagare.oauthPendingGuestUserId";
 const LEGACY_LOCAL_GUEST_USER_ID = "local_guest";
 const AUDIO_CATALOG_STORAGE_PREFIX = "kazenagare_audio_catalog_";
 const AUDIO_BLOB_STORAGE_PREFIX = "kazenagare_audio_blob_";
+type OAuthProvider = "google" | "twitter";
 
 type AuthCompletedPayload = {
   userId: string | null;
@@ -117,6 +118,20 @@ function resolveAuthErrorMessage(rawMessage: string, isSignUp: boolean) {
 
   if (isSignUp && normalized.includes("signup is disabled")) {
     return "現在、新規登録を受け付けていません。";
+  }
+
+  return rawMessage;
+}
+
+function resolveOAuthErrorMessage(rawMessage: string, provider: OAuthProvider) {
+  const normalized = rawMessage.toLowerCase();
+
+  if (normalized.includes("unsupported provider") || normalized.includes("provider is not enabled")) {
+    if (provider === "twitter") {
+      return "Xログインが無効です。Supabaseダッシュボードの Auth > Providers で X (Twitter) を有効化し、Client ID / Secret を設定してください。";
+    }
+
+    return "このSNSログインは現在無効です。Supabaseダッシュボードの Auth > Providers で有効化してください。";
   }
 
   return rawMessage;
@@ -290,7 +305,11 @@ export function AuthSection({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session && hasPendingOAuthRedirect()) {
+      if (
+        (event === "INITIAL_SESSION" || event === "SIGNED_IN") &&
+        session &&
+        hasPendingOAuthRedirect()
+      ) {
         void migratePendingGuestData(session.user.id).finally(() => {
           clearPendingOAuthRedirect();
           void handleAuthCompleted({
@@ -346,7 +365,7 @@ export function AuthSection({
   };
 
   // SNSログイン（Google / X）
-  const handleOAuthLogin = async (provider: 'google' | 'twitter') => {
+  const handleOAuthLogin = async (provider: OAuthProvider) => {
     const supabase = getSupabaseClient();
     if (!supabase) {
       alert("Supabase設定が見つかりません。");
@@ -360,13 +379,17 @@ export function AuthSection({
     window.sessionStorage.setItem(OAUTH_REDIRECT_PENDING_KEY, "1");
 
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: provider,
-      options: { redirectTo: window.location.origin }
+      provider,
+      options: {
+        // Return to the current page so pending OAuth state can be consumed reliably.
+        redirectTo: window.location.href,
+      },
     });
 
     if (error) {
       window.sessionStorage.removeItem(OAUTH_REDIRECT_PENDING_KEY);
-      alert("エラー: " + error.message);
+      const resolvedMessage = resolveOAuthErrorMessage(error.message, provider);
+      alert("エラー: " + resolvedMessage);
       setIsLoggingIn(false);
     }
   };
