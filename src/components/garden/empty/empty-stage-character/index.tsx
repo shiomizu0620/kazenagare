@@ -1810,7 +1810,7 @@ export function EmptyStageCharacter({
             rewardPlayback();
           })
           .catch(() => {
-            if (audioOwnerIdOverride && !hasVisitorFallbackVisual) {
+            if (!hasVisitorFallbackVisual) {
               hasVisitorFallbackVisual = true;
               triggerRewardVideoPlayback(selectedObject);
             }
@@ -1831,7 +1831,6 @@ export function EmptyStageCharacter({
       }
     },
     [
-      audioOwnerIdOverride,
       awardPlaybackReward,
       getAutoPlaybackVolumeForObject,
       resolveRecordingBlobForObject,
@@ -2944,6 +2943,37 @@ export function EmptyStageCharacter({
       }
 
       if (objectType && recordingId) {
+        setLatestRecordingIdByObjectType((current) => {
+          if (current[objectType] === recordingId) {
+            return current;
+          }
+
+          return {
+            ...current,
+            [objectType]: recordingId,
+          };
+        });
+
+        void get(
+          getVoiceZooRecordingBlobStorageKey(effectiveAudioOwnerId, recordingId),
+        ).then((blob) => {
+          if (!(blob instanceof Blob) || blob.size <= 0) {
+            return;
+          }
+
+          setRecordingBlobByRecordingId((current) => {
+            const existingBlob = current[recordingId];
+            if (existingBlob instanceof Blob && existingBlob.size === blob.size) {
+              return current;
+            }
+
+            return {
+              ...current,
+              [recordingId]: blob,
+            };
+          });
+        });
+
         setPlacedObjects((current) => {
           let didChange = false;
 
@@ -2965,6 +2995,13 @@ export function EmptyStageCharacter({
 
           return didChange ? nextObjects : current;
         });
+
+        const now = Date.now();
+        for (const placedObject of placedObjectsRef.current) {
+          if (placedObject.objectType === objectType) {
+            autoPlaybackNextAtByObjectIdRef.current[placedObject.id] = now;
+          }
+        }
       }
 
       setRecordingReloadNonce((current) => current + 1);
