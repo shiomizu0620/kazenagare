@@ -58,6 +58,7 @@ import {
   MAX_PLACED_OBJECTS,
   MAX_CONCURRENT_COIN_POPUPS,
   MAX_CONCURRENT_AUTOPLAY_AUDIO,
+  OBJECT_PICKUP_HIT_RADIUS,
   OBJECT_PLACEMENT_HIT_RADIUS,
   MOVE_MAX_SPEED,
   MOVEMENT_KEYS,
@@ -2116,17 +2117,33 @@ export function EmptyStageCharacter({
         return null;
       }
 
+      const pickupHitRadius =
+        isReadonlyVisitorGarden && isCoarsePointer
+          ? OBJECT_PICKUP_HIT_RADIUS * 1.35
+          : OBJECT_PICKUP_HIT_RADIUS;
+      let nearestCandidate: PlacedStageObject | null = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
       for (let index = placedObjects.length - 1; index >= 0; index -= 1) {
         const candidate = placedObjects[index];
+        const distance = Math.hypot(
+          targetPosition.x - candidate.x,
+          targetPosition.y - candidate.y,
+        );
 
-        if (isNearPlacedObject(targetPosition, candidate)) {
-          return candidate;
+        if (distance > pickupHitRadius) {
+          continue;
+        }
+
+        if (distance < nearestDistance) {
+          nearestCandidate = candidate;
+          nearestDistance = distance;
         }
       }
 
-      return null;
+      return nearestCandidate;
     },
-    [placedObjects],
+    [isCoarsePointer, isReadonlyVisitorGarden, placedObjects],
   );
 
   const getWorldPositionFromClient = useCallback((clientX: number, clientY: number) => {
@@ -2604,6 +2621,10 @@ export function EmptyStageCharacter({
   useEffect(() => {
     initializeStage();
 
+    const handleViewportLayoutChange = () => {
+      initializeStage();
+    };
+
     const observer = new ResizeObserver(() => {
       initializeStage();
     });
@@ -2612,8 +2633,19 @@ export function EmptyStageCharacter({
       observer.observe(stageRef.current);
     }
 
+    window.addEventListener("resize", handleViewportLayoutChange);
+    window.addEventListener("orientationchange", handleViewportLayoutChange);
+
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener("resize", handleViewportLayoutChange);
+    visualViewport?.addEventListener("scroll", handleViewportLayoutChange);
+
     return () => {
       observer.disconnect();
+      window.removeEventListener("resize", handleViewportLayoutChange);
+      window.removeEventListener("orientationchange", handleViewportLayoutChange);
+      visualViewport?.removeEventListener("resize", handleViewportLayoutChange);
+      visualViewport?.removeEventListener("scroll", handleViewportLayoutChange);
     };
   }, [initializeStage]);
 
@@ -2876,10 +2908,6 @@ export function EmptyStageCharacter({
   }, [effectiveAudioOwnerId]);
 
   useEffect(() => {
-    if (shouldUseMobileLightweightMode) {
-      return;
-    }
-
     let cancelled = false;
 
     const loadRecordingCatalogAndBlobs = async () => {
@@ -2973,7 +3001,7 @@ export function EmptyStageCharacter({
     return () => {
       cancelled = true;
     };
-  }, [effectiveAudioOwnerId, recordingReloadNonce, shouldUseMobileLightweightMode]);
+  }, [effectiveAudioOwnerId, recordingReloadNonce]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3111,10 +3139,6 @@ export function EmptyStageCharacter({
   }, [effectiveAudioOwnerId, isReadonlyVisitorGarden, viewerId]);
 
   useEffect(() => {
-    if (shouldUseMobileLightweightMode) {
-      return;
-    }
-
     let cancelled = false;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const publicBucketBaseUrl = supabaseUrl
@@ -3206,7 +3230,6 @@ export function EmptyStageCharacter({
   }, [
     effectiveAudioOwnerId,
     placedObjects,
-    shouldUseMobileLightweightMode,
   ]);
 
   const syncAutoPlaybackSchedules = useCallback(() => {
@@ -3314,11 +3337,6 @@ export function EmptyStageCharacter({
       return;
     }
 
-    if (shouldUseMobileLightweightMode) {
-      stopAutoPlayback();
-      return;
-    }
-
     if (isAudioSuppressed) {
       stopAutoPlayback();
       return;
@@ -3333,7 +3351,6 @@ export function EmptyStageCharacter({
     harmonyRecordingModal,
     isAudioSuppressed,
     pathname,
-    shouldUseMobileLightweightMode,
     startAutoPlaybackScheduler,
     stopAutoPlayback,
   ]);
@@ -3351,7 +3368,6 @@ export function EmptyStageCharacter({
 
       if (
         pathname.startsWith("/garden") &&
-        !shouldUseMobileLightweightMode &&
         !isAudioSuppressedRef.current &&
         !harmonyRecordingModal
       ) {
@@ -3372,12 +3388,11 @@ export function EmptyStageCharacter({
     ensureAutoPlaybackSchedulerRunning,
     harmonyRecordingModal,
     pathname,
-    shouldUseMobileLightweightMode,
     stopAutoPlayback,
   ]);
 
   useEffect(() => {
-    if (!pathname.startsWith("/garden") || shouldUseMobileLightweightMode) {
+    if (!pathname.startsWith("/garden")) {
       return;
     }
 
@@ -3403,7 +3418,6 @@ export function EmptyStageCharacter({
     ensureAutoPlaybackSchedulerRunning,
     harmonyRecordingModal,
     pathname,
-    shouldUseMobileLightweightMode,
     resumeAutoPlaybackAudioContextIfNeeded,
   ]);
 
