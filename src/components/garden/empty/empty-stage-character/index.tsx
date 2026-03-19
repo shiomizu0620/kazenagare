@@ -189,6 +189,77 @@ function getAudioContextConstructor() {
   );
 }
 
+function isLoopbackHostname(hostname: string) {
+  const normalizedHostname = hostname.toLowerCase();
+  return (
+    normalizedHostname === "localhost" ||
+    normalizedHostname === "127.0.0.1" ||
+    normalizedHostname === "::1" ||
+    normalizedHostname === "[::1]"
+  );
+}
+
+function rewriteLoopbackUrlToCurrentHost(rawUrl: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(rawUrl);
+
+    if (!isLoopbackHostname(parsedUrl.hostname)) {
+      return null;
+    }
+
+    const currentHostname = window.location.hostname;
+
+    if (!currentHostname || isLoopbackHostname(currentHostname)) {
+      return null;
+    }
+
+    parsedUrl.hostname = currentHostname;
+    return parsedUrl.toString();
+  } catch {
+    return null;
+  }
+}
+
+function buildRemoteRecordingUrlCandidates({
+  recordingUrl,
+  publicBucketBaseUrl,
+  ownerId,
+  recordingId,
+}: {
+  recordingUrl?: string;
+  publicBucketBaseUrl: string | null;
+  ownerId: string;
+  recordingId: string | null;
+}) {
+  const candidates: string[] = [];
+
+  const pushCandidate = (candidate: string | null | undefined) => {
+    if (!candidate || candidate.length === 0 || candidates.includes(candidate)) {
+      return;
+    }
+
+    candidates.push(candidate);
+  };
+
+  pushCandidate(recordingUrl);
+  pushCandidate(recordingUrl ? rewriteLoopbackUrlToCurrentHost(recordingUrl) : null);
+
+  if (publicBucketBaseUrl && recordingId) {
+    const ownerPathSegment = encodeURIComponent(ownerId);
+    const recordingPathSegment = encodeURIComponent(recordingId);
+    const fallbackUrl = `${publicBucketBaseUrl}/${ownerPathSegment}/${recordingPathSegment}.webm`;
+
+    pushCandidate(fallbackUrl);
+    pushCandidate(rewriteLoopbackUrlToCurrentHost(fallbackUrl));
+  }
+
+  return candidates;
+}
+
 function getDistanceAttenuationGain(distancePx: number) {
   if (distancePx <= AUTO_PLAYBACK_DISTANCE_NEAR_PX) {
     return 1;
@@ -1865,49 +1936,54 @@ export function EmptyStageCharacter({
       const publicBucketBaseUrl = supabaseUrl
         ? `${supabaseUrl}/storage/v1/object/public/garden-voices`
         : null;
-      const ownerPathSegment = encodeURIComponent(effectiveAudioOwnerId);
-      const recordingPathSegment = encodeURIComponent(recordingId);
-      const remoteRecordingUrl =
-        typeof placedObject.recordingUrl === "string" && placedObject.recordingUrl.length > 0
-          ? placedObject.recordingUrl
-          : publicBucketBaseUrl
-            ? `${publicBucketBaseUrl}/${ownerPathSegment}/${recordingPathSegment}.webm`
-            : null;
+      const remoteRecordingUrls = buildRemoteRecordingUrlCandidates({
+        recordingUrl:
+          typeof placedObject.recordingUrl === "string" && placedObject.recordingUrl.length > 0
+            ? placedObject.recordingUrl
+            : undefined,
+        publicBucketBaseUrl,
+        ownerId: effectiveAudioOwnerId,
+        recordingId,
+      });
 
-      if (!remoteRecordingUrl) {
+      if (remoteRecordingUrls.length === 0) {
         return null;
       }
 
-      try {
-        const response = await fetch(remoteRecordingUrl, {
-          cache: "no-store",
-        });
+      for (const remoteRecordingUrl of remoteRecordingUrls) {
+        try {
+          const response = await fetch(remoteRecordingUrl, {
+            cache: "no-store",
+          });
 
-        if (!response.ok) {
-          return null;
-        }
+          if (!response.ok) {
+            continue;
+          }
 
-        const blob = await response.blob();
+          const blob = await response.blob();
 
-        if (blob.size <= 0) {
-          return null;
-        }
+          if (blob.size <= 0) {
+            continue;
+          }
 
-        recordingBlobByRecordingIdRef.current = {
-          ...recordingBlobByRecordingIdRef.current,
-          [recordingId]: blob,
-        };
-        void Promise.resolve().then(() => {
-          setRecordingBlobByRecordingId((current) => ({
-            ...current,
+          recordingBlobByRecordingIdRef.current = {
+            ...recordingBlobByRecordingIdRef.current,
             [recordingId]: blob,
-          }));
-        });
+          };
+          void Promise.resolve().then(() => {
+            setRecordingBlobByRecordingId((current) => ({
+              ...current,
+              [recordingId]: blob,
+            }));
+          });
 
-        return blob;
-      } catch {
-        return null;
+          return blob;
+        } catch {
+          // Try next URL candidate.
+        }
       }
+
+      return null;
     },
     [effectiveAudioOwnerId],
   );
@@ -3276,25 +3352,26 @@ export function EmptyStageCharacter({
       ? `${supabaseUrl}/storage/v1/object/public/garden-voices`
       : null;
 
-    const resolveRemoteRecordingUrl = (placedObject: PlacedStageObject) => {
-      if (typeof placedObject.recordingUrl === "string" && placedObject.recordingUrl.length > 0) {
-        return placedObject.recordingUrl;
-      }
-
-      if (!publicBucketBaseUrl || typeof placedObject.recordingId !== "string") {
-        return null;
-      }
-
-      const ownerPathSegment = encodeURIComponent(effectiveAudioOwnerId);
-      const recordingPathSegment = encodeURIComponent(placedObject.recordingId);
-      return `${publicBucketBaseUrl}/${ownerPathSegment}/${recordingPathSegment}.webm`;
+    const resolveRemoteRecordingUrls = (placedObject: PlacedStageObject) => {
+      return buildRemoteRecordingUrlCandidates({
+        recordingUrl:
+          typeof placedObject.recordingUrl === "string" && placedObject.recordingUrl.length > 0
+            ? placedObject.recordingUrl
+            : undefined,
+        publicBucketBaseUrl,
+        ownerId: effectiveAudioOwnerId,
+        recordingId:
+          typeof placedObject.recordingId === "string"
+            ? placedObject.recordingId
+            : null,
+      });
     };
 
     const preloadRemoteRecordingBlobs = async () => {
       const targets = placedObjects.filter(
         (placedObject) =>
           typeof placedObject.recordingId === "string" &&
-          Boolean(resolveRemoteRecordingUrl(placedObject)) &&
+          resolveRemoteRecordingUrls(placedObject).length > 0 &&
           !recordingBlobByRecordingIdRef.current[placedObject.recordingId],
       );
 
@@ -3304,31 +3381,35 @@ export function EmptyStageCharacter({
 
       const loadedEntries = await Promise.all(
         targets.map(async (placedObject) => {
-          const remoteRecordingUrl = resolveRemoteRecordingUrl(placedObject);
-          if (!remoteRecordingUrl) {
+          const remoteRecordingUrls = resolveRemoteRecordingUrls(placedObject);
+          if (remoteRecordingUrls.length === 0) {
             return null;
           }
 
-          try {
-            const response = await fetch(remoteRecordingUrl, {
-              cache: "no-store",
-            });
-            if (!response.ok) {
-              return null;
-            }
+          for (const remoteRecordingUrl of remoteRecordingUrls) {
+            try {
+              const response = await fetch(remoteRecordingUrl, {
+                cache: "no-store",
+              });
+              if (!response.ok) {
+                continue;
+              }
 
-            const blob = await response.blob();
-            if (!blob.size || !placedObject.recordingId) {
-              return null;
-            }
+              const blob = await response.blob();
+              if (!blob.size || !placedObject.recordingId) {
+                continue;
+              }
 
-            return {
-              recordingId: placedObject.recordingId,
-              blob,
-            };
-          } catch {
-            return null;
+              return {
+                recordingId: placedObject.recordingId,
+                blob,
+              };
+            } catch {
+              // Try next URL candidate.
+            }
           }
+
+          return null;
         }),
       );
 
