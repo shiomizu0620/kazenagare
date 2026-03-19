@@ -3430,14 +3430,21 @@ export function EmptyStageCharacter({
       const loadedRecordingIds = new Set(
         nextEntries.map((entry) => entry.recordingId),
       );
-      const now = Date.now();
 
       for (const target of targets) {
         if (
           typeof target.recordingId === "string" &&
           loadedRecordingIds.has(target.recordingId)
         ) {
-          autoPlaybackNextAtByObjectIdRef.current[target.id] = now;
+          const existingNextAt = autoPlaybackNextAtByObjectIdRef.current[target.id];
+
+          if (
+            typeof existingNextAt !== "number" ||
+            !Number.isFinite(existingNextAt)
+          ) {
+            autoPlaybackNextAtByObjectIdRef.current[target.id] =
+              Date.now() + getRandomPlaybackDelayMs();
+          }
         }
       }
 
