@@ -98,6 +98,7 @@ export { WORLD_HEIGHT, WORLD_WIDTH };
 const AUTO_PLAYBACK_MIN_DELAY_MS = 2800;
 const AUTO_PLAYBACK_MAX_DELAY_MS = 4800;
 const AUTO_PLAYBACK_SCHEDULER_TICK_MS = 220;
+const AUTO_PLAYBACK_PLAY_START_TIMEOUT_MS = 1600;
 const COIN_POPUP_DURATION_MS = 1200;
 const WALLET_GAIN_POPUP_DURATION_MS = 1050;
 const PLACEMENT_BLOCKED_NOTICE_DURATION_MS = 1400;
@@ -1856,6 +1857,7 @@ export function EmptyStageCharacter({
 
       const attachPlaybackLayer = (audio: HTMLAudioElement) => {
         let hasLayerEnded = false;
+        let playStartTimeoutId: number | null = null;
         remainingPlaybackLayers += 1;
 
         const finishLayerPlayback = () => {
@@ -1864,8 +1866,13 @@ export function EmptyStageCharacter({
           }
 
           hasLayerEnded = true;
+          if (playStartTimeoutId !== null) {
+            window.clearTimeout(playStartTimeoutId);
+            playStartTimeoutId = null;
+          }
           audio.onended = null;
           audio.onerror = null;
+          audio.onplay = null;
           remainingPlaybackLayers -= 1;
 
           if (remainingPlaybackLayers <= 0) {
@@ -1876,6 +1883,21 @@ export function EmptyStageCharacter({
         audio.onended = finishLayerPlayback;
         audio.onerror = finishLayerPlayback;
         audio.onplay = rewardPlayback;
+
+        // Some mobile browsers keep play() pending while blocked by autoplay policy.
+        // Timeout and fallback to avoid leaving the object in an in-flight state forever.
+        playStartTimeoutId = window.setTimeout(() => {
+          if (hasLayerEnded) {
+            return;
+          }
+
+          if (!hasVisitorFallbackVisual) {
+            hasVisitorFallbackVisual = true;
+            triggerRewardVideoPlayback(selectedObject);
+          }
+
+          finishLayerPlayback();
+        }, AUTO_PLAYBACK_PLAY_START_TIMEOUT_MS);
 
         void resumeAutoPlaybackAudioContextIfNeeded()
           .then(() => audio.play())
