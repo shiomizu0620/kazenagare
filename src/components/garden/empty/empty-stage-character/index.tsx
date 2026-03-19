@@ -1358,6 +1358,10 @@ export function EmptyStageCharacter({
   }, []);
 
   const cleanupUnusedRecordingBlobs = useCallback(() => {
+    if (isReadonlyVisitorGarden) {
+      return;
+    }
+
     // 配置されていないオブジェクトタイプの録音Blobをクリア
     const usedObjectTypes = new Set(
       placedObjectsRef.current.map((obj) => obj.objectType),
@@ -1388,7 +1392,7 @@ export function EmptyStageCharacter({
 
       return hasChanges ? nextRecordingBlobs : current;
     });
-  }, []);
+  }, [isReadonlyVisitorGarden]);
 
   const revokeAutoPlaybackAudioUrl = useCallback((objectId: string) => {
     const currentAudioUrl = autoPlaybackAudioUrlByObjectIdRef.current[objectId];
@@ -1733,6 +1737,7 @@ export function EmptyStageCharacter({
 
       let hasFinalizedPlayback = false;
       let hasRewardedPlayback = false;
+      let hasVisitorFallbackVisual = false;
       let remainingPlaybackLayers = 0;
 
       const rewardPlayback = () => {
@@ -1805,6 +1810,10 @@ export function EmptyStageCharacter({
             rewardPlayback();
           })
           .catch(() => {
+            if (audioOwnerIdOverride && !hasVisitorFallbackVisual) {
+              hasVisitorFallbackVisual = true;
+              triggerRewardVideoPlayback(selectedObject);
+            }
             finishLayerPlayback();
           });
       };
@@ -1822,6 +1831,7 @@ export function EmptyStageCharacter({
       }
     },
     [
+      audioOwnerIdOverride,
       awardPlaybackReward,
       getAutoPlaybackVolumeForObject,
       resolveRecordingBlobForObject,
@@ -1831,6 +1841,7 @@ export function EmptyStageCharacter({
       resumeAutoPlaybackAudioContextIfNeeded,
       setAutoPlaybackVolume,
       stopAutoPlaybackObject,
+      triggerRewardVideoPlayback,
     ],
   );
 
@@ -2119,19 +2130,24 @@ export function EmptyStageCharacter({
 
       const pickupHitRadius =
         isReadonlyVisitorGarden && isCoarsePointer
-          ? OBJECT_PICKUP_HIT_RADIUS * 1.35
+          ? OBJECT_PICKUP_HIT_RADIUS * 1.6
           : OBJECT_PICKUP_HIT_RADIUS;
       let nearestCandidate: PlacedStageObject | null = null;
       let nearestDistance = Number.POSITIVE_INFINITY;
 
       for (let index = placedObjects.length - 1; index >= 0; index -= 1) {
         const candidate = placedObjects[index];
+        const objectVisual = OBJECT_VISUALS[candidate.objectType];
+        const candidateHitRadius = Math.max(
+          pickupHitRadius,
+          objectVisual.stageImageSize * 1.1,
+        );
         const distance = Math.hypot(
           targetPosition.x - candidate.x,
           targetPosition.y - candidate.y,
         );
 
-        if (distance > pickupHitRadius) {
+        if (distance > candidateHitRadius) {
           continue;
         }
 
@@ -3213,6 +3229,20 @@ export function EmptyStageCharacter({
         return;
       }
 
+      const loadedRecordingIds = new Set(
+        nextEntries.map((entry) => entry.recordingId),
+      );
+      const now = Date.now();
+
+      for (const target of targets) {
+        if (
+          typeof target.recordingId === "string" &&
+          loadedRecordingIds.has(target.recordingId)
+        ) {
+          autoPlaybackNextAtByObjectIdRef.current[target.id] = now;
+        }
+      }
+
       setRecordingBlobByRecordingId((current) => {
         const nextState = { ...current };
         for (const entry of nextEntries) {
@@ -3402,6 +3432,14 @@ export function EmptyStageCharacter({
       }
 
       ensureAutoPlaybackSchedulerRunning();
+      const now = Date.now();
+      for (const placedObject of placedObjectsRef.current) {
+        autoPlaybackNextAtByObjectIdRef.current[placedObject.id] = Math.min(
+          autoPlaybackNextAtByObjectIdRef.current[placedObject.id] ?? now,
+          now,
+        );
+      }
+      runAutoPlaybackSchedulerTick();
       void resumeAutoPlaybackAudioContextIfNeeded();
     };
 
@@ -3418,6 +3456,7 @@ export function EmptyStageCharacter({
     ensureAutoPlaybackSchedulerRunning,
     harmonyRecordingModal,
     pathname,
+    runAutoPlaybackSchedulerTick,
     resumeAutoPlaybackAudioContextIfNeeded,
   ]);
 
