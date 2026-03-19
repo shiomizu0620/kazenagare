@@ -58,6 +58,12 @@ to authenticated
 with check (
   auth.uid() is not null
   and created_by = auth.uid()
+  and exists (
+    select 1
+    from public.garden_posts
+    where garden_posts.user_id = garden_harmony_recordings.garden_owner_id
+      and coalesce(garden_posts.allow_harmony_overlays, true) = true
+  )
 );
 
 drop policy if exists "garden_harmony_recordings_update_authenticated" on public.garden_harmony_recordings;
@@ -65,10 +71,25 @@ create policy "garden_harmony_recordings_update_authenticated"
 on public.garden_harmony_recordings
 for update
 to authenticated
-using (auth.uid() is not null)
+using (
+  auth.uid() is not null
+  and created_by = auth.uid()
+  and exists (
+    select 1
+    from public.garden_posts
+    where garden_posts.user_id = garden_harmony_recordings.garden_owner_id
+      and coalesce(garden_posts.allow_harmony_overlays, true) = true
+  )
+)
 with check (
   auth.uid() is not null
   and created_by = auth.uid()
+  and exists (
+    select 1
+    from public.garden_posts
+    where garden_posts.user_id = garden_harmony_recordings.garden_owner_id
+      and coalesce(garden_posts.allow_harmony_overlays, true) = true
+  )
 );
 
 commit;

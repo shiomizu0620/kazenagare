@@ -1149,34 +1149,65 @@ export function GardenOptionsMenu({
                       <p className="text-sm font-semibold">サムネイルを押して詳細を切り替え</p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setIsCatalogListExpanded((value) => !value)}
-                      className={`relative z-30 inline-flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs md:text-sm font-semibold transition-all duration-150 md:hidden ${
-                        darkMode
-                          ? "border-wa-white/25 bg-wa-black/30 text-wa-white"
-                          : "border-wa-black/20 bg-white/80 text-wa-black"
-                      }`}
-                      aria-expanded={isCatalogListExpanded}
-                      aria-controls={`${catalogPanelId}-mobile-list`}
-                    >
-                      <span>オブジェクト一覧</span>
-                      <span className="inline-flex items-center gap-1 text-[10px] md:text-xs">
-                        {isCatalogListExpanded ? "閉じる" : "展開"}
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 24 24"
-                          className={`h-4 w-4 transition-transform duration-150 ${isCatalogListExpanded ? "rotate-180" : "rotate-0"}`}
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="m6 14 6-6 6 6" />
-                        </svg>
-                      </span>
-                    </button>
+                    {isCatalogListExpanded ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsCatalogListExpanded(false)}
+                        className={`relative z-30 inline-flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs md:text-sm font-semibold transition-all duration-150 md:hidden ${
+                          darkMode
+                            ? "border-wa-white/25 bg-wa-black/30 text-wa-white"
+                            : "border-wa-black/20 bg-white/80 text-wa-black"
+                        }`}
+                        aria-expanded="true"
+                        aria-controls={`${catalogPanelId}-mobile-list`}
+                      >
+                        <span>オブジェクト一覧</span>
+                        <span className="inline-flex items-center gap-1 text-[10px] md:text-xs">
+                          閉じる
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            className="h-4 w-4 rotate-180 transition-transform duration-150"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m6 14 6-6 6 6" />
+                          </svg>
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsCatalogListExpanded(true)}
+                        className={`relative z-30 inline-flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs md:text-sm font-semibold transition-all duration-150 md:hidden ${
+                          darkMode
+                            ? "border-wa-white/25 bg-wa-black/30 text-wa-white"
+                            : "border-wa-black/20 bg-white/80 text-wa-black"
+                        }`}
+                        aria-expanded="false"
+                        aria-controls={`${catalogPanelId}-mobile-list`}
+                      >
+                        <span>オブジェクト一覧</span>
+                        <span className="inline-flex items-center gap-1 text-[10px] md:text-xs">
+                          展開
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            className="h-4 w-4 rotate-0 transition-transform duration-150"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m6 14 6-6 6 6" />
+                          </svg>
+                        </span>
+                      </button>
+                    )}
 
                     <div
                       id={`${catalogPanelId}-mobile-list`}

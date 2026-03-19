@@ -127,6 +127,7 @@ function GardenPublishContent() {
     sceneKey: string;
     src: string | null;
   }>({ sceneKey: "", src: null });
+  const [allowHarmonyOverlays, setAllowHarmonyOverlays] = useState(true);
 
   const defaultState = getDefaultGardenLocalState();
   const [draft, setDraft] = useState<GardenLocalState>(defaultState);
@@ -168,6 +169,40 @@ function GardenPublishContent() {
 
     let isCancelled = false;
 
+    const syncDraftAndPublishPreference = async (currentUser: { id: string } | null) => {
+      if (!currentUser) {
+        if (!isCancelled) {
+          setDraft(defaultState);
+          setAllowHarmonyOverlays(true);
+        }
+        return;
+      }
+
+      const localState = parseGardenLocalState(
+        window.localStorage.getItem(createGardenLocalStateStorageKey(currentUser.id)),
+      );
+
+      if (!isCancelled && localState) {
+        setDraft(localState);
+      }
+
+      const { data: currentPost } = await supabase
+        .from("garden_posts")
+        .select("allow_harmony_overlays")
+        .eq("user_id", currentUser.id)
+        .maybeSingle();
+
+      if (isCancelled) {
+        return;
+      }
+
+      setAllowHarmonyOverlays(
+        typeof currentPost?.allow_harmony_overlays === "boolean"
+          ? currentPost.allow_harmony_overlays
+          : true,
+      );
+    };
+
     const syncAuthState = async () => {
       const currentSession = await getSupabaseSessionOrNull(supabase);
       if (isCancelled) {
@@ -179,17 +214,7 @@ function GardenPublishContent() {
       setIsGuestUser(isAnonymousSupabaseUser(currentUser));
       setIsAuthLoading(false);
 
-      if (!currentUser) {
-        return;
-      }
-
-      const localState = parseGardenLocalState(
-        window.localStorage.getItem(createGardenLocalStateStorageKey(currentUser.id)),
-      );
-
-      if (localState) {
-        setDraft(localState);
-      }
+      await syncDraftAndPublishPreference(currentUser);
     };
 
     void syncAuthState();
@@ -202,17 +227,7 @@ function GardenPublishContent() {
       setIsGuestUser(isAnonymousSupabaseUser(currentUser));
       setIsAuthLoading(false);
 
-      if (!currentUser) {
-        setDraft(defaultState);
-        return;
-      }
-
-      const localState = parseGardenLocalState(
-        window.localStorage.getItem(createGardenLocalStateStorageKey(currentUser.id)),
-      );
-      if (localState) {
-        setDraft(localState);
-      }
+      void syncDraftAndPublishPreference(currentUser);
     });
 
     return () => {
@@ -411,6 +426,7 @@ function GardenPublishContent() {
         background_id: resolvedDraft.backgroundId,
         season_id: resolvedDraft.seasonId,
         time_slot_id: resolvedDraft.timeSlotId,
+        allow_harmony_overlays: allowHarmonyOverlays,
         placed_objects: placedObjectsWithRecordingUrls,
         owner_display_name: ownerDisplayName,
         published_at: new Date().toISOString(),
@@ -423,7 +439,7 @@ function GardenPublishContent() {
     if (error) {
       setStatus("error");
       setErrorMessage(
-        `投稿に失敗しました: ${error.message}。\nSupabaseに garden_posts テーブル、placed_objects 列、RLSポリシーを作成してください。`,
+        `投稿に失敗しました: ${error.message}。\nSupabaseに garden_posts テーブル、placed_objects / allow_harmony_overlays 列、RLSポリシーを作成してください。`,
       );
       return;
     }
@@ -690,6 +706,29 @@ function GardenPublishContent() {
               ) : (
                 <section className="grid justify-items-center gap-3 text-sm">
                   <p className="text-xs text-wa-black/60">※公開した庭は回廊に展示され、3日間経過すると自然に消えゆきます。</p>
+
+                  <div className="w-full rounded-xl border border-wa-black/10 bg-wa-white/85 p-3 text-left">
+                    <p className="text-xs font-semibold tracking-[0.04em] text-wa-black/80">
+                      ハーモニー受付
+                    </p>
+                    <label className="mt-2 flex items-center gap-2 text-sm text-wa-black/85">
+                      <input
+                        type="checkbox"
+                        checked={allowHarmonyOverlays}
+                        disabled={status === "publishing"}
+                        onChange={(event) => {
+                          setAllowHarmonyOverlays(event.target.checked);
+                        }}
+                        className="h-4 w-4 rounded border-wa-black/30 text-wa-black focus:ring-wa-black"
+                      />
+                      ほかの人がこの庭にハーモニーを重ねられるようにする
+                    </label>
+                    <p className="mt-2 text-xs text-wa-black/65">
+                      {allowHarmonyOverlays
+                        ? "ON: 訪問者はオブジェクトをタップして、3秒のハーモニーを追加できます。"
+                        : "OFF: 訪問者はハーモニーを追加できません。"}
+                    </p>
+                  </div>
 
                   <button
                     type="button"

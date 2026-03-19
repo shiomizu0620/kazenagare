@@ -62,6 +62,7 @@ type EmptyStageCharacterStageProps = {
   objectLocatorIndicator: ObjectLocatorIndicator | null;
   locatorArrowFillColor: string;
   locatorArrowChipFillColor: string;
+  useRewardPlaybackFallbackVisual: boolean;
 };
 
 export function EmptyStageCharacterStage({
@@ -102,10 +103,17 @@ export function EmptyStageCharacterStage({
   objectLocatorIndicator,
   locatorArrowFillColor,
   locatorArrowChipFillColor,
+  useRewardPlaybackFallbackVisual,
 }: EmptyStageCharacterStageProps) {
   const previewHalfImageSize = activePlacementObject
     ? activePlacementObject.stageImageSize * 0.5
     : 0;
+  const placementBlockedNoticeText = placementBlockedNotice?.message ?? "";
+  const placementBlockedNoticeWidth = Math.max(
+    128,
+    Math.min(360, placementBlockedNoticeText.length * 11 + 32),
+  );
+  const placementBlockedNoticeRectX = -placementBlockedNoticeWidth * 0.5;
   const effectiveHorizontalFacing =
     characterFacingDirection === "left" ||
     characterFacingDirection === "down-left" ||
@@ -157,28 +165,61 @@ export function EmptyStageCharacterStage({
                   transform={`translate(${placedObject.x} ${placedObject.y})`}
                 >
                   {rewardVideoPlaybackKey ? (
-                    <foreignObject
-                      x={-halfVideoSize}
-                      y={-halfVideoSize}
-                      width={objectVisual.stageVideoSize}
-                      height={objectVisual.stageVideoSize}
-                      className="overflow-visible mix-blend-normal opacity-100"
-                    >
-                      <div
-                        {...({ xmlns: "http://www.w3.org/1999/xhtml" } as Record<string, string>)}
-                        className="flex h-full w-full items-center justify-center bg-transparent"
+                    <>
+                      {useRewardPlaybackFallbackVisual ? (
+                        <g className="animate-pulse">
+                          <circle
+                            cx="0"
+                            cy="0"
+                            r={Math.max(26, halfVideoSize * 0.95)}
+                            fill="rgba(254, 226, 226, 0.4)"
+                            stroke="rgba(248, 113, 113, 0.9)"
+                            strokeWidth="2"
+                          />
+                          <image
+                            href={objectVisual.imageSrc}
+                            x={-halfImageSize}
+                            y={-halfImageSize}
+                            width={objectVisual.stageImageSize}
+                            height={objectVisual.stageImageSize}
+                            preserveAspectRatio="xMidYMid slice"
+                          />
+                        </g>
+                      ) : null}
+
+                      <foreignObject
+                        x={-halfVideoSize}
+                        y={-halfVideoSize}
+                        width={objectVisual.stageVideoSize}
+                        height={objectVisual.stageVideoSize}
+                        className="overflow-visible mix-blend-normal opacity-100"
                       >
-                        <video
-                          key={`${placedObject.id}-${rewardVideoPlaybackKey}`}
-                          src={objectVisual.stageVideoSrc}
-                          autoPlay
-                          muted
-                          playsInline
-                          preload="auto"
-                          className="block h-full w-full object-cover opacity-100 visible"
-                        />
-                      </div>
-                    </foreignObject>
+                        <div
+                          {...({ xmlns: "http://www.w3.org/1999/xhtml" } as Record<string, string>)}
+                          className="flex h-full w-full items-center justify-center bg-transparent"
+                        >
+                          <video
+                            {...({ "webkit-playsinline": "true" } as Record<string, string>)}
+                            key={`${placedObject.id}-${rewardVideoPlaybackKey}`}
+                            src={objectVisual.stageVideoSrc}
+                            autoPlay
+                            muted
+                            playsInline
+                            loop
+                            preload="auto"
+                            poster={objectVisual.imageSrc}
+                            onLoadedData={(event) => {
+                              const videoElement = event.currentTarget;
+                              videoElement.muted = true;
+                              void videoElement.play().catch(() => {
+                                // Keep fallback visual when autoplay cannot start.
+                              });
+                            }}
+                            className="block h-full w-full object-cover opacity-100 visible"
+                          />
+                        </div>
+                      </foreignObject>
+                    </>
                   ) : (
                     <image
                       href={objectVisual.imageSrc}
@@ -260,9 +301,9 @@ export function EmptyStageCharacterStage({
               >
                 <g className="animate-[kazenagare-wallet-coin-pop_1.05s_ease-out_forwards]">
                   <rect
-                    x="-64"
+                    x={placementBlockedNoticeRectX}
                     y="-58"
-                    width="128"
+                    width={placementBlockedNoticeWidth}
                     height="20"
                     rx="10"
                     fill="rgba(127, 29, 29, 0.92)"

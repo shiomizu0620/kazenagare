@@ -19,6 +19,7 @@ export type EmptyStageCharacterProps = {
   objectStorageKey?: string;
   initialPlacedObjects?: PlacedStageObject[];
   audioOwnerIdOverride?: string | null;
+  allowHarmonyFromVisitors?: boolean;
   collisionZones?: CollisionZone[];
   hitmapUrl?: string; // ヒットマップ画像URL
   initialCharacterWorldPosition?: Vector2;

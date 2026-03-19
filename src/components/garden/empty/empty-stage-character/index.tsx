@@ -58,6 +58,7 @@ import {
   MAX_PLACED_OBJECTS,
   MAX_CONCURRENT_COIN_POPUPS,
   MAX_CONCURRENT_AUTOPLAY_AUDIO,
+  OBJECT_PICKUP_HIT_RADIUS,
   OBJECT_PLACEMENT_HIT_RADIUS,
   MOVE_MAX_SPEED,
   MOVEMENT_KEYS,
@@ -188,6 +189,77 @@ function getAudioContextConstructor() {
   );
 }
 
+function isLoopbackHostname(hostname: string) {
+  const normalizedHostname = hostname.toLowerCase();
+  return (
+    normalizedHostname === "localhost" ||
+    normalizedHostname === "127.0.0.1" ||
+    normalizedHostname === "::1" ||
+    normalizedHostname === "[::1]"
+  );
+}
+
+function rewriteLoopbackUrlToCurrentHost(rawUrl: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(rawUrl);
+
+    if (!isLoopbackHostname(parsedUrl.hostname)) {
+      return null;
+    }
+
+    const currentHostname = window.location.hostname;
+
+    if (!currentHostname || isLoopbackHostname(currentHostname)) {
+      return null;
+    }
+
+    parsedUrl.hostname = currentHostname;
+    return parsedUrl.toString();
+  } catch {
+    return null;
+  }
+}
+
+function buildRemoteRecordingUrlCandidates({
+  recordingUrl,
+  publicBucketBaseUrl,
+  ownerId,
+  recordingId,
+}: {
+  recordingUrl?: string;
+  publicBucketBaseUrl: string | null;
+  ownerId: string;
+  recordingId: string | null;
+}) {
+  const candidates: string[] = [];
+
+  const pushCandidate = (candidate: string | null | undefined) => {
+    if (!candidate || candidate.length === 0 || candidates.includes(candidate)) {
+      return;
+    }
+
+    candidates.push(candidate);
+  };
+
+  pushCandidate(recordingUrl);
+  pushCandidate(recordingUrl ? rewriteLoopbackUrlToCurrentHost(recordingUrl) : null);
+
+  if (publicBucketBaseUrl && recordingId) {
+    const ownerPathSegment = encodeURIComponent(ownerId);
+    const recordingPathSegment = encodeURIComponent(recordingId);
+    const fallbackUrl = `${publicBucketBaseUrl}/${ownerPathSegment}/${recordingPathSegment}.webm`;
+
+    pushCandidate(fallbackUrl);
+    pushCandidate(rewriteLoopbackUrlToCurrentHost(fallbackUrl));
+  }
+
+  return candidates;
+}
+
 function getDistanceAttenuationGain(distancePx: number) {
   if (distancePx <= AUTO_PLAYBACK_DISTANCE_NEAR_PX) {
     return 1;
@@ -273,6 +345,7 @@ export function EmptyStageCharacter({
   objectStorageKey,
   initialPlacedObjects = [],
   audioOwnerIdOverride = null,
+  allowHarmonyFromVisitors = true,
   initialCharacterWorldPosition,
   movementBounds = DEFAULT_WORLD_BOUNDS,
   collisionZones = [],
@@ -290,9 +363,10 @@ export function EmptyStageCharacter({
     window.matchMedia("(pointer: coarse)").matches,
   );
   const isReadonlyVisitorGarden = !allowObjectPlacement && Boolean(audioOwnerIdOverride);
-  const shouldUseMobileLightweightMode = isReadonlyVisitorGarden && isCoarsePointer;
+  const canAcceptHarmonyFromVisitors =
+    isReadonlyVisitorGarden && allowHarmonyFromVisitors;
   const hitmapData = useHitmap(
-    shouldUseMobileLightweightMode ? undefined : hitmapUrl,
+    hitmapUrl,
     WORLD_WIDTH,
     WORLD_HEIGHT,
   );
@@ -807,10 +881,10 @@ export function EmptyStageCharacter({
     setGrabbedObjectType(null);
   }, []);
 
-  const showPlacementBlockedMessage = useCallback((position: Vector2) => {
+  const showPlacementBlockedMessage = useCallback((position: Vector2, message = "ここには配置できません") => {
     setPlacementBlockedNotice({
       id: `placement-blocked-${Date.now()}`,
-      message: "ここには配置できません",
+      message,
       position,
     });
 
@@ -1160,7 +1234,12 @@ export function EmptyStageCharacter({
   const startHarmonyObjectRecording = useCallback(async () => {
     const target = harmonyRecordingModal;
 
-    if (!target || isHarmonyRecording || !isReadonlyVisitorGarden) {
+    if (
+      !target ||
+      isHarmonyRecording ||
+      !isReadonlyVisitorGarden ||
+      !allowHarmonyFromVisitors
+    ) {
       return;
     }
 
@@ -1221,6 +1300,23 @@ export function EmptyStageCharacter({
           createdAt: new Date().toISOString(),
         };
 
+        const supabaseSyncResult = await saveHarmonyRecordingToSupabase({
+          blob: nextBlob,
+          recordingId: nextRecordingId,
+          objectId: target.objectId,
+          objectType: target.objectType,
+          gardenOwnerId: recordingGardenOwnerId,
+          uploaderId: recordingOwnerId,
+        });
+
+        if (supabaseSyncResult === "disabled") {
+          setHasCompletedHarmonyRecording(false);
+          setHarmonyRecordingNotice(
+            `${target.objectLabel}へのハーモニー受付は停止中です。庭主の公開設定をご確認ください。`,
+          );
+          return;
+        }
+
         // 訪問者本人向けと庭主向けの双方にハーモニーを保存する。
         const storageTargets = [
           {
@@ -1265,15 +1361,6 @@ export function EmptyStageCharacter({
           window.localStorage.setItem(catalogStorageKey, JSON.stringify(nextCatalog));
         }
 
-        const syncedToSupabase = await saveHarmonyRecordingToSupabase({
-          blob: nextBlob,
-          recordingId: nextRecordingId,
-          objectId: target.objectId,
-          objectType: target.objectType,
-          gardenOwnerId: recordingGardenOwnerId,
-          uploaderId: recordingOwnerId,
-        });
-
         setHarmonyRecordingIdByObjectId((current) => ({
           ...current,
           [target.objectId]: nextRecordingId,
@@ -1283,7 +1370,7 @@ export function EmptyStageCharacter({
           [target.objectId]: nextBlob,
         }));
         setHasCompletedHarmonyRecording(true);
-        if (!syncedToSupabase && isUuidLike(recordingGardenOwnerId)) {
+        if (supabaseSyncResult === "error" && isUuidLike(recordingGardenOwnerId)) {
           setHarmonyRecordingNotice(
             `${target.objectLabel}に音を重ねました。同期に失敗したため、この端末内でのみ反映されます。`,
           );
@@ -1319,6 +1406,7 @@ export function EmptyStageCharacter({
       setHarmonyRecordingNotice("マイクの利用を許可してください。");
     }
   }, [
+    allowHarmonyFromVisitors,
     clearHarmonyRecordingTimers,
     effectiveAudioOwnerId,
     harmonyRecordingModal,
@@ -1340,6 +1428,10 @@ export function EmptyStageCharacter({
   }, []);
 
   const cleanupUnusedRecordingBlobs = useCallback(() => {
+    if (isReadonlyVisitorGarden) {
+      return;
+    }
+
     // 配置されていないオブジェクトタイプの録音Blobをクリア
     const usedObjectTypes = new Set(
       placedObjectsRef.current.map((obj) => obj.objectType),
@@ -1370,7 +1462,7 @@ export function EmptyStageCharacter({
 
       return hasChanges ? nextRecordingBlobs : current;
     });
-  }, []);
+  }, [isReadonlyVisitorGarden]);
 
   const revokeAutoPlaybackAudioUrl = useCallback((objectId: string) => {
     const currentAudioUrl = autoPlaybackAudioUrlByObjectIdRef.current[objectId];
@@ -1524,6 +1616,9 @@ export function EmptyStageCharacter({
 
   const triggerRewardVideoPlayback = useCallback((placedObject: PlacedStageObject) => {
     const playbackKey = Date.now();
+    const playbackDurationMs = isCoarsePointer
+      ? Math.max(OBJECT_REWARD_VIDEO_DURATION_MS, 4200)
+      : OBJECT_REWARD_VIDEO_DURATION_MS;
 
     setRewardVideoPlaybackByObjectId((current) => ({
       ...current,
@@ -1547,8 +1642,8 @@ export function EmptyStageCharacter({
       });
 
       delete rewardVideoTimerByObjectIdRef.current[placedObject.id];
-    }, OBJECT_REWARD_VIDEO_DURATION_MS);
-  }, []);
+    }, playbackDurationMs);
+  }, [isCoarsePointer]);
 
   const awardPlaybackReward = useCallback(
     (placedObject: PlacedStageObject) => {
@@ -1715,6 +1810,7 @@ export function EmptyStageCharacter({
 
       let hasFinalizedPlayback = false;
       let hasRewardedPlayback = false;
+      let hasVisitorFallbackVisual = false;
       let remainingPlaybackLayers = 0;
 
       const rewardPlayback = () => {
@@ -1787,6 +1883,10 @@ export function EmptyStageCharacter({
             rewardPlayback();
           })
           .catch(() => {
+            if (!hasVisitorFallbackVisual) {
+              hasVisitorFallbackVisual = true;
+              triggerRewardVideoPlayback(selectedObject);
+            }
             finishLayerPlayback();
           });
       };
@@ -1813,6 +1913,7 @@ export function EmptyStageCharacter({
       resumeAutoPlaybackAudioContextIfNeeded,
       setAutoPlaybackVolume,
       stopAutoPlaybackObject,
+      triggerRewardVideoPlayback,
     ],
   );
 
@@ -1837,49 +1938,54 @@ export function EmptyStageCharacter({
       const publicBucketBaseUrl = supabaseUrl
         ? `${supabaseUrl}/storage/v1/object/public/garden-voices`
         : null;
-      const ownerPathSegment = encodeURIComponent(effectiveAudioOwnerId);
-      const recordingPathSegment = encodeURIComponent(recordingId);
-      const remoteRecordingUrl =
-        typeof placedObject.recordingUrl === "string" && placedObject.recordingUrl.length > 0
-          ? placedObject.recordingUrl
-          : publicBucketBaseUrl
-            ? `${publicBucketBaseUrl}/${ownerPathSegment}/${recordingPathSegment}.webm`
-            : null;
+      const remoteRecordingUrls = buildRemoteRecordingUrlCandidates({
+        recordingUrl:
+          typeof placedObject.recordingUrl === "string" && placedObject.recordingUrl.length > 0
+            ? placedObject.recordingUrl
+            : undefined,
+        publicBucketBaseUrl,
+        ownerId: effectiveAudioOwnerId,
+        recordingId,
+      });
 
-      if (!remoteRecordingUrl) {
+      if (remoteRecordingUrls.length === 0) {
         return null;
       }
 
-      try {
-        const response = await fetch(remoteRecordingUrl, {
-          cache: "no-store",
-        });
+      for (const remoteRecordingUrl of remoteRecordingUrls) {
+        try {
+          const response = await fetch(remoteRecordingUrl, {
+            cache: "no-store",
+          });
 
-        if (!response.ok) {
-          return null;
-        }
+          if (!response.ok) {
+            continue;
+          }
 
-        const blob = await response.blob();
+          const blob = await response.blob();
 
-        if (blob.size <= 0) {
-          return null;
-        }
+          if (blob.size <= 0) {
+            continue;
+          }
 
-        recordingBlobByRecordingIdRef.current = {
-          ...recordingBlobByRecordingIdRef.current,
-          [recordingId]: blob,
-        };
-        void Promise.resolve().then(() => {
-          setRecordingBlobByRecordingId((current) => ({
-            ...current,
+          recordingBlobByRecordingIdRef.current = {
+            ...recordingBlobByRecordingIdRef.current,
             [recordingId]: blob,
-          }));
-        });
+          };
+          void Promise.resolve().then(() => {
+            setRecordingBlobByRecordingId((current) => ({
+              ...current,
+              [recordingId]: blob,
+            }));
+          });
 
-        return blob;
-      } catch {
-        return null;
+          return blob;
+        } catch {
+          // Try next URL candidate.
+        }
       }
+
+      return null;
     },
     [effectiveAudioOwnerId],
   );
@@ -2099,17 +2205,89 @@ export function EmptyStageCharacter({
         return null;
       }
 
+      const pickupHitRadius =
+        isReadonlyVisitorGarden && isCoarsePointer
+          ? OBJECT_PICKUP_HIT_RADIUS * 1.6
+          : OBJECT_PICKUP_HIT_RADIUS;
+      let nearestCandidate: PlacedStageObject | null = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
       for (let index = placedObjects.length - 1; index >= 0; index -= 1) {
         const candidate = placedObjects[index];
+        const objectVisual = OBJECT_VISUALS[candidate.objectType];
+        const candidateHitRadius = Math.max(
+          pickupHitRadius,
+          objectVisual.stageImageSize * 1.1,
+        );
+        const distance = Math.hypot(
+          targetPosition.x - candidate.x,
+          targetPosition.y - candidate.y,
+        );
 
-        if (isNearPlacedObject(targetPosition, candidate)) {
-          return candidate;
+        if (distance > candidateHitRadius) {
+          continue;
+        }
+
+        if (distance < nearestDistance) {
+          nearestCandidate = candidate;
+          nearestDistance = distance;
         }
       }
 
-      return null;
+      return nearestCandidate;
     },
-    [placedObjects],
+    [isCoarsePointer, isReadonlyVisitorGarden, placedObjects],
+  );
+
+  const findPlacedObjectAtClientPosition = useCallback(
+    (clientX: number, clientY: number): PlacedStageObject | null => {
+      if (!stageRef.current) {
+        return null;
+      }
+
+      const rect = stageRef.current.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return null;
+      }
+
+      const localX = clamp(clientX - rect.left, 0, rect.width);
+      const localY = clamp(clientY - rect.top, 0, rect.height);
+      const stageWidth = stageSizeRef.current.x > 0 ? stageSizeRef.current.x : rect.width;
+      const stageHeight = stageSizeRef.current.y > 0 ? stageSizeRef.current.y : rect.height;
+      const viewCenterWorldX = WORLD_WIDTH * 0.5 + cameraOffsetRef.current.x;
+      const viewCenterWorldY = WORLD_HEIGHT * 0.5 + cameraOffsetRef.current.y;
+
+      let nearestCandidate: PlacedStageObject | null = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
+      for (let index = placedObjects.length - 1; index >= 0; index -= 1) {
+        const candidate = placedObjects[index];
+        const objectVisual = OBJECT_VISUALS[candidate.objectType];
+        const screenX = stageWidth * 0.5 + (candidate.x - viewCenterWorldX);
+        const screenY = stageHeight * 0.5 + (candidate.y - viewCenterWorldY);
+        const baseHitRadius = Math.max(
+          objectVisual.stageImageSize * 0.85,
+          OBJECT_PICKUP_HIT_RADIUS * 0.65,
+        );
+        const hitRadius =
+          isReadonlyVisitorGarden && isCoarsePointer
+            ? baseHitRadius * 1.45
+            : baseHitRadius;
+        const distance = Math.hypot(localX - screenX, localY - screenY);
+
+        if (distance > hitRadius) {
+          continue;
+        }
+
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestCandidate = candidate;
+        }
+      }
+
+      return nearestCandidate;
+    },
+    [isCoarsePointer, isReadonlyVisitorGarden, placedObjects],
   );
 
   const getWorldPositionFromClient = useCallback((clientX: number, clientY: number) => {
@@ -2333,9 +2511,19 @@ export function EmptyStageCharacter({
           return;
         }
 
-        const tappedObject = findPlacedObjectAtPosition(targetPosition);
+        const tappedObject =
+          findPlacedObjectAtClientPosition(event.clientX, event.clientY) ??
+          findPlacedObjectAtPosition(targetPosition);
 
         if (tappedObject) {
+          if (!allowHarmonyFromVisitors) {
+            showPlacementBlockedMessage(
+              targetPosition,
+              "この庭ではハーモニー受付を停止しています",
+            );
+            return;
+          }
+
           openHarmonyRecordingModal(tappedObject);
         }
 
@@ -2461,8 +2649,10 @@ export function EmptyStageCharacter({
     },
     [
       activePlacementObjectType,
+      allowHarmonyFromVisitors,
       allowObjectPlacement,
       canPlaceObject,
+      findPlacedObjectAtClientPosition,
       findPlacedObjectAtPosition,
       getWorldPositionFromClient,
       grabbedObjectId,
@@ -2578,6 +2768,10 @@ export function EmptyStageCharacter({
   useEffect(() => {
     initializeStage();
 
+    const handleViewportLayoutChange = () => {
+      initializeStage();
+    };
+
     const observer = new ResizeObserver(() => {
       initializeStage();
     });
@@ -2586,8 +2780,19 @@ export function EmptyStageCharacter({
       observer.observe(stageRef.current);
     }
 
+    window.addEventListener("resize", handleViewportLayoutChange);
+    window.addEventListener("orientationchange", handleViewportLayoutChange);
+
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener("resize", handleViewportLayoutChange);
+    visualViewport?.addEventListener("scroll", handleViewportLayoutChange);
+
     return () => {
       observer.disconnect();
+      window.removeEventListener("resize", handleViewportLayoutChange);
+      window.removeEventListener("orientationchange", handleViewportLayoutChange);
+      visualViewport?.removeEventListener("resize", handleViewportLayoutChange);
+      visualViewport?.removeEventListener("scroll", handleViewportLayoutChange);
     };
   }, [initializeStage]);
 
@@ -2810,12 +3015,67 @@ export function EmptyStageCharacter({
       const ownerId = customEvent.detail?.ownerId;
       const objectType = customEvent.detail?.objectType;
       const recordingId = customEvent.detail?.recordingId;
+      const resolvedEventOwnerId =
+        typeof ownerId === "string" && ownerId.length > 0 ? ownerId : null;
+      const shouldAdoptEventOwnerId =
+        !audioOwnerIdOverride &&
+        effectiveAudioOwnerId === "local_guest" &&
+        Boolean(resolvedEventOwnerId) &&
+        resolvedEventOwnerId !== effectiveAudioOwnerId;
 
-      if (ownerId && ownerId !== effectiveAudioOwnerId) {
-        return;
+      if (resolvedEventOwnerId && resolvedEventOwnerId !== effectiveAudioOwnerId) {
+        if (!shouldAdoptEventOwnerId) {
+          return;
+        }
+
+        setAudioOwnerId(resolvedEventOwnerId);
+        setViewerId(resolvedEventOwnerId);
       }
 
+      const recordingOwnerId = resolvedEventOwnerId ?? effectiveAudioOwnerId;
+
       if (objectType && recordingId) {
+        latestRecordingIdByObjectTypeRef.current = {
+          ...latestRecordingIdByObjectTypeRef.current,
+          [objectType]: recordingId,
+        };
+
+        setLatestRecordingIdByObjectType((current) => {
+          if (current[objectType] === recordingId) {
+            return current;
+          }
+
+          return {
+            ...current,
+            [objectType]: recordingId,
+          };
+        });
+
+        void get(
+          getVoiceZooRecordingBlobStorageKey(recordingOwnerId, recordingId),
+        ).then((blob) => {
+          if (!(blob instanceof Blob) || blob.size <= 0) {
+            return;
+          }
+
+          recordingBlobByRecordingIdRef.current = {
+            ...recordingBlobByRecordingIdRef.current,
+            [recordingId]: blob,
+          };
+
+          setRecordingBlobByRecordingId((current) => {
+            const existingBlob = current[recordingId];
+            if (existingBlob instanceof Blob && existingBlob.size === blob.size) {
+              return current;
+            }
+
+            return {
+              ...current,
+              [recordingId]: blob,
+            };
+          });
+        });
+
         setPlacedObjects((current) => {
           let didChange = false;
 
@@ -2837,6 +3097,13 @@ export function EmptyStageCharacter({
 
           return didChange ? nextObjects : current;
         });
+
+        const now = Date.now();
+        for (const placedObject of placedObjectsRef.current) {
+          if (placedObject.objectType === objectType) {
+            autoPlaybackNextAtByObjectIdRef.current[placedObject.id] = now;
+          }
+        }
       }
 
       setRecordingReloadNonce((current) => current + 1);
@@ -2847,13 +3114,9 @@ export function EmptyStageCharacter({
     return () => {
       window.removeEventListener(VOICE_ZOO_RECORDING_UPDATED_EVENT, handleRecordingUpdate);
     };
-  }, [effectiveAudioOwnerId]);
+  }, [audioOwnerIdOverride, effectiveAudioOwnerId]);
 
   useEffect(() => {
-    if (shouldUseMobileLightweightMode) {
-      return;
-    }
-
     let cancelled = false;
 
     const loadRecordingCatalogAndBlobs = async () => {
@@ -2947,7 +3210,7 @@ export function EmptyStageCharacter({
     return () => {
       cancelled = true;
     };
-  }, [effectiveAudioOwnerId, recordingReloadNonce, shouldUseMobileLightweightMode]);
+  }, [effectiveAudioOwnerId, recordingReloadNonce]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3085,35 +3348,32 @@ export function EmptyStageCharacter({
   }, [effectiveAudioOwnerId, isReadonlyVisitorGarden, viewerId]);
 
   useEffect(() => {
-    if (shouldUseMobileLightweightMode) {
-      return;
-    }
-
     let cancelled = false;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const publicBucketBaseUrl = supabaseUrl
       ? `${supabaseUrl}/storage/v1/object/public/garden-voices`
       : null;
 
-    const resolveRemoteRecordingUrl = (placedObject: PlacedStageObject) => {
-      if (typeof placedObject.recordingUrl === "string" && placedObject.recordingUrl.length > 0) {
-        return placedObject.recordingUrl;
-      }
-
-      if (!publicBucketBaseUrl || typeof placedObject.recordingId !== "string") {
-        return null;
-      }
-
-      const ownerPathSegment = encodeURIComponent(effectiveAudioOwnerId);
-      const recordingPathSegment = encodeURIComponent(placedObject.recordingId);
-      return `${publicBucketBaseUrl}/${ownerPathSegment}/${recordingPathSegment}.webm`;
+    const resolveRemoteRecordingUrls = (placedObject: PlacedStageObject) => {
+      return buildRemoteRecordingUrlCandidates({
+        recordingUrl:
+          typeof placedObject.recordingUrl === "string" && placedObject.recordingUrl.length > 0
+            ? placedObject.recordingUrl
+            : undefined,
+        publicBucketBaseUrl,
+        ownerId: effectiveAudioOwnerId,
+        recordingId:
+          typeof placedObject.recordingId === "string"
+            ? placedObject.recordingId
+            : null,
+      });
     };
 
     const preloadRemoteRecordingBlobs = async () => {
       const targets = placedObjects.filter(
         (placedObject) =>
           typeof placedObject.recordingId === "string" &&
-          Boolean(resolveRemoteRecordingUrl(placedObject)) &&
+          resolveRemoteRecordingUrls(placedObject).length > 0 &&
           !recordingBlobByRecordingIdRef.current[placedObject.recordingId],
       );
 
@@ -3123,31 +3383,35 @@ export function EmptyStageCharacter({
 
       const loadedEntries = await Promise.all(
         targets.map(async (placedObject) => {
-          const remoteRecordingUrl = resolveRemoteRecordingUrl(placedObject);
-          if (!remoteRecordingUrl) {
+          const remoteRecordingUrls = resolveRemoteRecordingUrls(placedObject);
+          if (remoteRecordingUrls.length === 0) {
             return null;
           }
 
-          try {
-            const response = await fetch(remoteRecordingUrl, {
-              cache: "no-store",
-            });
-            if (!response.ok) {
-              return null;
-            }
+          for (const remoteRecordingUrl of remoteRecordingUrls) {
+            try {
+              const response = await fetch(remoteRecordingUrl, {
+                cache: "no-store",
+              });
+              if (!response.ok) {
+                continue;
+              }
 
-            const blob = await response.blob();
-            if (!blob.size || !placedObject.recordingId) {
-              return null;
-            }
+              const blob = await response.blob();
+              if (!blob.size || !placedObject.recordingId) {
+                continue;
+              }
 
-            return {
-              recordingId: placedObject.recordingId,
-              blob,
-            };
-          } catch {
-            return null;
+              return {
+                recordingId: placedObject.recordingId,
+                blob,
+              };
+            } catch {
+              // Try next URL candidate.
+            }
           }
+
+          return null;
         }),
       );
 
@@ -3161,6 +3425,27 @@ export function EmptyStageCharacter({
 
       if (nextEntries.length === 0) {
         return;
+      }
+
+      const loadedRecordingIds = new Set(
+        nextEntries.map((entry) => entry.recordingId),
+      );
+
+      for (const target of targets) {
+        if (
+          typeof target.recordingId === "string" &&
+          loadedRecordingIds.has(target.recordingId)
+        ) {
+          const existingNextAt = autoPlaybackNextAtByObjectIdRef.current[target.id];
+
+          if (
+            typeof existingNextAt !== "number" ||
+            !Number.isFinite(existingNextAt)
+          ) {
+            autoPlaybackNextAtByObjectIdRef.current[target.id] =
+              Date.now() + getRandomPlaybackDelayMs();
+          }
+        }
       }
 
       setRecordingBlobByRecordingId((current) => {
@@ -3180,7 +3465,6 @@ export function EmptyStageCharacter({
   }, [
     effectiveAudioOwnerId,
     placedObjects,
-    shouldUseMobileLightweightMode,
   ]);
 
   const syncAutoPlaybackSchedules = useCallback(() => {
@@ -3288,11 +3572,6 @@ export function EmptyStageCharacter({
       return;
     }
 
-    if (shouldUseMobileLightweightMode) {
-      stopAutoPlayback();
-      return;
-    }
-
     if (isAudioSuppressed) {
       stopAutoPlayback();
       return;
@@ -3307,7 +3586,6 @@ export function EmptyStageCharacter({
     harmonyRecordingModal,
     isAudioSuppressed,
     pathname,
-    shouldUseMobileLightweightMode,
     startAutoPlaybackScheduler,
     stopAutoPlayback,
   ]);
@@ -3325,7 +3603,6 @@ export function EmptyStageCharacter({
 
       if (
         pathname.startsWith("/garden") &&
-        !shouldUseMobileLightweightMode &&
         !isAudioSuppressedRef.current &&
         !harmonyRecordingModal
       ) {
@@ -3346,12 +3623,11 @@ export function EmptyStageCharacter({
     ensureAutoPlaybackSchedulerRunning,
     harmonyRecordingModal,
     pathname,
-    shouldUseMobileLightweightMode,
     stopAutoPlayback,
   ]);
 
   useEffect(() => {
-    if (!pathname.startsWith("/garden") || shouldUseMobileLightweightMode) {
+    if (!pathname.startsWith("/garden")) {
       return;
     }
 
@@ -3361,6 +3637,14 @@ export function EmptyStageCharacter({
       }
 
       ensureAutoPlaybackSchedulerRunning();
+      const now = Date.now();
+      for (const placedObject of placedObjectsRef.current) {
+        autoPlaybackNextAtByObjectIdRef.current[placedObject.id] = Math.min(
+          autoPlaybackNextAtByObjectIdRef.current[placedObject.id] ?? now,
+          now,
+        );
+      }
+      runAutoPlaybackSchedulerTick();
       void resumeAutoPlaybackAudioContextIfNeeded();
     };
 
@@ -3377,7 +3661,7 @@ export function EmptyStageCharacter({
     ensureAutoPlaybackSchedulerRunning,
     harmonyRecordingModal,
     pathname,
-    shouldUseMobileLightweightMode,
+    runAutoPlaybackSchedulerTick,
     resumeAutoPlaybackAudioContextIfNeeded,
   ]);
 
@@ -3684,6 +3968,7 @@ export function EmptyStageCharacter({
   const canPreviewOwnerAudio = Boolean(harmonyPreviewOwnerAudioUrl);
   const canPreviewLayerAudio = Boolean(harmonyPreviewLayerAudioUrl);
   const canPlayCombinedPreview = canPreviewOwnerAudio || canPreviewLayerAudio;
+  const useRewardPlaybackFallbackVisual = isCoarsePointer;
 
   const mobileStickPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] right-3 z-40 rounded-2xl border p-2 backdrop-blur-sm sm:hidden ${
     darkMode
@@ -3730,6 +4015,7 @@ export function EmptyStageCharacter({
         objectLocatorIndicator={objectLocatorIndicator}
         locatorArrowFillColor={locatorArrowFillColor}
         locatorArrowChipFillColor={locatorArrowChipFillColor}
+        useRewardPlaybackFallbackVisual={useRewardPlaybackFallbackVisual}
       >
         {children}
       </EmptyStageCharacterStage>
@@ -3747,7 +4033,7 @@ export function EmptyStageCharacter({
         onStickPointerEnd={handleStickPointerEnd}
       />
 
-      {isReadonlyVisitorGarden && harmonyRecordingModal ? (
+      {canAcceptHarmonyFromVisitors && harmonyRecordingModal ? (
         <div className="fixed inset-0 z-[210] isolate grid place-items-center p-4 sm:p-6">
           <button
             type="button"
@@ -4104,6 +4390,8 @@ function resolveHarmonyRecordingStoragePath(
   return `${uploaderSegment}/harmony/${objectSegment}/${recordingSegment}.webm`;
 }
 
+type SaveHarmonyRecordingResult = "synced" | "disabled" | "error";
+
 async function saveHarmonyRecordingToSupabase({
   blob,
   recordingId,
@@ -4118,11 +4406,29 @@ async function saveHarmonyRecordingToSupabase({
   objectType: ObjectType;
   gardenOwnerId: string;
   uploaderId: string;
-}) {
+}): Promise<SaveHarmonyRecordingResult> {
   const supabase = getSupabaseClient();
 
   if (!supabase || !isUuidLike(gardenOwnerId) || !isUuidLike(uploaderId)) {
-    return false;
+    return "error";
+  }
+
+  const { data: postRow, error: postRowError } = await supabase
+    .from("garden_posts")
+    .select("allow_harmony_overlays")
+    .eq("user_id", gardenOwnerId)
+    .maybeSingle();
+
+  if (postRowError) {
+    console.warn("Failed to check harmony permission:", postRowError.message);
+    return "error";
+  }
+
+  if (
+    typeof postRow?.allow_harmony_overlays === "boolean" &&
+    !postRow.allow_harmony_overlays
+  ) {
+    return "disabled";
   }
 
   const recordingPath = resolveHarmonyRecordingStoragePath(
@@ -4139,7 +4445,7 @@ async function saveHarmonyRecordingToSupabase({
 
   if (uploadResult.error) {
     console.warn("Failed to upload harmony recording:", uploadResult.error.message);
-    return false;
+    return "error";
   }
 
   const upsertResult = await supabase.from("garden_harmony_recordings").upsert(
@@ -4161,10 +4467,10 @@ async function saveHarmonyRecordingToSupabase({
       "Failed to upsert harmony recording metadata:",
       upsertResult.error.message,
     );
-    return false;
+    return "error";
   }
 
-  return true;
+  return "synced";
 }
 
 async function fetchHarmonyRecordingsFromSupabase(

@@ -189,6 +189,7 @@ export default async function GardenUserPage({
         fullscreen
         initialPlacedObjects={publishedPost?.placedObjects ?? []}
         audioOwnerIdOverride={userId}
+        allowHarmonyFromVisitors={publishedPost?.allowHarmonyOverlays ?? true}
         ownerName={visitedGardenOwnerName}
         gardenName={visitorGardenName}
       />
