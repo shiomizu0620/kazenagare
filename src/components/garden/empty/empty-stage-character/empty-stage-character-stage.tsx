@@ -199,12 +199,22 @@ export function EmptyStageCharacterStage({
                           className="flex h-full w-full items-center justify-center bg-transparent"
                         >
                           <video
+                            {...({ "webkit-playsinline": "true" } as Record<string, string>)}
                             key={`${placedObject.id}-${rewardVideoPlaybackKey}`}
                             src={objectVisual.stageVideoSrc}
                             autoPlay
                             muted
                             playsInline
+                            loop
                             preload="auto"
+                            poster={objectVisual.imageSrc}
+                            onLoadedData={(event) => {
+                              const videoElement = event.currentTarget;
+                              videoElement.muted = true;
+                              void videoElement.play().catch(() => {
+                                // Keep fallback visual when autoplay cannot start.
+                              });
+                            }}
                             className="block h-full w-full object-cover opacity-100 visible"
                           />
                         </div>

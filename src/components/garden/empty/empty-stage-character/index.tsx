@@ -365,9 +365,8 @@ export function EmptyStageCharacter({
   const isReadonlyVisitorGarden = !allowObjectPlacement && Boolean(audioOwnerIdOverride);
   const canAcceptHarmonyFromVisitors =
     isReadonlyVisitorGarden && allowHarmonyFromVisitors;
-  const shouldUseMobileLightweightMode = isReadonlyVisitorGarden && isCoarsePointer;
   const hitmapData = useHitmap(
-    shouldUseMobileLightweightMode ? undefined : hitmapUrl,
+    hitmapUrl,
     WORLD_WIDTH,
     WORLD_HEIGHT,
   );
@@ -1617,6 +1616,9 @@ export function EmptyStageCharacter({
 
   const triggerRewardVideoPlayback = useCallback((placedObject: PlacedStageObject) => {
     const playbackKey = Date.now();
+    const playbackDurationMs = isCoarsePointer
+      ? Math.max(OBJECT_REWARD_VIDEO_DURATION_MS, 4200)
+      : OBJECT_REWARD_VIDEO_DURATION_MS;
 
     setRewardVideoPlaybackByObjectId((current) => ({
       ...current,
@@ -1640,8 +1642,8 @@ export function EmptyStageCharacter({
       });
 
       delete rewardVideoTimerByObjectIdRef.current[placedObject.id];
-    }, OBJECT_REWARD_VIDEO_DURATION_MS);
-  }, []);
+    }, playbackDurationMs);
+  }, [isCoarsePointer]);
 
   const awardPlaybackReward = useCallback(
     (placedObject: PlacedStageObject) => {
@@ -3959,7 +3961,7 @@ export function EmptyStageCharacter({
   const canPreviewOwnerAudio = Boolean(harmonyPreviewOwnerAudioUrl);
   const canPreviewLayerAudio = Boolean(harmonyPreviewLayerAudioUrl);
   const canPlayCombinedPreview = canPreviewOwnerAudio || canPreviewLayerAudio;
-  const useRewardPlaybackFallbackVisual = isReadonlyVisitorGarden && isCoarsePointer;
+  const useRewardPlaybackFallbackVisual = isCoarsePointer;
 
   const mobileStickPanelClass = `pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] right-3 z-40 rounded-2xl border p-2 backdrop-blur-sm sm:hidden ${
     darkMode
