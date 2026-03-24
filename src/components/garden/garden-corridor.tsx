@@ -9,10 +9,12 @@ import {
   useMemo,
   useRef,
   useState,
+  Fragment, // ★これを追加
   type KeyboardEvent,
   type MouseEvent,
   type WheelEvent,
 } from "react";
+import { AdInfeed } from "../ui/ad-infeed";
 
 export type GardenCorridorPost = {
   userId: string;
@@ -450,7 +452,11 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
                   const isActive = activeIndex === index;
                   const shouldAnimate = ambientMotionReady && !prefersReducedMotion;
 
+                  // ★ 3件ごとに広告を表示する判定に変更
+                   const showAd = (index + 1) % 3 === 0;
+
                   return (
+                    <Fragment key={post.userId}>
                     <li
                       key={post.userId}
                       className={`kazenagare-kakejiku-shell ${post.motionClass} ${
@@ -550,6 +556,10 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
                         </div>
                       </button>
                     </li>
+
+                    {/* ★ 条件を満たした場合、庭の隣に広告の掛け軸を並べる */}
+                      {showAd && <AdInfeed />}
+                    </Fragment>
                   );
                 })}
               </ul>

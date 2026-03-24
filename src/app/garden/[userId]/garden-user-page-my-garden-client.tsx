@@ -8,6 +8,7 @@ import {
   type GardenOptionAction,
 } from "@/components/garden/garden-options-menu";
 import { GardenLocalStateSync } from "@/components/garden/garden-local-state-sync";
+import { AdBannerFixed } from "@/components/ui/ad-banner-fixed";
 import { getSupabaseClient, getSupabaseSessionOrNull } from "@/lib/supabase/client";
 import type { ObjectType } from "@/types/garden";
 
@@ -117,6 +118,8 @@ export function GardenUserPageMyGardenClient({
         darkMode={darkMode}
         disableModals={grabbedObjectId !== null}
       />
+
+      <AdBannerFixed />
     </main>
   );
 }

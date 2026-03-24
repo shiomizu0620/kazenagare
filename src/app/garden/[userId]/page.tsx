@@ -4,6 +4,7 @@ import {
   GardenOptionsMenu,
   type GardenOptionAction,
 } from "@/components/garden/garden-options-menu";
+import { AdBannerFixed } from "@/components/ui/ad-banner-fixed";
 import {
   GARDEN_BACKGROUNDS,
   GARDEN_SEASONS,
@@ -210,6 +211,8 @@ export default async function GardenUserPage({
         darkMode={isNight}
         showCatalogButton={false}
       />
+
+      <AdBannerFixed />
     </main>
   );
 }
