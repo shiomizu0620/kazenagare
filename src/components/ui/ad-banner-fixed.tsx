@@ -1,10 +1,9 @@
 // src/components/ui/ad-banner-fixed.tsx
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 export function AdBannerFixed() {
   const adRef = useRef<HTMLDivElement>(null);
-  const [isFooterVisible, setIsFooterVisible] = useState(false);
 
   useEffect(() => {
     // 二重読み込み防止
@@ -17,39 +16,10 @@ export function AdBannerFixed() {
     }
   }, []);
 
-  useEffect(() => {
-    const footer = document.getElementById('site-footer');
-    if (!footer || typeof IntersectionObserver === 'undefined') {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const nextVisible = entries.some((entry) => entry.isIntersecting);
-        setIsFooterVisible(nextVisible);
-      },
-      {
-        threshold: 0.01,
-      },
-    );
-
-    observer.observe(footer);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-
   return (
-    <div
-      className={`pointer-events-none fixed inset-x-0 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-2 transition-opacity duration-150 ${
-        isFooterVisible ? 'opacity-0' : 'opacity-100'
-      }`}
-    >
+    <div className="pointer-events-none fixed inset-x-0 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-30 flex justify-start px-2 sm:justify-end sm:px-4">
       <div
-        className={`inline-flex flex-col items-center justify-center rounded-2xl border border-wa-black/10 bg-wa-white/70 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.16)] backdrop-blur-[2px] ${
-          isFooterVisible ? 'pointer-events-none' : 'pointer-events-auto'
-        }`}
+        className="pointer-events-auto inline-flex flex-col items-center justify-center rounded-2xl border border-wa-black/10 bg-wa-white/70 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.16)] backdrop-blur-[2px]"
       >
         <span className="mb-0.5 text-[9px] tracking-[0.1em] text-wa-black/40">スポンサー</span>
 

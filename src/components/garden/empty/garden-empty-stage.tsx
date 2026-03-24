@@ -361,11 +361,6 @@ export function GardenEmptyStage({
         </div>
       )}
 
-      {hideStageNote ? null : (
-        <p className={`pointer-events-none absolute bottom-4 right-4 z-40 hidden text-xs sm:block ${theme.noteClass}`}>
-          和の静けさをベースに、ここから配置を始めます。
-        </p>
-      )}
     </section>
   );
 }
