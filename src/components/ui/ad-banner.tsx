@@ -1,18 +1,7 @@
 // src/components/ui/ad-banner.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
-
 export function AdBanner() {
-  const [isMounted, setIsMounted] = useState(false);
-
-  // サーバーサイドでのレンダリングエラーを防ぐため、クライアント側でのみ描画します
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) return null;
-
   return (
     // 画面の一番下に固定（fixed bottom-0）され、UIの邪魔にならないようにします
     <div className="fixed bottom-0 left-0 w-full z-[100] bg-white/10 backdrop-blur-sm flex justify-center items-center py-1 pointer-events-auto">
