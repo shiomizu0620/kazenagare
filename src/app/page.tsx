@@ -8,6 +8,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Tone from "tone";
 import { AuthSection } from "@/components/auth/auth-section";
+import { AdBannerFixed } from "@/components/ui/ad-banner-fixed";
 import {
   OBJECT_VISUALS,
   WORLD_HEIGHT,
@@ -695,6 +696,8 @@ function TitlePageContent() {
         >
           ログイン画面を開く
         </button>
+
+        <AdBannerFixed />
       </main>
     );
   }
@@ -831,6 +834,8 @@ function TitlePageContent() {
           </motion.section>
         ) : null}
       </AnimatePresence>
+
+      <AdBannerFixed />
     </main>
   );
 }
