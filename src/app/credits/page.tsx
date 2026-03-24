@@ -55,7 +55,7 @@ export default function CreditsPage() {
 
         <section className="space-y-4">
           <h2 className="text-xl font-bold border-b border-[#3e3223]/10 pb-2">開発</h2>
-          <p className="font-medium">Development Team "liberis"</p>
+          <p className="font-medium">Development Team &quot;liberis&quot;</p>
           <p className="text-xs opacity-60">inspired by My Voice Zoo</p>
         </section>
 
