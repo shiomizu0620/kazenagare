@@ -118,6 +118,29 @@
 	display: none;
 }
 
+.kazenagare-thumbnail-progress {
+	-webkit-appearance: none;
+	appearance: none;
+	border: 0;
+	background: transparent;
+}
+
+.kazenagare-thumbnail-progress::-webkit-progress-bar {
+	background: transparent;
+}
+
+.kazenagare-thumbnail-progress::-webkit-progress-value {
+	background: linear-gradient(90deg, #cfe9ff, #f2d6a8, #c7e6ff);
+	border-radius: 9999px;
+	transition: inline-size 300ms ease-out;
+}
+
+.kazenagare-thumbnail-progress::-moz-progress-bar {
+	background: linear-gradient(90deg, #cfe9ff, #f2d6a8, #c7e6ff);
+	border-radius: 9999px;
+	transition: inline-size 300ms ease-out;
+}
+
 .kazenagare-kakejiku-shell {
 	contain: layout paint;
 	transform: translateZ(0);
