@@ -25,7 +25,7 @@ export type GardenCorridorPost = {
   seasonId: string;
   timeSlotId: string;
   thumbnailSrc: string;
-  remainingTimeLabel: string;
+  remainingTimeLabel: string | null;
 };
 
 type DecoratedCorridorPost = GardenCorridorPost & {
@@ -543,9 +543,11 @@ export function GardenCorridor({ posts, nextMyGardenHref }: GardenCorridorProps)
                             <p className="text-center text-[1.1rem] leading-[1.66] tracking-[0.13em]">{post.ownerLabel}の庭</p>
                           </div>
 
-                          <p className="mx-2 mt-2 rounded-[0.45rem] border border-[#ba9f7a]/54 bg-[#f7ecd8]/84 px-2 py-1 text-center text-[11px] tracking-[0.08em] text-[#5f4a32]">
-                            消去まで {post.remainingTimeLabel}
-                          </p>
+                          {post.remainingTimeLabel !== null && (
+                            <p className="mx-2 mt-2 rounded-[0.45rem] border border-[#ba9f7a]/54 bg-[#f7ecd8]/84 px-2 py-1 text-center text-[11px] tracking-[0.08em] text-[#5f4a32]">
+                              消去まで {post.remainingTimeLabel}
+                            </p>
+                          )}
 
                           <span
                             className={`mb-3 mt-2 text-center text-sm tracking-[0.3em] text-[#5f4932] transition-all duration-400 ${
