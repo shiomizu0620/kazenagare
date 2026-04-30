@@ -1,4 +1,5 @@
-﻿import {
+﻿import type { Metadata } from "next";
+import {
   GardenCorridor,
   type GardenCorridorPost,
 } from "@/components/garden/garden-corridor";
@@ -9,6 +10,11 @@ import {
   GARDEN_SEASONS,
   GARDEN_TIME_SLOTS,
 } from "@/lib/garden/setup/options";
+
+export const metadata: Metadata = {
+  title: "みんなの庭",
+  description: "みんなが作った和の庭を眺めよう。風鈴・蝉の声・焚き火など、それぞれの箱庭を訪れて音を楽しめます。",
+};
 
 type QueryValue = string | string[] | undefined;
 
@@ -114,7 +120,7 @@ export default async function GardenIndexPage({ searchParams }: GardenIndexPageP
       post.seasonId,
       post.timeSlotId,
     ),
-    remainingTimeLabel: formatRemainingAutoDeleteTime(post.updatedAt),
+    remainingTimeLabel: post.isPermanent ? null : formatRemainingAutoDeleteTime(post.updatedAt),
   }));
 
   return <GardenCorridor posts={corridorPosts} nextMyGardenHref={nextMyGardenHref} />;

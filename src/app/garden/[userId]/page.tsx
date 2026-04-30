@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { GardenUserPageMyGardenClient } from "./garden-user-page-my-garden-client";
 import { GardenEmptyStage } from "@/components/garden/empty/garden-empty-stage";
 import {
@@ -12,6 +13,30 @@ import {
 } from "@/lib/garden/setup/options";
 import { fetchPublishedGardenPostByUserId } from "@/lib/garden/posts";
 import type { ObjectType } from "@/types/garden";
+
+export async function generateMetadata({ params }: GardenUserPageProps): Promise<Metadata> {
+  const { userId } = await params;
+
+  if (userId === "me") {
+    return { title: "マイ庭", robots: "noindex" };
+  }
+
+  const post = await fetchPublishedGardenPostByUserId(userId);
+  const ownerName = post?.ownerDisplayName?.trim();
+
+  if (!ownerName) {
+    return { title: "お庭を訪問", description: "この庭を訪れて、和の音に耳を傾けよう。" };
+  }
+
+  return {
+    title: `${ownerName} の庭`,
+    description: `${ownerName} さんが作った和の庭。風鈴・虫の音など、和の音が響く箱庭を訪れよう。`,
+    openGraph: {
+      title: `${ownerName} の庭 | kazenagare`,
+      description: `${ownerName} さんが作った和の庭を訪れよう。`,
+    },
+  };
+}
 
 type QueryValue = string | string[] | undefined;
 

@@ -381,6 +381,15 @@ function GardenPublishContent() {
       }),
     );
 
+    const MAX_AUDIO_BYTES = 10 * 1024 * 1024; // 10MB per file
+    for (const [, blob] of uploadTargets.entries()) {
+      if (blob.size > MAX_AUDIO_BYTES) {
+        setStatus("error");
+        setErrorMessage("録音ファイルのサイズが大きすぎます（上限10MB）。録音し直してください。");
+        return;
+      }
+    }
+
     const recordingUrlById = new Map<string, string>();
     for (const [recordingId, blob] of uploadTargets.entries()) {
       const objectPath = `${currentUser.id}/${recordingId}.webm`;

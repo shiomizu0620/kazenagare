@@ -20,6 +20,7 @@ export type GardenPostRecord = {
   publishedAt: string | null;
   updatedAt: string | null;
   placedObjects: GardenPostPlacedObject[];
+  isPermanent: boolean;
 };
 
 type SupabaseGardenPostRow = {
@@ -32,6 +33,7 @@ type SupabaseGardenPostRow = {
   published_at?: unknown;
   updated_at?: unknown;
   placed_objects?: unknown;
+  is_permanent?: unknown;
 };
 
 function isObjectType(value: unknown): value is ObjectType {
@@ -130,6 +132,7 @@ function normalizePostRow(row: SupabaseGardenPostRow): GardenPostRecord | null {
     publishedAt: typeof row.published_at === "string" ? row.published_at : null,
     updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
     placedObjects: parseGardenPostPlacedObjects(row.placed_objects),
+    isPermanent: row.is_permanent === true,
   };
 }
 
@@ -145,10 +148,10 @@ export async function fetchPublishedGardenPosts(limit = 24) {
   const staleThresholdIso = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   requestUrl.searchParams.set(
     "select",
-    "user_id,background_id,season_id,time_slot_id,allow_harmony_overlays,owner_display_name,published_at,updated_at",
+    "user_id,background_id,season_id,time_slot_id,allow_harmony_overlays,owner_display_name,published_at,updated_at,is_permanent",
   );
   requestUrl.searchParams.set("published_at", "not.is.null");
-  requestUrl.searchParams.set("updated_at", `gte.${staleThresholdIso}`);
+  requestUrl.searchParams.set("or", `(updated_at.gte.${staleThresholdIso},is_permanent.is.true)`);
   requestUrl.searchParams.set("order", "published_at.desc");
   requestUrl.searchParams.set("limit", String(limit));
 
@@ -192,12 +195,12 @@ export async function fetchPublishedGardenPostByUserId(userId: string) {
     const requestUrl = new URL(`${supabaseUrl}/rest/v1/garden_posts`);
     requestUrl.searchParams.set(
       "select",
-      "user_id,background_id,season_id,time_slot_id,allow_harmony_overlays,owner_display_name,published_at,updated_at,placed_objects",
+      "user_id,background_id,season_id,time_slot_id,allow_harmony_overlays,owner_display_name,published_at,updated_at,placed_objects,is_permanent",
     );
     requestUrl.searchParams.set("user_id", `eq.${userId}`);
     requestUrl.searchParams.set("published_at", "not.is.null");
     if (staleThresholdIso) {
-      requestUrl.searchParams.set("updated_at", `gte.${staleThresholdIso}`);
+      requestUrl.searchParams.set("or", `(updated_at.gte.${staleThresholdIso},is_permanent.is.true)`);
     }
     requestUrl.searchParams.set("order", "published_at.desc");
     requestUrl.searchParams.set("limit", "1");

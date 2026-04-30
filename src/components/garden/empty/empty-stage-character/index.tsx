@@ -4408,6 +4408,14 @@ export function EmptyStageCharacter({
               </details>
             </div>
 
+            <p className={`relative z-10 text-center text-[10px] leading-relaxed ${darkMode ? "text-[#f9e9cf]/45" : "text-[#6b5039]/50"}`}>
+              録音した音声はこの庭を訪れた方に公開されます。
+              <br />
+              録音を開始することで
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">プライバシーポリシー</a>
+              に同意したものとみなします。
+            </p>
+
             <div
               className={`relative z-10 mt-1 flex flex-wrap gap-2 border-t pt-3 ${
                 darkMode
